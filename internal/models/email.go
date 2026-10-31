@@ -21,6 +21,12 @@ type Account struct {
 	ContactSyncEnabled  bool
 	ContactSyncProvider string
 	CalendarSyncEnabled bool
+	// DAVService is "calendar" or "contacts" for an account with no mail, the
+	// one service it is for. DAVLogin and DAVServer are its username and the
+	// CalDAV or CardDAV server it signs in to.
+	DAVService string
+	DAVLogin   string
+	DAVServer  string
 	// ReconnectPending is set for an account imported from a profile that
 	// still needs its password or sign-in.
 	ReconnectPending bool
@@ -29,13 +35,23 @@ type Account struct {
 	ReconnectNeeds      []string
 	ContactAddressBooks []ContactAddressBook
 	CalendarSources     []AccountCalendarSource
+	// OtherCalendarSources are the account's calendars that aren't synced,
+	// which the Calendar sidebar offers to sync.
+	OtherCalendarSources []AccountCalendarSource
 	// Identities are the further addresses the account sends as.
 	Identities []Identity
+	// FromRule is which From addresses the account's own way of sending
+	// takes, for a one-time From.
+	FromRule FromRule
 	// MissingFolderRoles are the roles, such as "trash", no folder of an IMAP
 	// account has, once its folders have been listed.
 	MissingFolderRoles []string
 	Folders             []Folder
 	Labels              []Label
+
+	// CalendarFullAccess is set for a Google account that allowed Gofer to
+	// manage all its calendars, not only the ones Gofer created.
+	CalendarFullAccess bool
 }
 
 // AccountCalendarSource is sidebar metadata, not account sync configuration.
@@ -49,6 +65,15 @@ type AccountCalendarSource struct {
 	SyncError     string
 	LastSyncedAt  string
 	NextAttemptAt string
+	// Provider is where the calendar lives: gmail, outlook, caldav or jmap.
+	Provider string
+	// Undeletable says why the calendar can't be deleted, such as a Google
+	// or Microsoft account's main calendar; empty when it can.
+	Undeletable string
+	// AccessRole is the account's role on the calendar, such as "owner" or
+	// "reader", and CreatedInGofer is set when it was created from Gofer.
+	AccessRole     string
+	CreatedInGofer bool
 }
 
 type Folder struct {
@@ -67,6 +92,11 @@ type Email struct {
 	AccountColor      string
 	FolderID          string
 	FolderRole        string
+	// SearchLocation names the account and folder path on search results.
+	SearchLocation string
+	// SearchGroupStart marks a search result whose location differs from the
+	// result before it, so the location shows once above each run.
+	SearchGroupStart bool
 	From              Contact
 	To                []Contact
 	CC                []Contact
@@ -203,7 +233,22 @@ type CalendarSyncConfig struct {
 	SourceCount         int
 	SelectedSourceCount int
 	Sources             []CalendarSource
+	// CreateAccess is, for a Google or Microsoft account, whether its grant
+	// lets Gofer make calendars; other accounts leave it empty.
+	CreateAccess string
+	// FoundNone is set, for the answer to a discovery only, when the server
+	// has no calendars yet.
+	FoundNone bool
+	// FullAccess is set for a Google account that allowed Gofer to manage
+	// all its calendars, not only the ones Gofer made.
+	FullAccess bool
 }
+
+// What CalendarSyncConfig.CreateAccess says.
+const (
+	CalendarCreateAllowed        = "allowed"
+	CalendarCreateNeedsReconnect = "reconnect"
+)
 
 type ContactAddressBook struct {
 	ID            string `json:"id,omitempty"`
@@ -253,7 +298,10 @@ type Attachment struct {
 }
 
 type EmailPage struct {
-	Emails            []Email
+	Emails []Email
+	// Before is the row just before Emails in a search, which tells whether
+	// the first of them starts a new location (Email.SearchGroupStart).
+	Before            *Email
 	TotalCount        int
 	DisplayTotalCount int
 	WindowStart       int
@@ -263,6 +311,7 @@ type EmailPage struct {
 }
 
 type EmailFilters struct {
+	SearchScope     *MailSearchScope
 	Unread          bool
 	Starred         bool
 	Attachments     bool

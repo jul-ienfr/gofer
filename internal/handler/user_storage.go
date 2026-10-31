@@ -130,6 +130,8 @@ func (h *Handler) RegisterUserStorageRoutes(ctx context.Context, mux *http.Serve
 				pattern != "POST /api/accounts/discover" &&
 				pattern != "GET /api/accounts/server-check" &&
 				pattern != "POST /api/accounts/test" &&
+				pattern != "POST /api/accounts/dav/find" &&
+				pattern != "POST /api/accounts/{id}/dav/find" &&
 				pattern != "POST /api/accounts/{id}/test-changes" &&
 				pattern != "POST /api/accounts/{id}/test" &&
 				pattern != "POST /api/accounts/{id}/identities/refresh" &&
@@ -224,6 +226,10 @@ func (h *Handler) RegisterUserStorageRoutes(ctx context.Context, mux *http.Serve
 	private("GET /mail/folder/{id}/items", routed.handleMailItems)
 	private("GET /mail/folder/{id}/ids", routed.handleMailItemIDs)
 	private("GET /mail/thread/{threadId}/subitems", routed.handleThreadSubItems)
+	private("GET /mail/search", routed.handleMailSearch)
+	private("GET /mail/search/items", routed.handleMailSearchItems)
+	private("GET /mail/search/ids", routed.handleMailSearchIDs)
+	private("GET /mail/search/thread/{id}/subitems", routed.handleMailSearchThreadSubItems)
 	private("GET /email/{id}", routed.handleEmailPartial)
 	private("GET /email/{id}/move", routed.handleMoveDialog)
 	private("POST /mail/labels-dialog", routed.handleLabelsDialog)
@@ -364,11 +370,22 @@ func (h *Handler) RegisterUserStorageRoutes(ctx context.Context, mux *http.Serve
 		private("GET /api/calendar/events/{id}/delete-occurrence-confirmation", routed.handleUserCalendarOccurrenceDeleteConfirmation)
 		private("POST /api/calendar/sync", routed.handleUserCalendarSync)
 		private("POST /api/calendar/sources/{id}/visibility", routed.handleCalendarVisibility)
+		private("POST /api/calendar/sources/{id}/sync", routed.handleCalendarSourceSync)
+		private("DELETE /api/calendar/sources/{id}/sync", routed.handleCalendarSourceSync)
+		private("PATCH /api/calendar/sources/{id}", routed.handleCalendarSourceManage)
+		private("DELETE /api/calendar/sources/{id}", routed.handleCalendarSourceManage)
 		private("POST /api/accounts/{id}/calendar/sources", routed.handleUserSaveCalendarSources)
 		private("POST /api/accounts/{id}/calendar/discover", routed.handleUserDiscoverCalendars)
 		private("POST /api/accounts/{id}/contacts/sync", routed.handleUserSaveAccountContactSync)
 		private("POST /api/accounts/{id}/contacts/sync/test", routed.handleUserTestAccountContactSync)
 		private("POST /api/accounts/{id}/contacts/sync/discover", routed.handleUserDiscoverAccountContactSync)
+		if option.Accounts != nil {
+			private("POST /api/accounts/dav/find", routed.handleFindDAVItems)
+			private("POST /api/accounts/dav", routed.handleCreateDAVAccount)
+			private("POST /api/accounts/{id}/dav/find", routed.handleFindDAVItems)
+			private("POST /api/accounts/{id}/dav", routed.handleUpdateDAVAccount)
+			private("POST /api/accounts/{id}/mail", routed.handleAddAccountMail)
+		}
 		private("POST /api/settings/contacts/accounts/sync", routed.handleUserSyncAccountContacts)
 		private("POST /api/settings/contacts/providers/gmail/sync", routed.handleUserSyncAccountContacts)
 		private("POST /api/contacts/{id}/sync-now", routed.handleUserSyncContactNow)

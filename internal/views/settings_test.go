@@ -310,6 +310,7 @@ func TestSettingsSyncTabRendersFolderRemotePaths(t *testing.T) {
 				Folders: []models.FolderSyncStatus{
 					{ID: "acc_gmail_sent", Name: "sent", RemoteID: "[Gmail]/Sent Mail", Role: "sent", Icon: "send", IsIDLE: true},
 					{ID: "acc_sent", Name: "sent", RemoteID: "Sent", Role: "sent", Icon: "send", IsIDLE: false},
+					{ID: "acc_deep", Name: "Trash/Two/Nested/Three", FolderName: "Three", RemoteID: "Trash/Two/Nested/Three", Icon: "folder"},
 				},
 			},
 		},
@@ -322,8 +323,12 @@ func TestSettingsSyncTabRendersFolderRemotePaths(t *testing.T) {
 	html := out.String()
 	for _, want := range []string{
 		`data-folder-id="acc_gmail_sent"`,
-		`title="[Gmail]/Sent Mail"`,
 		"[Gmail]/Sent Mail",
+		// A deep folder shows its top folder and own name, and its tooltip
+		// the whole path.
+		">Trash/…/Three</span>",
+		"data-tui-popover-trigger",
+		"Trash/Two/Nested/Three",
 		`data-folder-id="acc_sent"`,
 		">Sent</span>",
 	} {
@@ -1216,6 +1221,41 @@ func TestOutlookPushControlStates(t *testing.T) {
 	}
 }
 
+// The card shows each subscription's state on its own line, and the badge
+// says the notifications work only when every one the account needs does.
+func TestOutlookPushControlShowsEachService(t *testing.T) {
+	render := func(push models.OutlookPushSettings) string {
+		t.Helper()
+		var out bytes.Buffer
+		if err := OutlookPushControl(push).Render(context.Background(), &out); err != nil {
+			t.Fatal(err)
+		}
+		return out.String()
+	}
+	base := models.OutlookPushSettings{AccountID: "acc", Enabled: true, Available: true, Subscribed: true}
+
+	push := base
+	push.Services = []models.OutlookPushServiceState{{Service: "calendar", Synced: true, Subscribed: true}, {Service: "contacts"}}
+	html := render(push)
+	if !strings.Contains(html, "Working") || !strings.Contains(html, `data-outlook-push-service="working"`) || !strings.Contains(html, "Contacts not synced") {
+		t.Fatalf("calendar working, contacts not synced = %s", html)
+	}
+
+	push = base
+	push.Services = []models.OutlookPushServiceState{{Service: "calendar", Synced: true, Subscribed: true}, {Service: "contacts", Synced: true, Error: "Forbidden"}}
+	html = render(push)
+	if !strings.Contains(html, "Not working") || !strings.Contains(html, "Contacts: Forbidden") || !strings.Contains(html, `data-outlook-push-service="failing"`) {
+		t.Fatalf("contacts failing = %s", html)
+	}
+
+	push = base
+	push.Services = []models.OutlookPushServiceState{{Service: "calendar", Synced: true}, {Service: "contacts", Synced: true, Checked: true}}
+	html = render(push)
+	if strings.Contains(html, ">Working<") || !strings.Contains(html, "Starting") {
+		t.Fatalf("calendar not set up yet = %s", html)
+	}
+}
+
 // An account card can be moved by its handle or its menu, except while the
 // account is being deleted.
 func TestSettingsAccountCardCanBeReordered(t *testing.T) {
@@ -1294,5 +1334,97 @@ func TestSettingsMailOffersConversationGrouping(t *testing.T) {
 		if faded := strings.Contains(row, "opacity-50"); faded == tt.grouped {
 			t.Fatalf("saved %q: thread order row %s faded %v, want %v", tt.saved, row, faded, !tt.grouped)
 		}
+	}
+}
+
+func TestSyncFolderShortName(t *testing.T) {
+	for _, test := range []struct{ remote, name, want string }{
+		{"INBOX", "INBOX", "INBOX"},
+		{"Trash/Test Two", "Test Two", "Trash/Test Two"},
+		{"Trash/Test Two/Testing nested", "Testing nested", "Trash/…/Testing nested"},
+		{"Trash/Test Two/Nested/Nested three", "Nested three", "Trash/…/Nested three"},
+		{"INBOX.Lists.Gofer", "Gofer", "INBOX.….Gofer"},
+		{"Archive/2026", "", "Archive/2026"},
+	} {
+		if got := syncFolderShortName(models.FolderSyncStatus{RemoteID: test.remote, Name: test.remote, FolderName: test.name}); got != test.want {
+			t.Fatalf("%q = %q, want %q", test.remote, got, test.want)
+		}
+	}
+}
+
+// A Gmail account's Calendar sync offers full calendar access until it has
+// it, and then says how to take it back.
+func TestGoogleCalendarManageAccess(t *testing.T) {
+	render := func(full bool) string {
+		t.Helper()
+		var out bytes.Buffer
+		data := models.EditAccountData{AccountID: "acc", Provider: "gmail", EmailAddress: "person@gmail.com", DisplayName: "Person"}
+		data.CalendarSync.FullAccess = full
+		if err := GoogleCalendarManageAccess(data).Render(context.Background(), &out); err != nil {
+			t.Fatal(err)
+		}
+		return out.String()
+	}
+	limited := render(false)
+	for _, want := range []string{"only the calendars it created", `name="calendar_access" value="full"`, `name="flow_action" value="reconnect"`, `name="email_address" value="person@gmail.com"`, "Allow full calendar access"} {
+		if !strings.Contains(limited, want) {
+			t.Fatalf("limited access missing %q: %s", want, limited)
+		}
+	}
+	full := render(true)
+	if !strings.Contains(full, "manages all your Google calendars") || !strings.Contains(full, "myaccount.google.com/connections") || strings.Contains(full, "calendar_access") {
+		t.Fatalf("full access = %s", full)
+	}
+}
+
+// Rename and Delete are offered where the provider allows them: a Google
+// calendar the account owns needs Gofer to have created it, or full access;
+// one shared with it never can be.
+func TestCalendarManageState(t *testing.T) {
+	gmail := models.Account{Provider: "gmail", Email: "person@gmail.com", Name: "Person"}
+	full := gmail
+	full.CalendarFullAccess = true
+	for _, test := range []struct {
+		account models.Account
+		source  models.AccountCalendarSource
+		want    string
+	}{
+		{gmail, models.AccountCalendarSource{Provider: "gmail", AccessRole: "owner", CreatedInGofer: true}, "ok"},
+		{gmail, models.AccountCalendarSource{Provider: "gmail", AccessRole: "owner"}, "access"},
+		{full, models.AccountCalendarSource{Provider: "gmail", AccessRole: "owner"}, "ok"},
+		{full, models.AccountCalendarSource{Provider: "gmail", AccessRole: "reader"}, "personal"},
+		{gmail, models.AccountCalendarSource{Provider: "gmail", AccessRole: "writer"}, "personal-access"},
+		{models.Account{}, models.AccountCalendarSource{Provider: "outlook", AccessRole: "owner"}, "ok"},
+		{models.Account{}, models.AccountCalendarSource{Provider: "outlook", AccessRole: "reader"}, "owner"},
+		{models.Account{}, models.AccountCalendarSource{Provider: "caldav", AccessRole: "unknown"}, "ok"},
+		{models.Account{}, models.AccountCalendarSource{Provider: "caldav", AccessRole: "reader"}, "owner"},
+	} {
+		if got := calendarManageState(test.account, test.source); got != test.want {
+			t.Fatalf("%s %+v with full access %v = %q, want %q", test.source.Provider, test.source, test.account.CalendarFullAccess, got, test.want)
+		}
+	}
+	render := func(account models.Account, source models.AccountCalendarSource) string {
+		var out bytes.Buffer
+		if err := CalendarSourceManageItems(account, source).Render(context.Background(), &out); err != nil {
+			t.Fatal(err)
+		}
+		return out.String()
+	}
+	needs := render(gmail, models.AccountCalendarSource{ID: "s1", Name: "Familia", Provider: "gmail", AccessRole: "owner"})
+	if !strings.Contains(needs, `data-calendar-source-needs-access="rename"`) || !strings.Contains(needs, `data-calendar-account-email="person@gmail.com"`) || strings.Contains(needs, "data-calendar-source-rename") {
+		t.Fatalf("needs access = %s", needs)
+	}
+	// A Google calendar shared with the account is renamed or removed only
+	// in its own list, which also needs full access.
+	shared := render(gmail, models.AccountCalendarSource{ID: "s2", Name: "Holidays", Provider: "gmail", AccessRole: "reader"})
+	if !strings.Contains(shared, `data-calendar-source-needs-access="rename-mine"`) || !strings.Contains(shared, `data-calendar-source-needs-access="remove"`) || strings.Contains(shared, "data-calendar-source-delete") {
+		t.Fatalf("shared = %s", shared)
+	}
+	shared = render(full, models.AccountCalendarSource{ID: "s2", Name: "Holidays", Provider: "gmail", AccessRole: "reader"})
+	if !strings.Contains(shared, `data-calendar-source-rename-mine="s2"`) || !strings.Contains(shared, `data-calendar-source-remove="s2"`) || strings.Contains(shared, "needs-access") || strings.Contains(shared, "data-calendar-source-delete") {
+		t.Fatalf("shared with full access = %s", shared)
+	}
+	if other := render(models.Account{}, models.AccountCalendarSource{ID: "s3", Provider: "caldav", AccessRole: "reader"}); !strings.Contains(other, "Only its owner") || strings.Contains(other, "just for you") {
+		t.Fatalf("CalDAV shared = %s", other)
 	}
 }

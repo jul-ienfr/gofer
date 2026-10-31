@@ -157,6 +157,10 @@ type Handler struct {
 	authEventRetentionWorkers sync.WaitGroup
 	smtpProfileMu             sync.RWMutex
 	smtpProfile               smtpDeliveryProfileState
+
+	// calendarListRead is when each account's calendar list was last read
+	// in the background.
+	calendarListRead sync.Map
 }
 
 const (
@@ -495,12 +499,20 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /folder/{id}/{email}", h.handleFolderWithEmail)
 	mux.HandleFunc("GET /mail/folder/{id}/items", h.handleMailItems)
 	mux.HandleFunc("GET /mail/folder/{id}/ids", h.handleMailItemIDs)
+	mux.HandleFunc("GET /mail/search", h.handleMailSearch)
+	mux.HandleFunc("GET /mail/search/items", h.handleMailSearchItems)
+	mux.HandleFunc("GET /mail/search/ids", h.handleMailSearchIDs)
+	mux.HandleFunc("GET /mail/search/thread/{id}/subitems", h.handleMailSearchThreadSubItems)
 	mux.HandleFunc("GET /mail/thread/{threadId}/subitems", h.handleThreadSubItems)
 	mux.HandleFunc("GET /contacts", h.handleContacts)
 	mux.HandleFunc("GET /contacts/items", h.handleContactItems)
 	mux.HandleFunc("GET /calendar", h.handleCalendar)
 	mux.HandleFunc("POST /api/calendar/sync", h.handleCalendarSync)
 	mux.HandleFunc("POST /api/calendar/sources/{id}/visibility", h.handleCalendarVisibility)
+	mux.HandleFunc("POST /api/calendar/sources/{id}/sync", h.handleCalendarSourceSync)
+	mux.HandleFunc("DELETE /api/calendar/sources/{id}/sync", h.handleCalendarSourceSync)
+	mux.HandleFunc("PATCH /api/calendar/sources/{id}", h.handleCalendarSourceManage)
+	mux.HandleFunc("DELETE /api/calendar/sources/{id}", h.handleCalendarSourceManage)
 	mux.HandleFunc("GET /api/calendar/events/{id}", h.handleCalendarEvent)
 	mux.HandleFunc("GET /api/calendar/events/{id}/actions", h.handleCalendarEventActions)
 	mux.HandleFunc("GET /api/calendar/events/{id}/delivery", h.handleCalendarDeliveryStatus)
@@ -558,6 +570,11 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/accounts/{id}/contacts/sync", h.handleSaveAccountContactSync)
 	mux.HandleFunc("POST /api/accounts/{id}/contacts/sync/test", h.handleTestAccountContactSync)
 	mux.HandleFunc("POST /api/accounts/{id}/contacts/sync/discover", h.handleDiscoverAccountContactSync)
+	mux.HandleFunc("POST /api/accounts/dav/find", h.handleFindDAVItems)
+	mux.HandleFunc("POST /api/accounts/dav", h.handleCreateDAVAccount)
+	mux.HandleFunc("POST /api/accounts/{id}/dav/find", h.handleFindDAVItems)
+	mux.HandleFunc("POST /api/accounts/{id}/dav", h.handleUpdateDAVAccount)
+	mux.HandleFunc("POST /api/accounts/{id}/mail", h.handleAddAccountMail)
 	mux.HandleFunc("GET /api/accounts/{id}/signatures", h.handleAccountSignatures)
 	mux.HandleFunc("GET /api/accounts/{id}/signatures/manage", h.handleManageAccountSignatures)
 	mux.HandleFunc("POST /api/accounts/{id}/signature-settings", h.handleSaveAccountSignatureSettings)
@@ -765,7 +782,7 @@ func (h *Handler) handleIndex(w http.ResponseWriter, r *http.Request) {
 		count := h.scheduledSidebarCount(ctx, userID)
 		if r.Header.Get("HX-Request") == "true" && r.Header.Get("HX-Target") == "mail-list" {
 			ctx = storage.WithTimezone(ctx, settings["timezone"])
-			window, err := h.loadMailWindow(ctx, userID, folderID, filters, emailID, 50)
+			window, err := h.loadMailWindow(ctx, userID, folderID, filters, emailID, 50, settings["mail_list_navigation"] == "pagination")
 			if err != nil {
 				return nil, err
 			}
@@ -774,7 +791,7 @@ func (h *Handler) handleIndex(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("HX-Request") == "true" && r.Header.Get("HX-Target") == "app-shell" {
 			return views.MailShell(accounts, folderID, nil, nil, -1, -1, settings, nil, emailID, count, filters), nil
 		}
-		return views.Layout(accounts, folderID, nil, nil, -1, -1, settings, nil, emailID, count, filters), nil
+		return views.Layout(accounts, folderID, nil, nil, -1, -1, 0, settings, nil, emailID, count, filters), nil
 	})
 }
 
@@ -791,7 +808,7 @@ func (h *Handler) handleFolderWithEmail(w http.ResponseWriter, r *http.Request) 
 			return nil, err
 		}
 		settings := h.db.GetUISettings(ctx, userID)
-		return views.Layout(accounts, folderID, nil, nil, -1, -1, settings, nil, r.PathValue("email"), h.scheduledSidebarCount(ctx, userID), applyEmailListSettings(parseEmailFilters(r), r, settings)), nil
+		return views.Layout(accounts, folderID, nil, nil, -1, -1, 0, settings, nil, r.PathValue("email"), h.scheduledSidebarCount(ctx, userID), applyEmailListSettings(parseEmailFilters(r), r, settings)), nil
 	})
 }
 
@@ -893,7 +910,7 @@ func (h *Handler) handleLabelsDialog(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	h.renderMailboxView(w, r, &ctx, func(h *Handler) (templ.Component, error) {
-		targets, err := h.resolveOwnedMessageTargets(ctx, messageBulkTargets(payload), strings.TrimSpace(payload.FolderID), false)
+		targets, err := h.resolveMessageBulkTargets(ctx, payload, strings.TrimSpace(payload.FolderID), false)
 		if errors.Is(err, errMessageTargetNotFound) || errors.Is(err, errInvalidMessageTarget) {
 			return nil, sql.ErrNoRows
 		}
@@ -1744,6 +1761,9 @@ func (h *Handler) handleEmailBody(w http.ResponseWriter, r *http.Request) {
 	if !loadRemote {
 		doc = append(doc, scriptWithNonce(remoteImagesDetectScript(emailID), nonce)...)
 	}
+	if emailBodyPrinting(r) {
+		doc = h.printBodyDocument(ctx, w, userID, emailID, doc, nonce)
+	}
 	w.Write(doc)
 }
 
@@ -2372,7 +2392,7 @@ func (h *Handler) handleFolderPartial(w http.ResponseWriter, r *http.Request) {
 		}
 		filters := applyEmailListSettings(parseEmailFilters(r), r, settings)
 		if r.Header.Get("HX-Request") != "true" {
-			return views.Layout(accounts, folderID, nil, nil, -1, -1, settings, nil, "", h.scheduledSidebarCount(ctx, userID), filters), nil
+			return views.Layout(accounts, folderID, nil, nil, -1, -1, 0, settings, nil, "", h.scheduledSidebarCount(ctx, userID), filters), nil
 		}
 		page, err := h.db.GetEmailsRangeFilteredForUser(ctx, userID, folderID, 0, 50, filters)
 		if err != nil {
@@ -2401,7 +2421,7 @@ func (h *Handler) handleFolderFull(w http.ResponseWriter, r *http.Request) {
 		}
 		filters := applyEmailListSettings(parseEmailFilters(r), r, settings)
 		selected := r.URL.Query().Get("selected")
-		window, err := h.loadMailWindow(ctx, userID, folderID, filters, selected, 50)
+		window, err := h.loadMailWindow(ctx, userID, folderID, filters, selected, 50, settings["mail_list_navigation"] == "pagination")
 		if err != nil {
 			return nil, err
 		}
@@ -2426,7 +2446,9 @@ func (h *Handler) scheduledSidebarCount(ctx context.Context, userID string) int 
 	return count
 }
 
-func (h *Handler) loadMailWindow(ctx context.Context, userID, folderID string, filters models.EmailFilters, selectedEmailID string, limit int) (mailWindow, error) {
+// loadMailWindow loads a list's first page, or the page around the selected
+// message; paged lists start on that message's page.
+func (h *Handler) loadMailWindow(ctx context.Context, userID, folderID string, filters models.EmailFilters, selectedEmailID string, limit int, paged bool) (mailWindow, error) {
 	if limit <= 0 {
 		limit = 50
 	}
@@ -2437,8 +2459,8 @@ func (h *Handler) loadMailWindow(ctx context.Context, userID, folderID string, f
 	}
 
 	var page *models.EmailPage
-	if selectedEmailID != "" && !emailFiltersActive(filters) {
-		page, err = h.db.GetEmailsAroundEmailForUser(ctx, userID, folderID, selectedEmailID, limit, filters)
+	if selectedEmailID != "" {
+		page, err = h.db.GetEmailsAroundEmailForUser(ctx, userID, folderID, selectedEmailID, limit, filters, paged)
 		if err != nil {
 			return mailWindow{}, err
 		}
@@ -2511,8 +2533,8 @@ func (h *Handler) handleMailItems(w http.ResponseWriter, r *http.Request) {
 		ctx = storage.WithTimezone(ctx, settings["timezone"])
 		filters := applyEmailListSettings(parseEmailFilters(r), r, settings)
 		var page *models.EmailPage
-		if around := r.URL.Query().Get("around"); around != "" && !emailFiltersActive(filters) {
-			page, err = h.db.GetEmailsAroundEmailForUser(ctx, userID, folderID, around, limit, filters)
+		if around := r.URL.Query().Get("around"); around != "" {
+			page, err = h.db.GetEmailsAroundEmailForUser(ctx, userID, folderID, around, limit, filters, settings["mail_list_navigation"] == "pagination")
 		} else if startStr := r.URL.Query().Get("start"); startStr != "" {
 			start, parseErr := strconv.Atoi(startStr)
 			if parseErr != nil || start < 0 {
@@ -2546,9 +2568,10 @@ func (h *Handler) handleMailItems(w http.ResponseWriter, r *http.Request) {
 const mailItemIDsLimit = 10000
 
 type mailItemID struct {
-	ID      string `json:"id"`
-	Thread  bool   `json:"thread"`
-	Account string `json:"account"`
+	ID       string `json:"id"`
+	Thread   bool   `json:"thread"`
+	Account  string `json:"account"`
+	FolderID string `json:"folder_id,omitempty"`
 }
 
 type mailItemIDsResponse struct {
@@ -2592,7 +2615,7 @@ func (h *Handler) handleMailItemIDs(w http.ResponseWriter, r *http.Request) {
 					result.Truncated = true
 					break
 				}
-				result.IDs = append(result.IDs, mailItemID{ID: email.ID, Thread: email.ThreadCount > 1, Account: email.AccountID})
+				result.IDs = append(result.IDs, mailItemID{ID: email.ID, Thread: email.ThreadCount > 1, Account: email.AccountID, FolderID: email.FolderID})
 			}
 			if result.Truncated || len(page.Emails) < pageSize || start+len(page.Emails) >= total {
 				break
@@ -2795,24 +2818,7 @@ func (h *Handler) handleThreadSubItems(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleSearch(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	h.renderMailboxView(w, r, &ctx, func(h *Handler) (templ.Component, error) {
-		userID := h.userID(ctx)
-		settings := h.db.GetUISettings(ctx, userID)
-		ctx = storage.WithTimezone(ctx, settings["timezone"])
-		accounts, err := h.db.GetAccounts(ctx, userID)
-		if err != nil {
-			return nil, err
-		}
-		var emails []models.Email
-		if q := r.URL.Query().Get("q"); q != "" {
-			emails, err = h.db.SearchMessages(ctx, userID, q, 50)
-			if err != nil {
-				return nil, err
-			}
-		}
-		return views.MailListEmails(accounts, emails, "", nil, len(emails), len(emails), 0, settings["sender_display"], views.ListViewSetting(ctx, settings, "mail_list_view"), settings["mail_list_navigation"]), nil
-	})
+	h.handleMailSearch(w, r)
 }
 
 func (h *Handler) handleDiscoverAccount(w http.ResponseWriter, r *http.Request) {
@@ -2940,6 +2946,7 @@ func (h *Handler) handleCreateAccount(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "account created but setup details could not be loaded", http.StatusInternalServerError)
 		return
 	}
+	h.markCalendarCreateAccess(r.Context(), editData)
 	w.Header().Set("Content-Type", "text/html")
 	views.AddAccountPostCreateStep(*editData).Render(r.Context(), w)
 }
@@ -2959,8 +2966,13 @@ func (h *Handler) handleGetEditAccount(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("get account: %v", err), http.StatusNotFound)
 		return
 	}
+	h.markCalendarCreateAccess(r.Context(), data)
 
 	w.Header().Set("Content-Type", "text/html")
+	if data.Provider == providers.ProviderDAV {
+		_ = views.DAVAccountDialog(davAccountDialogData(*data)).Render(r.Context(), w)
+		return
+	}
 	views.EditAccountDialog(*data).Render(r.Context(), w)
 }
 
@@ -3036,6 +3048,12 @@ func (h *Handler) handleUpdateAccountService(w http.ResponseWriter, r *http.Requ
 	enabled := r.FormValue("enabled") == "true"
 	switch r.FormValue("service") {
 	case "email":
+		if enabled {
+			if account, err := h.ownedAccount(ctx, accountID); err == nil && account != nil && account.Provider == providers.ProviderDAV {
+				http.Error(w, "Add email to this account before turning it on.", http.StatusConflict)
+				return
+			}
+		}
 		if err := h.accountStore.SetEmailSyncEnabled(ctx, userID, accountID, enabled); err != nil {
 			http.Error(w, "could not update email sync", http.StatusInternalServerError)
 			return
@@ -3929,6 +3947,7 @@ func (h *Handler) buildSyncSettings(ctx context.Context, accounts []models.Accou
 			folderStatuses = append(folderStatuses, models.FolderSyncStatus{
 				ID:                 f.ID,
 				Name:               name,
+				FolderName:         f.Name,
 				RemoteID:           f.RemoteID,
 				Icon:               folderIconFromRole(f.Role),
 				Role:               f.Role,
@@ -5275,6 +5294,8 @@ type composeDraftSaveResult struct {
 	DraftID       string
 	MessageID     int64
 	DraftFolderID string
+	// Sender is who the form sends the draft as, by the way it chose.
+	Sender *composeSender
 }
 
 func writeComposeJSONError(w http.ResponseWriter, status int, message string) {
@@ -5300,12 +5321,10 @@ func (h *Handler) saveComposeDraftFromForm(ctx context.Context, r *http.Request)
 		return composeDraftSaveResult{}, &composeRequestError{status: http.StatusNotFound, message: "account not found"}
 	}
 
-	sender, err := h.composeSenderFor(ctx, account, r.FormValue("identity_id"))
-	if errors.Is(err, errComposeIdentityNotFound) {
-		return composeDraftSaveResult{}, &composeRequestError{status: http.StatusNotFound, message: "identity not found"}
-	}
+	sender, err := h.composeSenderFor(ctx, account, r, false)
 	if err != nil {
-		return composeDraftSaveResult{}, &composeRequestError{status: http.StatusInternalServerError, message: "failed to load identity"}
+		status, text := composeSenderError(err)
+		return composeDraftSaveResult{}, &composeRequestError{status: status, message: text}
 	}
 
 	draftFolderID, draftFolderRemoteName, err := h.db.GetFolderIDByRole(ctx, accountID, "drafts")
@@ -5417,7 +5436,7 @@ func (h *Handler) saveComposeDraftFromForm(ctx context.Context, r *http.Request)
 	}
 	h.publishMutation(accountID, draftFolderID)
 
-	return composeDraftSaveResult{AccountID: accountID, DraftID: draftID, MessageID: msgID, DraftFolderID: draftFolderID}, nil
+	return composeDraftSaveResult{AccountID: accountID, DraftID: draftID, MessageID: msgID, DraftFolderID: draftFolderID, Sender: &sender}, nil
 }
 
 func (h *Handler) handleDiscardComposeDraft(w http.ResponseWriter, r *http.Request) {
@@ -5746,11 +5765,28 @@ func (h *Handler) handleGetDraft(w http.ResponseWriter, r *http.Request) {
 		attachments = append(attachments, draftAttachment{ID: att.ID, Filename: att.Filename, ContentType: att.ContentType, Size: att.SizeBytes, Existing: true})
 		attachments[len(attachments)-1].PreviewURL = attachmentPreviewURL(att.ID, att.ContentType, att.Filename)
 	}
+	// A one-time From comes back with its way of sending: the one a waiting
+	// send has, or else the one draftSender picks.
 	identityID := ""
+	var oneTime map[string]string
 	if account, err := h.ownedAccount(r.Context(), email.AccountID); err == nil && account != nil {
 		if identities, err := h.db.ListAccountIdentities(r.Context(), h.userID(r.Context()), email.AccountID); err == nil {
-			if identity, ok := matchSenderIdentity(account, identities, email.From.Name, email.From.Email); ok {
-				identityID = identity.ID
+			sender, isOneTime := draftSender(account, identities, email.From.Name, email.From.Email)
+			if isOneTime {
+				if localID, err := strconv.ParseInt(email.ID, 10, 64); err == nil {
+					if pending, err := h.db.OutgoingSendForMessageInternal(r.Context(), localID); err == nil && pending != nil {
+						var snapshot outgoingMessageSnapshot
+						if json.Unmarshal(pending.MessageJSON, &snapshot) == nil && strings.EqualFold(snapshot.FromEmail, sender.Email) {
+							sender.IdentityID = ""
+							if snapshot.IdentitySMTP {
+								sender.IdentityID = snapshot.IdentityID
+							}
+						}
+					}
+				}
+				oneTime = map[string]string{"name": sender.Name, "email": sender.Email, "send_via": sender.IdentityID}
+			} else {
+				identityID = sender.IdentityID
 			}
 		}
 	}
@@ -5758,6 +5794,7 @@ func (h *Handler) handleGetDraft(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]any{
 		"account_id":    email.AccountID,
 		"identity_id":   identityID,
+		"one_time_from": oneTime,
 		"draft_id":      email.InternetMessageID,
 		"to":            contactsToAddressList(email.To),
 		"cc":            contactsToAddressList(email.CC),
@@ -5882,13 +5919,10 @@ func (h *Handler) handleCompose(w http.ResponseWriter, r *http.Request) {
 		htmlBody = "<html><body><pre style=\"white-space:pre-wrap;font-family:sans-serif\">" + template.HTMLEscapeString(body) + "</pre></body></html>"
 	}
 	inReplyTo, references := h.validComposeThreadHeaders(ctx, accountID, r.FormValue("subject"), r.FormValue("in_reply_to"), r.FormValue("references"))
-	sender, err := h.composeSenderFor(ctx, account, r.FormValue("identity_id"))
-	if errors.Is(err, errComposeIdentityNotFound) {
-		writeComposeJSONError(w, http.StatusNotFound, "identity not found")
-		return
-	}
+	sender, err := h.composeSenderFor(ctx, account, r, true)
 	if err != nil {
-		writeComposeJSONError(w, http.StatusInternalServerError, "failed to load identity")
+		status, text := composeSenderError(err)
+		writeComposeJSONError(w, status, text)
 		return
 	}
 
@@ -5955,6 +5989,15 @@ func (h *Handler) handleComposeSchedule(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// It is sent as it would be now, so a From its way of sending refuses is
+	// refused before the draft is saved.
+	if account, err := h.ownedAccount(r.Context(), r.FormValue("account_id")); err == nil && account != nil {
+		if _, err := h.composeSenderFor(r.Context(), account, r, true); err != nil {
+			status, text := composeSenderError(err)
+			writeComposeJSONError(w, status, text)
+			return
+		}
+	}
 	saved, composeErr := h.saveComposeDraftFromForm(r.Context(), r)
 	if composeErr != nil {
 		writeComposeRequestError(w, composeErr)
@@ -5965,6 +6008,10 @@ func (h *Handler) handleComposeSchedule(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		writeComposeJSONError(w, http.StatusInternalServerError, "failed to prepare scheduled message")
 		return
+	}
+	if saved.Sender != nil {
+		// The form says how to send it, which the draft alone can't.
+		saved.Sender.apply(msg)
 	}
 	scheduled, err := h.queueOutgoingMessage(r.Context(), saved.AccountID, saved.MessageID, saved.DraftID, msg, scheduledFor, true)
 	if errors.Is(err, providers.ErrJMAPDisabled) {
@@ -6290,15 +6337,18 @@ func threadUIDsByFolder(infos []storage.ThreadMessageMutationInfo) map[string][]
 }
 
 type messageBulkTarget struct {
-	ID     string `json:"id"`
-	Thread bool   `json:"thread"`
+	ID       string `json:"id"`
+	Thread   bool   `json:"thread"`
+	FolderID string `json:"folder_id,omitempty"`
 }
 
 type messageBulkRequest struct {
-	Targets  []messageBulkTarget `json:"targets"`
-	State    string              `json:"state"`
-	FolderID string              `json:"folder_id"`
-	Label    string              `json:"label"`
+	Permanent   bool                    `json:"permanent,omitempty"`
+	SearchScope *models.MailSearchScope `json:"search_scope,omitempty"`
+	Targets     []messageBulkTarget     `json:"targets"`
+	State       string                  `json:"state"`
+	FolderID    string                  `json:"folder_id"`
+	Label       string                  `json:"label"`
 	// SourceFolderID is the folder a move takes messages from. FolderID is the
 	// destination for moves, so the source travels separately.
 	SourceFolderID string `json:"source_folder_id"`
@@ -6320,9 +6370,20 @@ func (h *Handler) resolveOwnedMessageTargets(ctx context.Context, targets []mess
 	userID := h.userID(ctx)
 	resolved := make([]ownedMessageTarget, 0, len(targets))
 	for _, target := range targets {
-		msgID, info, err := h.getMessageInfoForFolder(ctx, target.ID, sourceFolderID)
+		folderID := sourceFolderID
+		if strings.TrimSpace(target.FolderID) != "" {
+			var err error
+			folderID, err = h.resolveFolderID(ctx, userID, strings.TrimSpace(target.FolderID))
+			if err != nil {
+				return nil, errMessageTargetNotFound
+			}
+		}
+		msgID, info, err := h.getMessageInfoForFolder(ctx, target.ID, folderID)
 		if err != nil {
 			return nil, err
+		}
+		if target.FolderID != "" && info.FolderID != folderID {
+			return nil, errMessageTargetNotFound
 		}
 
 		infos := []storage.ThreadMessageMutationInfo{{
@@ -6385,7 +6446,7 @@ func messageBulkTargets(payload messageBulkRequest) []messageBulkTarget {
 			}
 			seenMessages[key] = true
 		}
-		targets = append(targets, messageBulkTarget{ID: id, Thread: target.Thread})
+		targets = append(targets, messageBulkTarget{ID: id, Thread: target.Thread, FolderID: strings.TrimSpace(target.FolderID)})
 	}
 	return targets
 }
@@ -6430,7 +6491,7 @@ func (h *Handler) handleMarkMessagesRead(w http.ResponseWriter, r *http.Request)
 
 	targetRead := payload.State != "unread" && payload.State != "false"
 	ctx := h.messageMutationContext(r.Context())
-	targets, err := h.resolveOwnedMessageTargets(ctx, messageBulkTargets(payload), strings.TrimSpace(payload.FolderID), true)
+	targets, err := h.resolveMessageBulkTargets(ctx, payload, strings.TrimSpace(payload.FolderID), true)
 	if err != nil {
 		writeMessageTargetError(w, r, err)
 		return
@@ -6454,6 +6515,10 @@ func (h *Handler) handleMarkMessagesRead(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
+	if payload.SearchScope != nil {
+		writeMailSearchFlagResult(w, updated, targets)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]int{"updated": updated})
@@ -6467,7 +6532,7 @@ func (h *Handler) handleMarkMessagesStarred(w http.ResponseWriter, r *http.Reque
 	}
 	targetStarred := payload.State != "unstarred" && payload.State != "false"
 	ctx := h.messageMutationContext(r.Context())
-	targets, err := h.resolveOwnedMessageTargets(ctx, messageBulkTargets(payload), strings.TrimSpace(payload.FolderID), true)
+	targets, err := h.resolveMessageBulkTargets(ctx, payload, strings.TrimSpace(payload.FolderID), true)
 	if err != nil {
 		writeMessageTargetError(w, r, err)
 		return
@@ -6492,6 +6557,10 @@ func (h *Handler) handleMarkMessagesStarred(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
+	if payload.SearchScope != nil {
+		writeMailSearchFlagResult(w, updated, targets)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]int{"updated": updated})
@@ -6504,7 +6573,7 @@ func (h *Handler) handleArchiveMessages(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	ctx := h.messageMutationContext(r.Context())
-	targets, err := h.resolveOwnedMessageTargets(ctx, messageBulkTargets(payload), strings.TrimSpace(payload.FolderID), false)
+	targets, err := h.resolveMessageBulkTargets(ctx, payload, strings.TrimSpace(payload.FolderID), false)
 	if err != nil {
 		writeMessageTargetError(w, r, err)
 		return
@@ -6549,7 +6618,7 @@ func (h *Handler) handleUnarchiveMessages(w http.ResponseWriter, r *http.Request
 		return
 	}
 	ctx := h.messageMutationContext(r.Context())
-	targets, err := h.resolveOwnedMessageTargets(ctx, messageBulkTargets(payload), strings.TrimSpace(payload.FolderID), false)
+	targets, err := h.resolveMessageBulkTargets(ctx, payload, strings.TrimSpace(payload.FolderID), false)
 	if err != nil {
 		writeMessageTargetError(w, r, err)
 		return
@@ -6593,17 +6662,24 @@ func (h *Handler) handleDeleteMessages(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := h.messageMutationContext(r.Context())
 	sourceFolderID := strings.TrimSpace(payload.FolderID)
-	targets, err := h.resolveOwnedMessageTargets(ctx, messageBulkTargets(payload), sourceFolderID, false)
+	targets, err := h.resolveMessageBulkTargets(ctx, payload, sourceFolderID, false)
 	if err != nil {
 		writeMessageTargetError(w, r, err)
 		return
 	}
 	updated := 0
 	noTrash := 0
+	// Search results can hold mail already in Trash. Deleting it again is for
+	// good, so it is kept and named back until the reader confirms.
+	keptTrash := []messageBulkTarget{}
 
 	for _, target := range targets {
 		currentInfo := target.Infos[0].MessageMutationInfo
 		if currentInfo.FolderRole == "trash" {
+			if payload.SearchScope != nil && !payload.Permanent {
+				keptTrash = append(keptTrash, target.Target)
+				continue
+			}
 			if err := h.queuePermanentDeletes(ctx, target.Infos); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -6629,7 +6705,11 @@ func (h *Handler) handleDeleteMessages(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]int{"updated": updated, "no_trash": noTrash})
+	result := map[string]any{"updated": updated, "no_trash": noTrash}
+	if payload.SearchScope != nil {
+		result["kept_trash"] = keptTrash
+	}
+	json.NewEncoder(w).Encode(result)
 }
 
 // handleMoveMessages moves messages to a folder. The destination is either one
@@ -6673,7 +6753,7 @@ func (h *Handler) handleMoveMessages(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	targets, err := h.resolveOwnedMessageTargets(ctx, messageBulkTargets(payload), strings.TrimSpace(payload.SourceFolderID), false)
+	targets, err := h.resolveMessageBulkTargets(ctx, payload, strings.TrimSpace(payload.SourceFolderID), false)
 	if err != nil {
 		log.Printf("message move refused: %v", err)
 		writeMessageTargetError(w, r, err)
@@ -7334,6 +7414,7 @@ func (h *Handler) handleAccountOAuthAuthorize(w http.ResponseWriter, r *http.Req
 		"email_address": r.FormValue("email_address"),
 		"display_name":  r.FormValue("display_name"),
 		"flow_action":   accountOAuthFlowAction(r.FormValue("flow_action")),
+		"return_to":     accountOAuthReturnPath(r.FormValue("return_to")),
 	}
 
 	user := auth.GetCurrentUser(r.Context())
@@ -7350,7 +7431,7 @@ func (h *Handler) handleAccountOAuthAuthorize(w http.ResponseWriter, r *http.Req
 
 	switch provider {
 	case providers.ProviderGmail:
-		authorizeURL = h.mailCredentials().GoogleAccountOAuthURL(state)
+		authorizeURL = h.mailCredentials().GoogleAccountOAuthURL(state, r.FormValue("calendar_access") == "full")
 	case providers.ProviderOutlook:
 		if h.mailCredentials().UsesMicrosoftDeviceCode() {
 			if _, err := h.mailCredentials().StartMicrosoftDeviceSignIn(r.Context(), state, user.ID, auth.GetSessionToken(r)); err != nil {
@@ -7442,7 +7523,7 @@ func (h *Handler) handleGoogleAccountCallback(w http.ResponseWriter, r *http.Req
 	go func() {
 		bg, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
-		if _, err := h.discoverGoogleCalendarSources(bg, userID, accountID, token.AccessToken); err != nil {
+		if _, err := h.discoverGoogleCalendarSources(bg, userID, accountID, token.AccessToken, nil); err != nil {
 			log.Printf("calendar discovery %s after gmail connect: %v", accountID, err)
 		}
 	}()
@@ -7533,6 +7614,16 @@ func (h *Handler) finishMicrosoftAccount(ctx context.Context, flow *mailauth.Acc
 	return accountOAuthSuccessRedirect(formData)
 }
 
+// accountOAuthReturnPath is where a reconnect started from a page, such as
+// Calendar, goes back to: a path in Gofer, never another site.
+func accountOAuthReturnPath(path string) string {
+	path = strings.TrimSpace(path)
+	if !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") || strings.ContainsAny(path, "\\\r\n\t") || len(path) > 512 {
+		return ""
+	}
+	return path
+}
+
 func accountOAuthFlowAction(action string) string {
 	if strings.EqualFold(strings.TrimSpace(action), "reconnect") {
 		return "reconnect"
@@ -7542,6 +7633,9 @@ func accountOAuthFlowAction(action string) string {
 
 func accountOAuthSuccessRedirect(formData map[string]string) string {
 	if accountOAuthFlowAction(formData["flow_action"]) == "reconnect" {
+		if back := accountOAuthReturnPath(formData["return_to"]); back != "" {
+			return back
+		}
 		return "/settings/accounts?account_reconnected=1"
 	}
 	return "/settings/accounts?account_added=1"

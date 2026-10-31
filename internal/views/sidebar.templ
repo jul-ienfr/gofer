@@ -4,6 +4,7 @@ import (
 	"github.com/cristianadrielbraun/gofer/internal/assetver"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/cristianadrielbraun/gofer/internal/auth"
@@ -630,7 +631,7 @@ templ SidebarSyncControls(accounts []models.Account, activeApp string) {
 									@icon.RefreshCw(icon.Props{Class: "size-3.5 shrink-0"})
 									<span class="min-w-0 flex-1">
 										<span class="block truncate font-medium">{ calendarAccountDisplayName(account) }</span>
-										<span class="block truncate text-[11px] text-sidebar-foreground">{ account.Email }</span>
+										<span class="block truncate text-[11px] text-sidebar-foreground">{ accountAddress(account) }</span>
 									</span>
 								</button>
 							}
@@ -711,7 +712,7 @@ templ SidebarSyncControls(accounts []models.Account, activeApp string) {
 											@icon.RefreshCw(icon.Props{Class: "size-3.5 shrink-0"})
 											<span class="min-w-0 flex-1">
 												<span class="block truncate font-medium">{ contactSidebarAccountName(account) }</span>
-												<span class="block truncate text-[11px] text-sidebar-foreground">{ account.Email }</span>
+												<span class="block truncate text-[11px] text-sidebar-foreground">{ accountAddress(account) }</span>
 											</span>
 										</button>
 									}
@@ -878,7 +879,7 @@ templ SidebarUnifiedSection(accounts []models.Account, activeFolder string, uiSe
 templ SidebarAccountSection(account models.Account, activeFolder string, uiSettings map[string]string, filters models.EmailFilters) {
 	{{ active := accountHasActiveFolder(account, activeFolder, filters) }}
 	{{ collapsed := sidebarAccountCollapsed(uiSettings, account.ID, active) }}
-	<div id={ "sidebar-account-" + account.ID } class="mb-1.5" data-sidebar-account={ account.ID } data-sidebar-account-active?={ active } data-sidebar-account-collapsed={ fmt.Sprintf("%t", collapsed) } data-sidebar-account-provider={ account.Provider }>
+	<div id={ "sidebar-account-" + account.ID } class="mb-1.5" data-sidebar-account={ account.ID } data-sidebar-account-active?={ active } data-sidebar-account-collapsed={ fmt.Sprintf("%t", collapsed) } data-sidebar-account-provider={ account.Provider } data-sidebar-account-no-archive?={ slices.Contains(account.MissingFolderRoles, "archive") }>
 		<button
 			type="button"
 			class="sidebar-account-toggle flex w-full items-center gap-2.5 px-2 py-2 text-sm font-semibold text-sidebar-accent-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"

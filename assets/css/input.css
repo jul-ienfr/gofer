@@ -651,6 +651,91 @@
   background: color-mix(in srgb, var(--primary) 88%, var(--foreground));
 }
 
+/* An Archive control for mail of an account with no Archive folder: greyed
+   out, but a click still explains why (see showArchiveUnavailable). */
+[data-archive-unavailable] {
+  opacity: 0.4;
+}
+
+[data-archive-unavailable]:hover {
+  opacity: 0.6;
+}
+
+.archive-unavailable {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  width: min(22rem, calc(100% - 1rem));
+  height: fit-content;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) * 1.15);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: 0 2px 12px color-mix(in srgb, #000 12%, transparent);
+  padding: 0.9rem 1rem;
+}
+
+.archive-unavailable h2 {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.archive-unavailable p {
+  margin: 0.3rem 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.archive-unavailable-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-top: 0.85rem;
+}
+
+.archive-unavailable-actions button {
+  border-radius: var(--radius);
+  padding: 0.4rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.archive-unavailable-actions button:hover {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.archive-unavailable-actions button.archive-unavailable-primary,
+.archive-unavailable-actions button:only-child {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.archive-unavailable-actions button.archive-unavailable-primary:hover,
+.archive-unavailable-actions button:only-child:hover {
+  background: color-mix(in srgb, var(--primary) 88%, var(--foreground));
+}
+
+@media (max-width: 1023.98px) {
+  .archive-unavailable {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    border-radius: calc(var(--radius) * 1.6) calc(var(--radius) * 1.6) 0 0;
+    padding: 1.1rem 1.1rem calc(1.1rem + env(safe-area-inset-bottom));
+  }
+
+  .archive-unavailable-actions button {
+    flex: 1 1 auto;
+    padding: 0.65rem 0.8rem;
+  }
+}
+
 .gofer-toast-card {
   position: relative;
   display: flex;
@@ -1079,6 +1164,15 @@ input[role="switch"] + .gofer-switch-track::after {
 .email-translation-language-menu .email-translation-language-item[data-translation-language-selected="true"] {
   background: var(--accent);
   color: var(--accent-foreground);
+}
+
+/* What a server that may refuse a one-time From would do with it. */
+.compose-one-time-from .compose-one-time-warning {
+  color: var(--color-amber-700);
+}
+
+.dark .compose-one-time-from .compose-one-time-warning {
+  color: var(--color-amber-400);
 }
 
 .sidebar-account-toggle {
@@ -2581,6 +2675,37 @@ body.mail-list-column-resizing {
   overflow: hidden;
 }
 
+/* Search result cards carry their location in a strip along the top edge,
+   outside the card's padding: 1.5rem taller, matching mailCardRowRem() in
+   virtual-scroll.js. No line divides it from its card, so it can't be read as
+   part of the card above. Rows with a band are marked data-search-group,
+   which getHeight in virtual-scroll.js matches. Table rows get the same band
+   above their columns, once per run of rows from one place; see below. */
+#mail-list[data-mail-search-results]:not([data-mail-list-view="table"]) :is(.mail-list-item, .mail-list-thread-main)[data-search-group] {
+  height: 8rem;
+  min-height: 8rem;
+  max-height: 8rem;
+}
+
+#mail-list[data-mail-search-results] .mail-list-item[data-search-group] > a.mail-list-card {
+  position: relative;
+  padding-top: 2rem;
+}
+
+.mail-search-location-strip {
+  position: absolute;
+  inset: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 1.5rem;
+  padding: 0.25rem 0.75rem 0;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--color-muted-foreground);
+  background: color-mix(in srgb, var(--color-muted) 70%, transparent);
+}
+
 .mail-list-thread-main > .mail-list-item,
 .mail-list-thread-main > .mail-list-item > a {
   height: 100%;
@@ -3410,6 +3535,67 @@ body.mail-list-column-resizing {
 
 #main-content[data-mail-pane-layout="stacked"] .compose-pane-size-icon {
   transform: rotate(90deg);
+}
+
+/* No reading pane: the list fills the page, and an opened message takes its
+   place, as on a phone. The list keeps its box while hidden so its scroll
+   position and virtual rows survive. */
+@media (min-width: 1024px) {
+  #main-content[data-mail-pane-layout="list"] > #mail-list {
+    width: 100% !important;
+    max-width: none;
+    flex: 1 1 auto;
+    border-right: 0;
+  }
+
+  #main-content[data-mail-pane-layout="list"] > .resize-handle[data-panel="maillist"],
+  #main-content[data-mail-pane-layout="list"] > [data-mail-reader]:has(> [data-mail-view-empty]) {
+    display: none;
+  }
+
+  #main-content[data-mail-pane-layout="list"]:has(> [data-mail-reader] > :not([data-mail-view-empty])) {
+    position: relative;
+  }
+
+  #main-content[data-mail-pane-layout="list"]:has(> [data-mail-reader] > :not([data-mail-view-empty])) > #mail-list {
+    position: absolute;
+    inset: 0;
+    visibility: hidden;
+  }
+
+  /* Above the list, which stays under it while either one fades. */
+  #main-content[data-mail-pane-layout="list"] > [data-mail-reader] {
+    position: relative;
+    z-index: 1;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  /* mobile-nav.js marks a message opening and closing, as on a phone.
+     Opening, the message rises into place over the list, which recedes;
+     closing, it sinks away and the list comes back. */
+  html[data-pane-anim="open"] #main-content[data-mail-pane-layout="list"] > [data-mail-reader] {
+    animation: list-pane-reader-in 0.26s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  html[data-pane-anim="open"] #main-content[data-mail-pane-layout="list"] > #mail-list {
+    visibility: visible !important;
+    animation: list-pane-list-out 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  }
+
+  html[data-pane-anim="closing"] #main-content[data-mail-pane-layout="list"] > [data-mail-reader] {
+    animation: list-pane-reader-out 0.2s cubic-bezier(0.4, 0, 1, 1) forwards;
+  }
+
+  html[data-pane-anim="closing"] #main-content[data-mail-pane-layout="list"] > #mail-list,
+  html[data-pane-anim="close"] #main-content[data-mail-pane-layout="list"] > #mail-list {
+    visibility: visible !important;
+    animation: list-pane-list-in 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  #main-content[data-mail-pane-layout="list"] .mobile-back-button {
+    display: inline-flex;
+  }
 }
 
 /* === COMPOSE DIALOG === */
@@ -4291,7 +4477,11 @@ body.mail-list-column-resizing {
     display: none;
   }
 
-  #mail-list[data-mail-list-view] .mail-list-search-input-wrap > svg {
+  #mail-list[data-mail-list-view] .mail-search-scope-label {
+    display: none;
+  }
+
+  #mail-list[data-mail-list-view] .mail-list-search-field > svg {
     left: 0.875rem;
     width: 1.125rem;
     height: 1.125rem;
@@ -4647,6 +4837,21 @@ body.mail-list-column-resizing {
     height: 5.25rem;
     min-height: 5.25rem;
     max-height: 5.25rem;
+  }
+
+  /* Search results: the location strip sits above the row's own layout. */
+  #mail-list[data-mail-list-view][data-mail-search-results] :is(.mail-list-item, .mail-list-thread-main)[data-search-group] {
+    height: 6.75rem;
+    min-height: 6.75rem;
+    max-height: 6.75rem;
+  }
+
+  #mail-list[data-mail-list-view][data-mail-search-results] .mail-list-item[data-search-group] > a.mail-list-card {
+    padding-top: 2rem;
+  }
+
+  #mail-list[data-mail-list-view] .mail-search-location-strip {
+    padding: 0.25rem 1rem 0;
   }
 
   #mail-list[data-mail-list-view] .mail-list-thread-main > .mail-list-item {
@@ -5331,6 +5536,54 @@ body.mail-list-column-resizing {
   html[data-pane-anim="closing"] #main-content > #mail-list {
     visibility: visible !important;
     animation: pane-pop-in 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+}
+
+@keyframes list-pane-reader-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem) scale(0.99);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes list-pane-reader-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(0.75rem) scale(0.99);
+  }
+}
+
+@keyframes list-pane-list-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+}
+
+@keyframes list-pane-list-in {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
 
@@ -6986,5 +7239,61 @@ aside a[data-mail-drop-active] {
   .login-reveal[data-open="false"],
   .login-submit-label {
     transition: none;
+  }
+}
+
+/* A list replacing another (search results and folders) keeps its rows
+   hidden until they fan in; see fanInRows in virtual-scroll.js. */
+.mail-list-entering #mail-list-scroll .mail-list-item {
+  opacity: 0;
+}
+
+/* Search results in the table: the location is a band above the first row
+   of each run from one place, across the columns, making it 1.25rem taller
+   (mailSearchBandRem in virtual-scroll.js). */
+#mail-list[data-mail-search-results][data-mail-list-view="table"] :is(.mail-list-item, .mail-list-thread-main)[data-search-group] {
+  height: 4rem;
+  min-height: 4rem;
+  max-height: 4rem;
+}
+
+#mail-list[data-mail-search-results][data-mail-list-view="table"] .mail-list-item[data-search-group] > a {
+  position: relative;
+  padding-top: 1.625rem;
+}
+
+#mail-list[data-mail-list-view="table"] .mail-search-location-strip {
+  height: 1.25rem;
+}
+
+/* The location of the table's run of search results at the top of the list,
+   pinned once the run's own band scrolls away (updateStickySearchGroup in
+   virtual-scroll.js): a sticky line of no height holding a solid copy of the
+   rows' band. */
+.mail-search-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  height: 0;
+}
+
+.mail-search-sticky[hidden] {
+  display: none;
+}
+
+.mail-search-sticky .mail-search-location-strip {
+  right: auto;
+  background: color-mix(in srgb, var(--color-muted) 70%, var(--color-card));
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--color-border) 60%, transparent);
+}
+
+#mail-search-folders-dialog [hidden] {
+  display: none;
+}
+
+/* A narrow list keeps only the scope's icon, so the field keeps its room. */
+@container (max-width: 360px) {
+  .mail-search-scope-label {
+    display: none;
   }
 }

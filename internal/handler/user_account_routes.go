@@ -105,6 +105,9 @@ func (h *Handler) userEditData(ctx context.Context, owner, id string) (*models.E
 		data, err = local.GetEditData(ctx, id)
 		return err
 	})
+	if err == nil {
+		h.markUserCalendarCreateAccess(ctx, owner, data)
+	}
 	return data, err
 }
 
@@ -115,6 +118,10 @@ func (h *Handler) handleUserEditAccount(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if data.Provider == providers.ProviderDAV {
+		_ = views.DAVAccountDialog(davAccountDialogData(*data)).Render(r.Context(), w)
+		return
+	}
 	_ = views.EditAccountDialog(*data).Render(r.Context(), w)
 }
 

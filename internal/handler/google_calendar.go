@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/cristianadrielbraun/gofer/internal/calendar"
+	"github.com/cristianadrielbraun/gofer/internal/models"
 	"github.com/cristianadrielbraun/gofer/internal/providers"
 	"github.com/cristianadrielbraun/gofer/internal/storage"
 	"github.com/cristianadrielbraun/gofer/internal/views"
@@ -385,7 +386,7 @@ func (h *Handler) syncGoogleCalendarWindow(ctx context.Context, userID string, w
 	return h.syncCalendarProviderWindow(ctx, userID, windowStart, windowEnd, providers.ProviderGmail)
 }
 
-func (h *Handler) discoverGoogleCalendarSources(ctx context.Context, userID, accountID, accessToken string) (int, error) {
+func (h *Handler) discoverGoogleCalendarSources(ctx context.Context, userID, accountID, accessToken string, create *davCreate) (int, error) {
 	calendars, err := discoverGoogleCalendars(ctx, accessToken)
 	if err != nil {
 		return 0, fmt.Errorf("discover Google calendars: %w", err)
@@ -418,6 +419,7 @@ func (h *Handler) discoverGoogleCalendarSources(ctx context.Context, userID, acc
 			IsSelected:  selected,
 		})
 	}
+	selectCreatedCalendar(sources, create)
 	if err := h.db.ReplaceCalendarSources(ctx, userID, accountID, providers.ProviderGmail, sources); err != nil {
 		return 0, fmt.Errorf("store discovered Google calendars: %w", err)
 	}
@@ -444,6 +446,32 @@ func (h *Handler) handleDiscoverAccountCalendars(w http.ResponseWriter, r *http.
 	statusError := false
 	discoverySucceeded := false
 	userID := h.userID(ctx)
+	create, createErr := davCreateFromForm(r)
+	if createErr != nil {
+		statusMessage, statusError = createErr.Error(), true
+	}
+	found := -1
+	if createErr == nil {
+		statusMessage, statusError, discoverySucceeded = h.discoverAccountCalendars(ctx, w, r, data, userID, accountID, create, &found)
+	}
+	if discoverySucceeded {
+		if refreshed, refreshErr := h.accountStore.GetEditData(ctx, accountID); refreshErr == nil {
+			data = refreshed
+		}
+		data.CalendarSync.FoundNone = found == 0
+	}
+	h.markCalendarCreateAccess(ctx, data)
+
+	if err := views.CalendarSyncSettingsResult(*data, statusMessage, statusError).Render(ctx, w); err != nil {
+		http.Error(w, "failed to render calendar discovery result", http.StatusInternalServerError)
+	}
+}
+
+// discoverAccountCalendars lists a shared-store account's calendars, first
+// making the one create asks for, when it isn't nil, and says how it went.
+// found is set to how many calendars it found.
+func (h *Handler) discoverAccountCalendars(ctx context.Context, w http.ResponseWriter, r *http.Request, data *models.EditAccountData, userID, accountID string, create *davCreate, found *int) (statusMessage string, statusError, discoverySucceeded bool) {
+	var err error
 	switch data.Provider {
 	case providers.ProviderGmail:
 		if h.mailCredentials() == nil || !h.mailCredentials().HasGoogleOAuth() {
@@ -457,13 +485,27 @@ func (h *Handler) handleDiscoverAccountCalendars(w http.ResponseWriter, r *http.
 			statusError = true
 			break
 		}
-		count, discoverErr := h.discoverGoogleCalendarSources(ctx, userID, accountID, accessToken)
+		if create != nil {
+			if create.Created, err = h.createOAuthCalendar(ctx, accountID, providers.ProviderGmail, create.Name); err != nil {
+				statusMessage = "Calendar creation failed: " + err.Error()
+				statusError = true
+				break
+			}
+		}
+		count, discoverErr := h.discoverGoogleCalendarSources(ctx, userID, accountID, accessToken, create)
 		if discoverErr != nil {
 			statusMessage = "Calendar discovery failed: " + discoverErr.Error()
 			statusError = true
 			break
 		}
-		statusMessage = fmt.Sprintf("Discovered %d Google calendar source(s). The primary calendar is selected by default.", count)
+		if create != nil && create.Created != "" {
+			// Google lets Gofer change the calendars it created.
+			if err := h.db.MarkCalendarCreatedInGofer(ctx, userID, accountID, create.Created); err != nil {
+				log.Printf("calendar: mark %s created in Gofer: %v", accountID, err)
+			}
+		}
+		statusMessage = calendarDiscoveryMessage(count, create, fmt.Sprintf("Discovered %d Google calendar source(s). The primary calendar is selected by default.", count))
+		*found = count
 		discoverySucceeded = true
 	case providers.ProviderOutlook:
 		if h.mailCredentials() == nil || !h.mailCredentials().HasMicrosoftOAuth() {
@@ -477,13 +519,21 @@ func (h *Handler) handleDiscoverAccountCalendars(w http.ResponseWriter, r *http.
 			statusError = true
 			break
 		}
-		count, discoverErr := h.discoverOutlookCalendarSources(ctx, userID, accountID, accessToken)
+		if create != nil {
+			if create.Created, err = h.createOAuthCalendar(ctx, accountID, providers.ProviderOutlook, create.Name); err != nil {
+				statusMessage = "Calendar creation failed: " + err.Error()
+				statusError = true
+				break
+			}
+		}
+		count, discoverErr := h.discoverOutlookCalendarSources(ctx, userID, accountID, accessToken, create)
 		if discoverErr != nil {
 			statusMessage = "Calendar discovery failed: " + discoverErr.Error()
 			statusError = true
 			break
 		}
-		statusMessage = fmt.Sprintf("Discovered %d Microsoft calendar source(s). The primary calendar is selected by default.", count)
+		statusMessage = calendarDiscoveryMessage(count, create, fmt.Sprintf("Discovered %d Microsoft calendar source(s). The primary calendar is selected by default.", count))
+		*found = count
 		discoverySucceeded = true
 	case providers.ProviderIMAP, providers.ProviderJMAP:
 		if err := r.ParseForm(); err != nil {
@@ -492,13 +542,14 @@ func (h *Handler) handleDiscoverAccountCalendars(w http.ResponseWriter, r *http.
 			break
 		}
 		if data.Provider == providers.ProviderJMAP && calendarDiscoveryProtocol(r, storage.CalendarSourceProviderCalDAV) == storage.CalendarSourceProviderJMAP {
-			count, discoverErr := h.discoverJMAPCalendarSources(ctx, userID, accountID)
+			count, discoverErr := h.discoverJMAPCalendarSources(ctx, userID, accountID, create)
 			if discoverErr != nil {
 				statusMessage = "Calendar discovery failed: " + discoverErr.Error()
 				statusError = true
 				break
 			}
-			statusMessage = fmt.Sprintf("Discovered %d JMAP calendar(s). The default calendar is selected.", count)
+			statusMessage = calendarDiscoveryMessage(count, create, fmt.Sprintf("Discovered %d JMAP calendar(s). The default calendar is selected.", count))
+			*found = count
 			discoverySucceeded = true
 			break
 		}
@@ -558,9 +609,9 @@ func (h *Handler) handleDiscoverAccountCalendars(w http.ResponseWriter, r *http.
 		var discoverErr error
 		if autodiscover {
 			candidates := calDAVAutodiscoveryCandidates(discoveryCtx, []string{baseURL, jmapServerAddress(data.JMAPSessionURL)}, data.EmailAddress, data.IMAPHost, data.SMTPHost)
-			calendars, normalizedBaseURL, discoverErr = discoverCalDAVCalendarsCandidates(discoveryCtx, candidates, username, password, userID, accountID)
+			calendars, normalizedBaseURL, discoverErr = discoverCalDAVCalendarsCandidates(discoveryCtx, candidates, username, password, userID, accountID, create)
 		} else {
-			calendars, discoverErr = discoverCalDAVCalendars(discoveryCtx, normalizedBaseURL, username, password, userID, accountID)
+			calendars, discoverErr = discoverCalDAVCalendars(discoveryCtx, normalizedBaseURL, username, password, userID, accountID, create)
 		}
 		cancel()
 		if discoverErr != nil {
@@ -579,7 +630,8 @@ func (h *Handler) handleDiscoverAccountCalendars(w http.ResponseWriter, r *http.
 			statusError = true
 			break
 		}
-		statusMessage = fmt.Sprintf("Discovered %d CalDAV calendar(s). The first calendar is selected by default.", len(calendars))
+		*found = len(calendars)
+		statusMessage = calendarDiscoveryMessage(len(calendars), create, fmt.Sprintf("Discovered %d CalDAV calendar(s). The first calendar is selected by default.", len(calendars)))
 		discoverySucceeded = true
 		if r.FormValue("password") != "" || useAccountCredentials {
 			if remaining, waiting, err := h.resolveImportedLogin(ctx, userID, accountID, storage.ImportedLoginCalendar); err != nil {
@@ -593,15 +645,7 @@ func (h *Handler) handleDiscoverAccountCalendars(w http.ResponseWriter, r *http.
 		statusMessage = "Calendar discovery is not available for this account type."
 		statusError = true
 	}
-	if discoverySucceeded {
-		if refreshed, refreshErr := h.accountStore.GetEditData(ctx, accountID); refreshErr == nil {
-			data = refreshed
-		}
-	}
-
-	if err := views.CalendarSyncSettingsResult(*data, statusMessage, statusError).Render(ctx, w); err != nil {
-		http.Error(w, "failed to render calendar discovery result", http.StatusInternalServerError)
-	}
+	return statusMessage, statusError, discoverySucceeded
 }
 
 // googleCalendarEarliestReminder returns the earliest pop-up reminder; email

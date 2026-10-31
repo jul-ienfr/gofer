@@ -57,7 +57,7 @@ type ThreadingState struct {
 	Total      int  `json:"total"`
 }
 
-const CurrentSchemaVersion = 142
+const CurrentSchemaVersion = 144
 
 func New(dbPath string) (*DB, error) {
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
@@ -324,6 +324,9 @@ func (db *DB) migrate() error {
 		}
 		if err := applyAIMigrations(db.write, 132); err != nil {
 			return fmt.Errorf("apply AI migrations: %w", err)
+		}
+		if err := migrateV143ToV144(db.write); err != nil {
+			return fmt.Errorf("migrate v143 to v144: %w", err)
 		}
 		log.Printf("schema initialized at version %d", targetSchemaVersion)
 		return nil
@@ -1126,6 +1129,11 @@ func (db *DB) migrate() error {
 	}
 	if err := applyAIMigrations(db.write, currentVersion); err != nil {
 		return fmt.Errorf("apply AI migrations: %w", err)
+	}
+	if currentVersion <= 143 {
+		if err := migrateV143ToV144(db.write); err != nil {
+			return fmt.Errorf("migrate v143 to v144: %w", err)
+		}
 	}
 
 	if _, err := db.write.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {

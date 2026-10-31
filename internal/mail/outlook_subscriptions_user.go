@@ -17,20 +17,39 @@ func (s *UserIMAP) EnableOutlookWebhooks(notificationURL string, key []byte) {
 	s.outlookSubs = newOutlookSubscriptions(notificationURL, key)
 }
 
+// OnOutlookServiceChange sets what refreshes the calendars and contacts of
+// the accounts Microsoft announces changes for. It is called before Start.
+func (s *UserIMAP) OnOutlookServiceChange(change OutlookServiceChange) {
+	s.outlookServiceChange = change
+}
+
 // keepOutlookSubscription subscribes or renews after the account's receive
 // succeeded, through the sync's orchestrator, so the Graph calls share its
 // token refresh and the account's provider retry deadline, and deletes the
-// subscription of an account set to scheduled checks. Managed mode has no
-// subscription loop: background syncs come far more often than renewals.
+// subscriptions of an account set to scheduled checks. Besides the mailbox,
+// the account is subscribed to the changes of the calendars and contacts it
+// syncs. Managed mode has no subscription loop: background syncs come far
+// more often than renewals.
 func (s *UserIMAP) keepOutlookSubscription(ctx context.Context, o *SyncOrchestrator, scope *userIMAPScope, push bool) {
 	if s.outlookSubs == nil || scope.config.Provider != providers.ProviderOutlook || scope.tokens == nil {
 		return
 	}
 	if !push {
-		s.outlookSubs.drop(ctx, scope.id, userOutlookSubscriptionToken(scope), o.outlookJSON)
+		s.outlookSubs.dropAll(ctx, scope.id, scope.tokens, o.outlookJSON)
 		return
 	}
-	s.outlookSubs.keep(ctx, scope.id, userOutlookSubscriptionToken(scope), o.outlookJSON, time.Now().UTC())
+	now := time.Now().UTC()
+	s.outlookSubs.keep(ctx, scope.id, userOutlookSubscriptionToken(scope), o.outlookJSON, now)
+	var calendar, contacts bool
+	if err := scope.call(ctx, func(db *storage.DB) error {
+		var err error
+		calendar, contacts, err = db.OutlookPushServices(ctx, scope.id)
+		return err
+	}); err != nil {
+		// Leave the other subscriptions as they are until this can be read.
+		return
+	}
+	s.outlookSubs.keepServices(ctx, scope.id, calendar, contacts, scope.tokens, o.outlookJSON, now)
 }
 
 // dropOutlookSubscription deletes the subscription of an account that
@@ -41,27 +60,22 @@ func (s *UserIMAP) dropOutlookSubscription(ctx context.Context, scope *userIMAPS
 	}
 	o := NewSyncOrchestrator(nil, nil, s.blobs, scope.tokens)
 	o.imapScope = scope
-	s.outlookSubs.drop(ctx, scope.id, userOutlookSubscriptionToken(scope), o.outlookJSON)
+	s.outlookSubs.dropAll(ctx, scope.id, scope.tokens, o.outlookJSON)
 }
 
 func userOutlookSubscriptionToken(scope *userIMAPScope) outlookSubscriptionToken {
-	return func(ctx context.Context) (string, error) {
-		graphTokens, ok := scope.tokens.(graphMailTokenProvider)
-		if !ok {
-			return "", errProviderLabelAuth
-		}
-		return graphTokens.GetMicrosoftGraphMailTokenForAccount(ctx, scope.id)
-	}
+	return outlookServiceToken(scope.tokens, scope.id, OutlookPushMail)
 }
 
 // ReceiveOutlookNotifications queues a sync of each account Graph announced
 // changes for. A sync already running is followed by another, since it may
 // have read the changed folder before the change.
 func (s *UserIMAP) ReceiveOutlookNotifications(notifications []OutlookNotification) {
-	ids := s.outlookSubs.receive(notifications)
-	if len(ids) == 0 {
+	changed := s.outlookSubs.receive(notifications)
+	if len(changed) == 0 {
 		return
 	}
+	ids := changed[OutlookPushMail]
 	s.mu.Lock()
 	if s.closing || s.ctx.Err() != nil {
 		s.mu.Unlock()
@@ -90,6 +104,14 @@ func (s *UserIMAP) ReceiveOutlookNotifications(notifications []OutlookNotificati
 				log.Printf("outlook webhook account=%s: queue sync: %v", accountID, err)
 			}
 		}
+		if s.outlookServiceChange == nil {
+			return
+		}
+		for _, service := range outlookPushServices[1:] {
+			if ids := changed[service]; len(ids) > 0 {
+				s.outlookServiceChange(s.ctx, service, ids)
+			}
+		}
 	}()
 }
 
@@ -97,6 +119,48 @@ func (s *UserIMAP) ReceiveOutlookNotifications(notifications []OutlookNotificati
 // The caller has checked that owner holds the account.
 func (s *UserIMAP) OutlookPushStatus(accountID string) OutlookPushStatus {
 	return s.outlookSubs.status(accountID, time.Now().UTC())
+}
+
+// OutlookServicePushStatus reports the account's calendar or contacts
+// subscription for the settings page.
+func (s *UserIMAP) OutlookServicePushStatus(accountID string, service OutlookPushService) OutlookPushStatus {
+	return s.outlookSubs.statusService(outlookSubscriptionKey{account: accountID, service: service}, time.Now().UTC())
+}
+
+// CheckOutlookPushServices makes new calendar and contacts subscriptions for
+// the owner's account now, for the ones it syncs, and returns each outcome.
+func (s *UserIMAP) CheckOutlookPushServices(ctx context.Context, owner, accountID string) (map[OutlookPushService]error, error) {
+	if s.outlookSubs == nil {
+		return nil, ErrOutlookPushUnavailable
+	}
+	var results map[OutlookPushService]error
+	err := s.operation(ctx, owner, accountID, 0, 2*outlookSubscriptionTimeout, func(ctx context.Context) error {
+		scope, err := s.snapshot(ctx, owner, accountID)
+		if err != nil {
+			return err
+		}
+		if scope.config.Provider != providers.ProviderOutlook || scope.tokens == nil {
+			return errors.New("only Outlook accounts can use change notifications")
+		}
+		var push, calendar, contacts bool
+		if err := scope.call(ctx, func(db *storage.DB) error {
+			if push, err = db.ProviderPushEnabled(ctx, accountID); err != nil {
+				return err
+			}
+			calendar, contacts, err = db.OutlookPushServices(ctx, accountID)
+			return err
+		}); err != nil {
+			return err
+		}
+		if !push {
+			return errOutlookPushOff
+		}
+		o := NewSyncOrchestrator(nil, nil, s.blobs, scope.tokens)
+		o.imapScope = scope
+		results = s.outlookSubs.checkServices(ctx, accountID, calendar, contacts, scope.tokens, o.outlookJSON, time.Now().UTC())
+		return nil
+	})
+	return results, err
 }
 
 // CheckOutlookPush makes a new subscription for the owner's account now,

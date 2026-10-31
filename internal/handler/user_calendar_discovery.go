@@ -311,40 +311,23 @@ func calendarDiscoveredSources(calendars []calendar.RemoteCalendar) []storage.Ca
 	return sources
 }
 
-func (p *userCalendarRequest) discoverDAV(ctx context.Context, r *http.Request) ([]storage.CalendarSource, *config.DiscoveredCalDAVSettings, error) {
+func (p *userCalendarRequest) discoverDAV(ctx context.Context, form url.Values, create *davCreate) ([]storage.CalendarSource, *config.DiscoveredCalDAVSettings, error) {
 	service := p.service()
 	identity := service.Identity()
-	savedURL, savedUsername, _ := service.CalDAVSettings()
-	autodiscover, useAccount := r.PostForm.Get("autodiscover") == "1", r.PostForm.Get("use_account_credentials") == "1"
-	baseURL := strings.TrimSpace(r.PostForm.Get("caldav_url"))
-	if baseURL == "" && !autodiscover {
-		baseURL = savedURL
-	}
-	username := strings.TrimSpace(r.PostForm.Get("username"))
-	if useAccount {
-		username = strings.TrimSpace(identity.Username)
-		if username == "" {
-			username = identity.EmailAddress
-		}
-	} else if username == "" {
-		username = savedUsername
-	}
-	password, err := service.CalDAVPassword(r.PostForm.Get("password"), useAccount)
+	autodiscover := form.Get("autodiscover") == "1"
+	baseURL, username, password, useAccount, err := p.calDAVLogin(form)
 	if err != nil {
 		return nil, nil, err
-	}
-	if username == "" || strings.TrimSpace(password) == "" {
-		return nil, nil, errors.New("Enter the CalDAV username and password or use the incoming-mail credentials.")
 	}
 	ctx = context.WithValue(ctx, calendarDiscoveryDAVGuardKey{}, calendarDiscoveryDAVCallbacks{ready: p.ready, failure: p.recordRetry})
 	var sources []storage.CalendarSource
 	if autodiscover {
 		candidates := calDAVAutodiscoveryCandidates(ctx, []string{baseURL, jmapServerAddress(identity.JMAPSessionURL)}, identity.EmailAddress, identity.IMAPHost, identity.SMTPHost)
-		sources, baseURL, err = discoverCalDAVCalendarsCandidates(ctx, candidates, username, password, service.OwnerID(), service.AccountID())
+		sources, baseURL, err = discoverCalDAVCalendarsCandidates(ctx, candidates, username, password, service.OwnerID(), service.AccountID(), create)
 	} else {
 		baseURL, err = normalizeCalDAVBaseURL(baseURL)
 		if err == nil {
-			sources, err = discoverCalDAVCalendars(ctx, baseURL, username, password, service.OwnerID(), service.AccountID())
+			sources, err = discoverCalDAVCalendars(ctx, baseURL, username, password, service.OwnerID(), service.AccountID(), create)
 		}
 	}
 	if err != nil {
@@ -356,6 +339,35 @@ func (p *userCalendarRequest) discoverDAV(ctx context.Context, r *http.Request) 
 	return sources, &config.DiscoveredCalDAVSettings{BaseURL: baseURL, Username: username, Password: password, UseAccountCredentials: useAccount}, nil
 }
 
+// calDAVLogin is the CalDAV server and login form asks for, or the saved
+// ones where it leaves them out.
+func (p *userCalendarRequest) calDAVLogin(form url.Values) (baseURL, username, password string, useAccount bool, err error) {
+	service := p.service()
+	identity := service.Identity()
+	savedURL, savedUsername, _ := service.CalDAVSettings()
+	autodiscover, useAccount := form.Get("autodiscover") == "1", form.Get("use_account_credentials") == "1"
+	baseURL = strings.TrimSpace(form.Get("caldav_url"))
+	if baseURL == "" && !autodiscover {
+		baseURL = savedURL
+	}
+	username = strings.TrimSpace(form.Get("username"))
+	if useAccount {
+		username = strings.TrimSpace(identity.Username)
+		if username == "" {
+			username = identity.EmailAddress
+		}
+	} else if username == "" {
+		username = savedUsername
+	}
+	if password, err = service.CalDAVPassword(form.Get("password"), useAccount); err != nil {
+		return "", "", "", false, err
+	}
+	if username == "" || strings.TrimSpace(password) == "" {
+		return "", "", "", false, errors.New("Enter the CalDAV username and password or use the incoming-mail credentials.")
+	}
+	return baseURL, username, password, useAccount, nil
+}
+
 func (h *Handler) handleUserDiscoverCalendars(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 	if err := r.ParseForm(); err != nil {
@@ -363,66 +375,13 @@ func (h *Handler) handleUserDiscoverCalendars(w http.ResponseWriter, r *http.Req
 		return
 	}
 	owner, id := h.userID(r.Context()), strings.TrimSpace(r.PathValue("id"))
-	message, failed, davSaved := "", false, false
-	err := h.userIMAP.RunAccountService(r.Context(), owner, id, mail.AccountServiceCalendar, cardDAVDiscoveryOverallTimeout, func(ctx context.Context) error {
-		snapshot, err := h.userAccounts.SnapshotCalendarDiscovery(ctx, owner, id)
-		if err != nil {
-			return err
-		}
-		if protocol := calendarDiscoveryProtocol(r, snapshot.Provider()); protocol != snapshot.Provider() {
-			if snapshot, err = snapshot.WithProvider(protocol); err != nil {
-				return err
-			}
-		}
-		request := &userCalendarRequest{h: h, snapshot: snapshot}
-		var sources []storage.CalendarSource
-		var dav *config.DiscoveredCalDAVSettings
-		if snapshot.Provider() == storage.CalendarSourceProviderCalDAV {
-			sources, dav, err = request.discoverDAV(ctx, r)
-		} else if snapshot.Provider() == storage.CalendarSourceProviderJMAP {
-			sources, err = request.discoverJMAP(ctx)
-		} else if h.userCredentials == nil {
-			err = errors.New("Mailbox OAuth is not configured for this Gofer instance.")
-		} else {
-			request.credentials = h.userCredentials.CalendarAccount(owner, id, false)
-			var calendars []calendar.RemoteCalendar
-			if snapshot.Provider() == "gmail" {
-				calendars, err = discoverGoogleCalendarsWithFetch(ctx, func(endpoint string, out any) error { return request.getJSON(ctx, endpoint, out) })
-			} else {
-				calendars, err = discoverOutlookCalendarsWithFetch(ctx, func(endpoint string, out any) error { return request.getJSON(ctx, endpoint, out) })
-			}
-			sources = calendarDiscoveredSources(calendars)
-		}
-		if err != nil {
-			if changed := request.validate(ctx); changed != nil {
-				return changed
-			}
-			if errors.Is(err, mailauth.ErrMailboxAuthorizationChanged) || errors.Is(err, storage.ErrCalendarDiscoveryChanged) || errors.Is(err, config.ErrAccountServicesChanged) || errors.Is(err, storage.ErrAccountRoute) || errors.Is(err, storage.ErrUserStoreOwner) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				return err
-			}
-			message, failed = "Calendar discovery failed: "+err.Error(), true
-			return nil
-		}
-		var guards []func() error
-		if request.authorization != nil {
-			guards = append(guards, func() error { return h.userCredentials.ValidateServiceAuthorization(ctx, request.authorization) })
-		}
-		if _, err := h.userAccounts.PublishCalendarDiscovery(ctx, snapshot, sources, dav, guards...); err != nil {
-			return err
-		}
-		davSaved = dav != nil
-		h.wakeUserCalendarAccount(ctx, owner, id)
-		label := "Google calendar source(s)"
-		if snapshot.Provider() == "outlook" {
-			label = "Microsoft calendar source(s)"
-		} else if snapshot.Provider() == storage.CalendarSourceProviderCalDAV {
-			label = "CalDAV calendar(s)"
-		} else if snapshot.Provider() == storage.CalendarSourceProviderJMAP {
-			label = "JMAP calendar(s)"
-		}
-		message = fmt.Sprintf("Discovered %d %s. The primary calendar is selected by default.", len(sources), label)
-		return nil
-	})
+	var result userCalendarDiscovery
+	create, err := davCreateFromForm(r)
+	if err != nil {
+		result.message, result.failed = err.Error(), true
+	} else {
+		result, err = h.runUserCalendarDiscovery(r.Context(), owner, id, r.PostForm, create, false)
+	}
 	if err != nil {
 		if errors.Is(err, storage.ErrCalendarDiscoveryChanged) || errors.Is(err, config.ErrAccountServicesChanged) || errors.Is(err, mailauth.ErrMailboxAuthorizationChanged) {
 			http.Error(w, "Calendar access or settings changed; retry discovery.", http.StatusConflict)
@@ -431,7 +390,8 @@ func (h *Handler) handleUserDiscoverCalendars(w http.ResponseWriter, r *http.Req
 		}
 		return
 	}
-	if davSaved && (r.PostForm.Get("password") != "" || r.PostForm.Get("use_account_credentials") == "1") {
+	message := result.message
+	if result.davSaved && (r.PostForm.Get("password") != "" || r.PostForm.Get("use_account_credentials") == "1") {
 		if remaining, waiting, err := h.resolveImportedLogin(r.Context(), owner, id, storage.ImportedLoginCalendar); err != nil {
 			log.Printf("routed account %s: turn on imported calendars: %v", id, err)
 		} else if waiting {
@@ -444,8 +404,139 @@ func (h *Handler) handleUserDiscoverCalendars(w http.ResponseWriter, r *http.Req
 		userAccountError(w, r, err)
 		return
 	}
+	data.CalendarSync.FoundNone = result.foundNone
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := views.CalendarSyncSettingsResult(*data, message, failed).Render(r.Context(), w); err != nil {
+	if err := views.CalendarSyncSettingsResult(*data, message, result.failed).Render(r.Context(), w); err != nil {
 		log.Printf("owned calendar: render discovery: %v", err)
 	}
+}
+
+// userCalendarDiscovery is how a per-user account's calendar discovery went.
+// failed with a message is a problem to show; an error is one to answer with.
+type userCalendarDiscovery struct {
+	message                     string
+	failed, davSaved, foundNone bool
+}
+
+// runUserCalendarDiscovery lists the account's calendars, first making the
+// one create asks for, and saves the list, signing in as form says: the
+// Calendar sync form, or for a background refresh the saved settings. A
+// background refresh leaves the calendars it finds for the first time
+// unticked and every other choice as it was; calendars the provider no longer
+// lists are removed either way.
+func (h *Handler) runUserCalendarDiscovery(parent context.Context, owner, id string, form url.Values, create *davCreate, background bool) (userCalendarDiscovery, error) {
+	var result userCalendarDiscovery
+	err := h.userIMAP.RunAccountService(parent, owner, id, mail.AccountServiceCalendar, cardDAVDiscoveryOverallTimeout, func(ctx context.Context) error {
+		snapshot, err := h.userAccounts.SnapshotCalendarDiscovery(ctx, owner, id)
+		if err != nil {
+			return err
+		}
+		if background {
+			form = backgroundCalendarDiscoveryForm(snapshot)
+		} else if protocol := calendarDiscoveryProtocolFor(form.Get("calendar_protocol"), snapshot.Provider()); protocol != snapshot.Provider() {
+			if snapshot, err = snapshot.WithProvider(protocol); err != nil {
+				return err
+			}
+		}
+		request := &userCalendarRequest{h: h, snapshot: snapshot}
+		var sources []storage.CalendarSource
+		var dav *config.DiscoveredCalDAVSettings
+		if snapshot.Provider() == storage.CalendarSourceProviderCalDAV {
+			sources, dav, err = request.discoverDAV(ctx, form, create)
+		} else if snapshot.Provider() == storage.CalendarSourceProviderJMAP {
+			sources, err = request.discoverJMAP(ctx, create)
+		} else if h.userCredentials == nil {
+			err = errors.New("Mailbox OAuth is not configured for this Gofer instance.")
+		} else {
+			if create != nil {
+				if create.Created, err = request.createOAuthCalendar(ctx, create.Name); err != nil {
+					if changed := request.validate(ctx); changed != nil {
+						return changed
+					}
+					result.message, result.failed = "Calendar creation failed: "+err.Error(), true
+					return nil
+				}
+			}
+			request.credentials = h.userCredentials.CalendarAccount(owner, id, false)
+			var calendars []calendar.RemoteCalendar
+			if snapshot.Provider() == "gmail" {
+				calendars, err = discoverGoogleCalendarsWithFetch(ctx, func(endpoint string, out any) error { return request.getJSON(ctx, endpoint, out) })
+			} else {
+				calendars, err = discoverOutlookCalendarsWithFetch(ctx, func(endpoint string, out any) error { return request.getJSON(ctx, endpoint, out) })
+			}
+			sources = calendarDiscoveredSources(calendars)
+			selectCreatedCalendar(sources, create)
+		}
+		if err != nil {
+			if changed := request.validate(ctx); changed != nil {
+				return changed
+			}
+			if background || errors.Is(err, mailauth.ErrMailboxAuthorizationChanged) || errors.Is(err, storage.ErrCalendarDiscoveryChanged) || errors.Is(err, config.ErrAccountServicesChanged) || errors.Is(err, storage.ErrAccountRoute) || errors.Is(err, storage.ErrUserStoreOwner) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return err
+			}
+			result.message, result.failed = "Calendar discovery failed: "+err.Error(), true
+			return nil
+		}
+		if background {
+			if len(sources) == 0 {
+				// A provider that suddenly lists nothing is more likely
+				// failing than emptied; Refresh calendars can still clear it.
+				return nil
+			}
+			// Calendars already known keep their choice; new ones wait for
+			// the owner to tick them.
+			for i := range sources {
+				sources[i].IsSelected = false
+			}
+		}
+		var guards []func() error
+		if request.authorization != nil {
+			guards = append(guards, func() error { return h.userCredentials.ValidateServiceAuthorization(ctx, request.authorization) })
+		}
+		if _, err := h.userAccounts.PublishCalendarDiscovery(ctx, snapshot, sources, dav, guards...); err != nil {
+			return err
+		}
+		if create != nil && create.Created != "" {
+			// Google lets Gofer change the calendars it created.
+			if err := h.userAccounts.WithAccountForUser(ctx, owner, id, func(_ *config.AccountStore, db *storage.DB) error {
+				return db.MarkCalendarCreatedInGofer(ctx, owner, id, create.Created)
+			}); err != nil {
+				log.Printf("owned calendar: mark %s created in Gofer: %v", id, err)
+			}
+		}
+		result.davSaved = dav != nil
+		if background {
+			// An open Calendar redraws its list of calendars.
+			h.userIMAP.Events().Publish(mail.Event{Type: mail.EventCalendarChanged, UserID: owner, AccountID: id, Payload: map[string]any{"sources": true}})
+		} else {
+			h.wakeUserCalendarAccount(ctx, owner, id)
+		}
+		label := "Google calendar source(s)"
+		if snapshot.Provider() == "outlook" {
+			label = "Microsoft calendar source(s)"
+		} else if snapshot.Provider() == storage.CalendarSourceProviderCalDAV {
+			label = "CalDAV calendar(s)"
+		} else if snapshot.Provider() == storage.CalendarSourceProviderJMAP {
+			label = "JMAP calendar(s)"
+		}
+		result.message = fmt.Sprintf("Discovered %d %s. The primary calendar is selected by default.", len(sources), label)
+		result.message = calendarDiscoveryMessage(len(sources), create, result.message)
+		result.foundNone = len(sources) == 0
+		return nil
+	})
+	return result, err
+}
+
+// backgroundCalendarDiscoveryForm signs in as the account's saved calendar
+// settings do.
+func backgroundCalendarDiscoveryForm(snapshot *config.UserCalendarDiscoverySnapshot) url.Values {
+	form := url.Values{}
+	if snapshot.Provider() == storage.CalendarSourceProviderCalDAV {
+		baseURL, _, useAccount := snapshot.Service().CalDAVSettings()
+		form.Set("caldav_url", baseURL)
+		if useAccount {
+			form.Set("use_account_credentials", "1")
+		}
+	}
+	return form
 }

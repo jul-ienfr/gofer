@@ -1165,22 +1165,15 @@
   var syncSaveInFlight = false;
   var syncSaveQueued = false;
 
+  // The box a pill is in says whether its folder is real-time; the pill
+  // only changes colour.
   function setPillEffectiveMode(pill, isIDLE) {
-    var label = pill.querySelector('.sync-label');
-    var toggle = pill.querySelector('[data-sync-pill-toggle]');
     pill.dataset.effectiveIdle = isIDLE ? 'true' : 'false';
     if (isIDLE) {
       pill.className = pill.className.replace(/bg-muted\/50 border-border text-muted-foreground/g, 'bg-amber-800/10 border-amber-700/20 text-amber-800 dark:bg-amber-300/10 dark:border-amber-300/20 dark:text-amber-200');
-      if (!label && toggle) {
-        label = document.createElement('span');
-        label.className = 'sync-label text-[10px] opacity-70';
-        toggle.appendChild(label);
-      }
-      if (label) label.textContent = 'real-time';
       return;
     }
     pill.className = pill.className.replace(/bg-amber-800\/10 border-amber-700\/20 text-amber-800 dark:bg-amber-300\/10 dark:border-amber-300\/20 dark:text-amber-200/g, 'bg-muted/50 border-border text-muted-foreground');
-    if (label) label.remove();
   }
 
   function fallbackTooltipText(pill) {
@@ -1614,7 +1607,8 @@ function accountWizardTest(options) {
     var save = footer.querySelector('[data-account-test-save]');
     var back = footer.querySelector('[data-account-test-back]');
     if (anyway) {
-      anyway.textContent = state === 'failed' ? options.anywayFailedLabel : options.anywayLabel;
+      var label = state === 'failed' ? options.anywayFailedLabel : options.anywayLabel;
+      anyway.textContent = typeof label === 'function' ? label() : label;
       anyway.hidden = state === 'passed' || done;
     }
     if (retest) retest.hidden = state !== 'failed';
@@ -1718,8 +1712,8 @@ function newAddAccountTest() {
     form: 'account-form',
     results: 'add-account-test-results',
     footer: '#add-wizard-footer [data-wizard-footer-step="3"]',
-    anywayLabel: 'Skip test and create',
-    anywayFailedLabel: 'Create anyway',
+    anywayLabel: function() { return addingMailToAccount() ? 'Skip test and add email' : 'Skip test and create'; },
+    anywayFailedLabel: function() { return addingMailToAccount() ? 'Add anyway' : 'Create anyway'; },
     // Going back would create the account a second time.
     lockWhenDone: true,
     request: function(key) { return { url: '/api/accounts/test', body: key }; },
@@ -1745,7 +1739,7 @@ goferOnContent('#add-account-dialog', function() {
 });
 document.body.addEventListener('htmx:beforeRequest', function(event) {
   if (!event.target || event.target.id !== 'account-form') return;
-  addAccountTest.saving('Creating account...');
+  addAccountTest.saving(addingMailToAccount() ? 'Adding email...' : 'Creating account...');
 });
 // Creating failed: say why on the test step, where the person is. Managed
 // servers answer with an error status; others send an error card in place
@@ -1801,7 +1795,9 @@ function syncAddContactStepAfterSwap() {
 function maybeGoAddContacts() {
   if (!addAccountCreated()) return;
   syncAddContactStep();
-  addAccountTest.saved('Account created. Mail is syncing now. You can close this window, or continue to set up this account\'s contacts and calendar.');
+  addAccountTest.saved(addingMailToAccount()
+    ? 'Email added. Mail is syncing now. You can close this window, or continue to this account\'s contacts and calendar.'
+    : 'Account created. Mail is syncing now. You can close this window, or continue to set up this account\'s contacts and calendar.');
 }
 function syncWizardServiceContent(root) {
   root = root || document;
@@ -2198,8 +2194,185 @@ function setAddAccountMailService(service) {
 }
 function openAddAccountWizard(service) {
   setAddAccountMailService(service);
+  var root = document.getElementById('add-account-dialog');
+  if (root) delete root.dataset.addMail;
   goferSwitchDialog('choose-account-type-dialog', 'add-account-dialog');
 }
+// An account with only calendars or contacts gets its mail through the add
+// wizard, which then saves the mailbox to that account instead of creating
+// one, and goes on to its contacts and calendar as usual.
+var _addMailAccount = null;
+function openAddMailChooser(accountID, name) {
+  _addMailAccount = { id: accountID, name: name || '' };
+  var chooser = document.getElementById('choose-mail-type-dialog');
+  if (!chooser || !window.tui || !window.tui.dialog) return;
+  chooser.querySelectorAll('[data-add-mail-account-name]').forEach(function(label) { label.textContent = name || 'this account'; });
+  if (window.tui.dialog.isOpen('edit-dav-account-dialog')) {
+    goferSwitchDialog('edit-dav-account-dialog', 'choose-mail-type-dialog');
+  } else {
+    window.tui.dialog.open('choose-mail-type-dialog');
+  }
+}
+function startAddMail(service) {
+  var root = document.getElementById('add-account-dialog');
+  var form = document.getElementById('account-form');
+  if (!_addMailAccount || !root || !form) return;
+  setAddAccountMailService(service);
+  root.dataset.addMail = _addMailAccount.id;
+  var name = form.querySelector('input[name="display_name"]');
+  if (name && !name.value) name.value = _addMailAccount.name;
+  goferSwitchDialog('choose-mail-type-dialog', 'add-account-dialog');
+}
+document.body.addEventListener('htmx:configRequest', function(event) {
+  var root = document.getElementById('add-account-dialog');
+  if (!event.target || event.target.id !== 'account-form' || !root || !root.dataset.addMail) return;
+  event.detail.path = '/api/accounts/' + encodeURIComponent(root.dataset.addMail) + '/mail';
+});
+function addingMailToAccount() {
+  var root = document.getElementById('add-account-dialog');
+  return !!(root && root.dataset.addMail);
+}
+
+// Calendar-only and contacts-only accounts: a server, its login, and the
+// calendars or address books to sync. Find signs in and lists them; the
+// account is then created, or saved, with the ones ticked. Changing the
+// server or login drops the list until it is found again.
+function openDAVAccountDialog(service) {
+  var root = document.getElementById('add-dav-account-dialog');
+  var form = root && root.querySelector('[data-dav-account-form]');
+  if (!form || !window.tui || !window.tui.dialog) return;
+  form.reset();
+  root.dataset.davService = service === 'contacts' ? 'contacts' : 'calendar';
+  form.querySelector('input[name="service"]').value = root.dataset.davService;
+  davAccountItems(root, '');
+  davAccountStatus(root, '', '');
+  davAccountBusy(root, false);
+  window.tui.dialog.open('add-dav-account-dialog');
+}
+function davAccountRoot(element) {
+  return element && element.closest ? element.closest('[data-dav-account-dialog]') : null;
+}
+function davAccountStatus(root, kind, message) {
+  var status = root.querySelector('[data-dav-account-status]');
+  if (!status) return;
+  status.textContent = '';
+  if (!message) return;
+  var box = document.createElement('div');
+  box.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+  if (kind === 'busy') {
+    box.className = 'flex items-center gap-2 py-1 text-xs text-muted-foreground';
+    var spinner = document.createElement('div');
+    spinner.className = 'size-4 rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground animate-spin';
+    box.appendChild(spinner);
+    box.appendChild(document.createElement('span')).textContent = message;
+  } else {
+    box.className = 'rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive';
+    box.textContent = message;
+  }
+  status.appendChild(box);
+}
+function davAccountItems(root, html) {
+  var list = root.querySelector('[data-dav-items]');
+  if (list) list.innerHTML = html;
+  var save = root.querySelector('[data-dav-account-save]');
+  if (save) save.disabled = !root.querySelector('[data-dav-items-found]');
+}
+function davAccountBusy(root, busy) {
+  root.querySelectorAll('[data-dav-account-action]').forEach(function(button) {
+    button.disabled = busy || (button.hasAttribute('data-dav-account-save') && !root.querySelector('[data-dav-items-found]'));
+  });
+}
+function davAccountURL(root, path) {
+  var id = root.dataset.accountId;
+  return id ? '/api/accounts/' + encodeURIComponent(id) + '/dav' + path : '/api/accounts/dav' + path;
+}
+function davAccountRequest(root, path, busyMessage, extra) {
+  var form = root.querySelector('[data-dav-account-form]');
+  var missing = Array.prototype.find.call(form.querySelectorAll('input[required]'), function(input) {
+    return !input.value.trim();
+  });
+  if (missing) {
+    missing.reportValidity();
+    return Promise.reject(new Error(''));
+  }
+  davAccountBusy(root, true);
+  if (busyMessage) davAccountStatus(root, 'busy', busyMessage);
+  var body = new URLSearchParams(new FormData(form));
+  Object.keys(extra || {}).forEach(function(name) { body.set(name, extra[name]); });
+  return fetch(davAccountURL(root, path), {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'text/html' },
+    body: body.toString()
+  }).then(function(response) {
+    return response.text().then(function(body) {
+      if (!response.ok) throw new Error((body || '').trim() || 'Could not reach the server.');
+      davAccountStatus(root, '', '');
+      return body;
+    });
+  }).catch(function(error) {
+    davAccountBusy(root, false);
+    if (error && error.message) davAccountStatus(root, 'error', error.message);
+    throw new Error('');
+  });
+}
+function findDAVItems(button) {
+  var root = davAccountRoot(button);
+  if (!root) return;
+  davAccountRequest(root, '/find', 'Signing in...').then(function(html) {
+    davAccountItems(root, html);
+    davAccountBusy(root, false);
+  }).catch(function() {});
+}
+// createDAVItem makes a calendar or address book on the server, then lists
+// them again with it ticked, keeping what was ticked before.
+function createDAVItem(button) {
+  var root = davAccountRoot(button);
+  if (!root) return;
+  var input = root.querySelector('[data-dav-new-name]');
+  var name = input ? input.value.trim() : '';
+  if (!name) {
+    if (input) input.focus();
+    return;
+  }
+  davAccountRequest(root, '/find', 'Creating ' + name + '...', { create_name: name }).then(function(html) {
+    davAccountItems(root, html);
+    davAccountBusy(root, false);
+  }).catch(function() {});
+}
+document.addEventListener('keydown', function(event) {
+  var input = event.target;
+  if (event.key !== 'Enter' || !input || !input.hasAttribute || !input.hasAttribute('data-dav-new-name')) return;
+  event.preventDefault();
+  createDAVItem(input);
+});
+function saveDAVAccount(root) {
+  var editing = !!root.dataset.accountId;
+  // Saving shows nothing while it runs, only an error if it fails: the
+  // disabled buttons say it is busy without the dialog changing height.
+  davAccountRequest(root, '').then(function() {
+    window.location.href = editing ? '/settings/accounts' : '/settings/accounts?account_added=1';
+  }).catch(function() {});
+}
+document.addEventListener('submit', function(event) {
+  var form = event.target;
+  if (!form || !form.hasAttribute || !form.hasAttribute('data-dav-account-form')) return;
+  event.preventDefault();
+  var root = davAccountRoot(form);
+  if (root) saveDAVAccount(root);
+});
+document.addEventListener('input', function(event) {
+  var input = event.target;
+  if (!input || !input.hasAttribute || !input.hasAttribute('data-dav-login')) return;
+  var root = davAccountRoot(input);
+  if (root && root.querySelector('[data-dav-items-found]')) davAccountItems(root, '');
+});
+// Edit on a calendar-only or contacts-only account loads its own dialog.
+document.addEventListener('htmx:afterSettle', function(event) {
+  if (event.target && event.target.querySelector && event.target.querySelector('#edit-dav-account-dialog') && window.tui && window.tui.dialog) {
+    setTimeout(function() { window.tui.dialog.open('edit-dav-account-dialog'); }, 20);
+  }
+});
 function discoverMailSettings(button) {
   var form = document.getElementById('account-form');
   var status = mailDiscoveryStatus();
@@ -2340,7 +2513,12 @@ function syncProtocolChoices(root) {
 }
 document.addEventListener('DOMContentLoaded', function() { syncProtocolChoices(document); });
 document.body.addEventListener('htmx:afterSwap', function(event) { syncProtocolChoices(event.target || document); });
-function discoverCardDAV(accountID, fieldsID, statusID, autodiscover) {
+// discoverCardDAV lists the address books on the CardDAV server, first
+// first making the change asked for, if any: {create_name}, {rename_target,
+// rename_name} or {delete_target}.
+function discoverCardDAV(accountID, fieldsID, statusID, autodiscover, change) {
+  change = change || {};
+  var busyLabel = change.create_name ? 'Creating ' + change.create_name + '...' : change.rename_name ? 'Renaming to ' + change.rename_name + '...' : change.delete_target ? 'Deleting the address book...' : '';
   var fields = document.getElementById(fieldsID);
   var status = document.getElementById(statusID);
   if (!fields || !status) return;
@@ -2352,10 +2530,11 @@ function discoverCardDAV(accountID, fieldsID, statusID, autodiscover) {
     body.append(input.name, input.value || '');
   });
   if (autodiscover) body.append('autodiscover', '1');
+  Object.keys(change).forEach(function(name) { body.append(name, change[name]); });
   var overJMAP = body.get('provider') === 'jmap';
   function renderDiscoveryProgress(completed, total, endpoint) {
     var percent = total > 0 ? Math.max(0, Math.min(100, Math.round((completed / total) * 100))) : 0;
-    var label = total > 0 ? 'Testing ' + Math.min(completed + 1, total) + ' of ' + total + ' CardDAV checks' : (overJMAP ? 'Looking up JMAP address books...' : 'Preparing CardDAV discovery...');
+    var label = total > 0 ? 'Testing ' + Math.min(completed + 1, total) + ' of ' + total + ' CardDAV checks' : (busyLabel || (overJMAP ? 'Looking up JMAP address books...' : 'Preparing CardDAV discovery...'));
     var safeEndpoint = endpoint ? endpoint.replace(/[&<>"]/g, function(ch) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]); }) : '';
     status.innerHTML = '<div class="rounded-lg border border-border bg-background/60 p-3 text-xs text-muted-foreground"><div class="flex items-center justify-between gap-3"><span class="font-medium text-foreground">' + label + '</span><span class="tabular-nums">' + completed + '/' + (total || '?') + '</span></div><div class="mt-2 h-1.5 overflow-hidden rounded-md bg-muted"><div class="h-full rounded-md bg-primary transition-all" style="width:' + percent + '%"></div></div>' + (safeEndpoint ? '<div class="mt-2 truncate">' + safeEndpoint + '</div>' : '') + '</div>';
   }
@@ -2379,6 +2558,7 @@ function discoverCardDAV(accountID, fieldsID, statusID, autodiscover) {
       }
       if (event.type === 'error') {
         if (timeout) window.clearTimeout(timeout);
+        enableCreate();
         var err = document.createElement('div');
         err.className = 'rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive';
         err.textContent = event.error || 'Could not discover CardDAV address books.';
@@ -2388,7 +2568,7 @@ function discoverCardDAV(accountID, fieldsID, statusID, autodiscover) {
       }
       if (event.type === 'done') {
         if (timeout) window.clearTimeout(timeout);
-        renderDiscoveryResults(event.address_books || []);
+        renderDiscoveryResults(event.address_books || [], event.created || '');
       }
     }
     function read() {
@@ -2408,23 +2588,103 @@ function discoverCardDAV(accountID, fieldsID, statusID, autodiscover) {
     return read();
   }).catch(function(err) {
     if (timeout) window.clearTimeout(timeout);
+    enableCreate();
     var message = err && err.name === 'AbortError' ? 'CardDAV discovery timed out. Check the app logs for the attempted DNS and URL checks, or enter the provider\'s exact CardDAV base URL and try again.' : 'Could not discover CardDAV address books. Check the app logs for details.';
     status.innerHTML = '<div class="rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">' + message + '</div>';
   });
-  function renderDiscoveryResults(books) {
+  function enableCreate() {
+    fields.querySelectorAll('[data-carddav-create]').forEach(function(button) { button.disabled = false; });
+  }
+  // createRow makes another address book on the server, which then lists
+  // them again with it ticked; see CardDAVCreateAddressBook.
+  function createRow() {
+    var row = document.createElement('div');
+    row.className = 'mt-3 flex items-end gap-2 border-t border-border/60 pt-3';
+    row.setAttribute('data-carddav-create-row', '');
+    var field = document.createElement('div');
+    field.className = 'min-w-0 flex-1';
+    var label = document.createElement('label');
+    label.className = 'mb-1.5 block text-xs font-medium text-muted-foreground';
+    label.textContent = 'New address book';
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.maxLength = 100;
+    input.autocomplete = 'off';
+    input.placeholder = 'Address book name';
+    input.setAttribute('data-carddav-new-name', '');
+    input.className = 'flex h-9 w-full min-w-0 rounded-md border border-input bg-input/30 px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none md:text-sm placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]';
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.setAttribute('data-carddav-create', '');
+    button.dataset.accountId = accountID;
+    button.dataset.fieldsId = fieldsID;
+    button.dataset.statusId = statusID;
+    button.dataset.carddavAutodiscover = autodiscover ? 'true' : 'false';
+    button.className = 'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-3 text-xs font-semibold text-primary transition-colors hover:border-primary/45 hover:bg-primary/15 disabled:pointer-events-none disabled:opacity-60';
+    button.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-3.5"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>';
+    button.appendChild(document.createTextNode('Create'));
+    field.appendChild(label);
+    field.appendChild(input);
+    row.appendChild(field);
+    row.appendChild(button);
+    return row;
+  }
+  // addressBookActions are the rename and delete buttons of a listed book;
+  // see AddressBookActions.
+  function addressBookActions(book) {
+    var wrap = document.createElement('span');
+    wrap.className = 'ml-auto flex shrink-0 items-center gap-0.5';
+    [
+      { kind: 'rename', label: 'Rename', hover: 'hover:bg-accent hover:text-foreground', svg: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"></path><path d="m15 5 4 4"></path>' },
+      { kind: 'delete', label: 'Delete', hover: 'hover:bg-destructive/10 hover:text-destructive', svg: '<path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" x2="10" y1="11" y2="17"></line><line x1="14" x2="14" y1="11" y2="17"></line>' },
+    ].forEach(function(action) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'inline-flex size-6 items-center justify-center rounded text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 ' + action.hover;
+      button.setAttribute('data-address-book-' + action.kind, book.url || '');
+      button.dataset.addressBookName = book.name || 'Address book';
+      button.dataset.accountId = accountID;
+      button.dataset.fieldsId = fieldsID;
+      button.dataset.statusId = statusID;
+      button.dataset.carddavAutodiscover = autodiscover ? 'true' : 'false';
+      button.setAttribute('aria-label', action.label + ' ' + (book.name || 'address book'));
+      button.title = action.label;
+      button.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-3.5">' + action.svg + '</svg>';
+      wrap.appendChild(button);
+    });
+    return wrap;
+  }
+  function renderDiscoveryResults(books, created) {
     status.textContent = '';
+    var pickerSection = fields.querySelector('[data-carddav-addressbook-section]');
     if (!books.length) {
-      var empty = document.createElement('div');
-      empty.className = 'rounded-md border border-border bg-background/60 px-3 py-2 text-xs text-muted-foreground';
-      empty.textContent = overJMAP ? 'The JMAP server has no address books for this login.' : 'No CardDAV address books were found.';
-      status.appendChild(empty);
+      var none = document.createElement('div');
+      none.className = pickerSection ? '' : 'rounded-lg border border-border bg-background/60 p-3';
+      var noneTitle = document.createElement('div');
+      noneTitle.className = 'text-xs font-semibold text-foreground';
+      noneTitle.textContent = 'No address books on this server yet';
+      var noneHint = document.createElement('p');
+      noneHint.className = 'mt-1 text-[11px] leading-relaxed text-muted-foreground';
+      noneHint.textContent = 'Create one to sync. It is made on the server, so your other apps see it too.';
+      none.appendChild(noneTitle);
+      none.appendChild(noneHint);
+      none.appendChild(createRow());
+      if (pickerSection) {
+        pickerSection.classList.remove('hidden');
+        pickerSection.textContent = '';
+        pickerSection.appendChild(none);
+      } else {
+        status.appendChild(none);
+      }
       return;
     }
-    var pickerSection = fields.querySelector('[data-carddav-addressbook-section]');
     if (pickerSection) pickerSection.classList.remove('hidden');
     var existingInputs = fields.querySelectorAll('input[name="addressbook_url"]');
     var selected = {};
-    existingInputs.forEach(function(input) { if (input.value) selected[input.value] = true; });
+    existingInputs.forEach(function(input) {
+      if (input.value && (input.type !== 'checkbox' || input.checked)) selected[input.value] = true;
+    });
+    if (created) selected[created] = true;
     var wrap = document.createElement('div');
     wrap.className = pickerSection ? '' : 'rounded-lg border border-border bg-background/60 p-3';
     var title = document.createElement('div');
@@ -2488,6 +2748,7 @@ function discoverCardDAV(accountID, fieldsID, statusID, autodiscover) {
       row.appendChild(hiddenID);
       row.appendChild(hiddenName);
       row.appendChild(content);
+      row.appendChild(addressBookActions(book));
       check.addEventListener('change', function() {
         radio.disabled = !check.checked;
         hiddenName.disabled = !check.checked;
@@ -2504,9 +2765,13 @@ function discoverCardDAV(accountID, fieldsID, statusID, autodiscover) {
       if (check.checked) row.classList.add('border-primary', 'bg-primary/10');
       list.appendChild(row);
     });
+    var previousDefault = fields.querySelector('input[name="default_addressbook_url"]:checked');
+    var keepDefault = previousDefault ? list.querySelector('input[name="default_addressbook_url"][value="' + CSS.escape(previousDefault.value) + '"]') : null;
+    if (keepDefault && !keepDefault.disabled) keepDefault.checked = true;
     var firstChecked = list.querySelector('input[name="addressbook_url"]:checked');
-    if (firstChecked) firstChecked.closest('label').querySelector('input[name="default_addressbook_url"]').checked = true;
+    if (!list.querySelector('input[name="default_addressbook_url"]:checked') && firstChecked) firstChecked.closest('label').querySelector('input[name="default_addressbook_url"]').checked = true;
     wrap.appendChild(list);
+    wrap.appendChild(createRow());
     if (pickerSection) {
       pickerSection.textContent = '';
       pickerSection.appendChild(wrap);
@@ -2520,6 +2785,68 @@ document.addEventListener('click', function(event) {
   if (!button) return;
   event.preventDefault();
   discoverCardDAV(button.dataset.accountId || '', button.dataset.fieldsId || '', button.dataset.statusId || '', button.dataset.carddavAutodiscover === 'true');
+});
+// An address book's rename and delete buttons change it on its server, then
+// list the books again: through the Contacts step's discovery, or in the
+// calendar-only/contacts-only dialog through its Find. A delete is confirmed
+// first, since the book and its contacts are gone for every app.
+document.addEventListener('click', function(event) {
+  var button = event.target && event.target.closest ? event.target.closest('[data-address-book-rename], [data-address-book-delete]') : null;
+  if (!button || button.disabled) return;
+  event.preventDefault();
+  var rename = button.hasAttribute('data-address-book-rename');
+  var target = rename ? button.getAttribute('data-address-book-rename') : button.getAttribute('data-address-book-delete');
+  var name = button.dataset.addressBookName || 'this address book';
+  var ask = rename
+    ? window.goferPrompt({ title: 'Rename address book', label: 'Address book name', value: name, confirmLabel: 'Rename' }).then(function(next) {
+      next = (next || '').trim();
+      return next && next !== name ? { rename_target: target, rename_name: next } : null;
+    })
+    : window.goferConfirm({
+      title: 'Delete “' + name + '”?',
+      message: '“' + name + '” and all its contacts are deleted from the server, for every app and device that uses it. This can\'t be undone.',
+      confirmLabel: 'Delete address book',
+      destructive: true,
+    }).then(function(accepted) { return accepted ? { delete_target: target } : null; });
+  ask.then(function(change) {
+    if (!change) return;
+    var root = davAccountRoot(button);
+    if (root) {
+      davAccountRequest(root, '/find', rename ? 'Renaming...' : 'Deleting...', change).then(function(html) {
+        davAccountItems(root, html);
+        davAccountBusy(root, false);
+      }).catch(function() {});
+      return;
+    }
+    discoverCardDAV(button.dataset.accountId || '', button.dataset.fieldsId || '', button.dataset.statusId || '', button.dataset.carddavAutodiscover === 'true', change);
+  });
+});
+// createCardDAVAddressBook runs discovery from a New address book row,
+// making the address book named there first.
+function createCardDAVAddressBook(button) {
+  var row = button.closest('[data-carddav-create-row]');
+  var input = row ? row.querySelector('[data-carddav-new-name]') : null;
+  var name = input ? input.value.trim() : '';
+  if (!name) {
+    if (input) input.focus();
+    return;
+  }
+  button.disabled = true;
+  discoverCardDAV(button.dataset.accountId || '', button.dataset.fieldsId || '', button.dataset.statusId || '', button.dataset.carddavAutodiscover === 'true', { create_name: name });
+}
+document.addEventListener('click', function(event) {
+  var button = event.target && event.target.closest ? event.target.closest('[data-carddav-create]') : null;
+  if (!button) return;
+  event.preventDefault();
+  createCardDAVAddressBook(button);
+});
+document.addEventListener('keydown', function(event) {
+  var input = event.target;
+  if (event.key !== 'Enter' || !input || !input.hasAttribute || !input.hasAttribute('data-carddav-new-name')) return;
+  event.preventDefault();
+  var row = input.closest('[data-carddav-create-row]');
+  var button = row ? row.querySelector('[data-carddav-create]') : null;
+  if (button) createCardDAVAddressBook(button);
 });
 document.addEventListener('click', function(event) {
   var button = event.target && event.target.closest ? event.target.closest('[data-carddav-manual]') : null;

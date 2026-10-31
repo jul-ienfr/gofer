@@ -10,6 +10,7 @@ import (
 	"github.com/cristianadrielbraun/gofer/components/dropdown"
 	"github.com/cristianadrielbraun/gofer/components/checkbox"
 	"github.com/cristianadrielbraun/gofer/components/calendar"
+	"github.com/cristianadrielbraun/gofer/components/collapsible"
 	"github.com/cristianadrielbraun/gofer/components/datepicker"
 	"github.com/cristianadrielbraun/gofer/components/timepicker"
 	"github.com/cristianadrielbraun/gofer/components/input"
@@ -30,9 +31,11 @@ templ SkipToContent() {
 	<a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-foreground focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-ring">Skip to content</a>
 }
 
-templ Layout(accounts []models.Account, activeFolder string, emails []models.Email, selectedEmail *models.Email, totalCount int, scrollCount int, uiSettings map[string]string, selectedThread []models.ThreadItem, initialEmailID string, scheduledCount int, filters models.EmailFilters) {
+templ Layout(accounts []models.Account, activeFolder string, emails []models.Email, selectedEmail *models.Email, totalCount int, scrollCount int, windowStart int, uiSettings map[string]string, selectedThread []models.ThreadItem, initialEmailID string, scheduledCount int, filters models.EmailFilters) {
 	<!DOCTYPE html>
-	<html lang="en" class={ themeClass(uiSettings) } data-theme={ themeStyle(uiSettings) } { themeLookAttributes(uiSettings)... }>
+	// The mail list's rows start hidden and fan in once it's set up
+	// (fanInRows in virtual-scroll.js), so a page load animates them too.
+	<html lang="en" class={ themeClass(uiSettings), "mail-list-entering" } data-theme={ themeStyle(uiSettings) } { themeLookAttributes(uiSettings)... }>
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -55,6 +58,7 @@ templ Layout(accounts []models.Account, activeFolder string, emails []models.Ema
 			@popover.Script()
 			@copybutton.Script()
 			@toast.Script()
+			@collapsible.Script()
 			@AppSidebarResponsiveStyle()
 			<script src={ assetver.URL("/assets/js/actions.js") }></script>
 		</head>
@@ -65,9 +69,11 @@ templ Layout(accounts []models.Account, activeFolder string, emails []models.Ema
 				@Sidebar(accounts, activeFolder, uiSettingGet(uiSettings, "sidebar_width", "256px"), uiSettings, scheduledCount, filters)
 				@ResizeHandle("sidebar")
 				<main id="main-content" tabindex="-1" class={ mailPaneLayoutClass(uiSettingGet(uiSettings, "mail_pane_layout", "side")) } data-mail-pane-layout={ mailPaneLayout(uiSettingGet(uiSettings, "mail_pane_layout", "side")) }>
-					@MailList(accounts, emails, activeFolder, selectedEmail, totalCount, scrollCount, 0, uiSettingGet(uiSettings, "mail_list_width", "50%"), uiSettingGet(uiSettings, "sender_display", "name"), ListViewSetting(ctx, uiSettings, "mail_list_view"), uiSettingGet(uiSettings, "mail_list_navigation", "infinite"), filters)
+					@MailList(accounts, emails, activeFolder, selectedEmail, totalCount, scrollCount, windowStart, uiSettingGet(uiSettings, "mail_list_width", "50%"), uiSettingGet(uiSettings, "sender_display", "name"), ListViewSetting(ctx, uiSettings, "mail_list_view"), uiSettingGet(uiSettings, "mail_list_navigation", "infinite"), filters)
 					@ResizeHandle("maillist")
-					if initialEmailID != "" && selectedEmail == nil {
+					// selectedEmail may only mark the list row; the reader loads the
+					// message itself.
+					if initialEmailID != "" {
 						@MailViewLoading()
 					} else {
 						@MailView(selectedEmail, selectedThread)
@@ -80,6 +86,7 @@ templ Layout(accounts []models.Account, activeFolder string, emails []models.Ema
 			@CalendarLoadingTemplates(accounts, uiSettings)
 			@AppSwitchEmptyPaneTemplates()
 			<script src={ assetver.URL("/assets/js/htmx.min.js") }></script>
+			<script src={ assetver.URL("/assets/js/mail-search.js") }></script>
 			<script src={ assetver.URL("/assets/js/virtual-scroll.js") }></script>
 			<script src={ assetver.URL("/assets/js/app.js") }></script>
 			<script src={ assetver.URL("/assets/js/settings.js") }></script>
@@ -167,6 +174,7 @@ templ SettingsComponentScripts() {
 	@copybutton.Script()
 	@toast.Script()
 	@progress.Script()
+	@collapsible.Script()
 }
 
 templ SettingsRuntime(accounts []models.Account) {
@@ -175,8 +183,11 @@ templ SettingsRuntime(accounts []models.Account) {
 	@GmailAccountDialog()
 	@OutlookAccountDialog()
 	@AddAccountDialog()
+	@DAVAccountDialog(DAVAccountDialogData{Service: "calendar"})
+	@ChooseMailTypeDialog()
 	<div id="edit-account-container"></div>
 	<script src={ assetver.URL("/assets/js/htmx.min.js") }></script>
+	<script src={ assetver.URL("/assets/js/mail-search.js") }></script>
 	<script src={ assetver.URL("/assets/js/virtual-scroll.js") }></script>
 	<script src={ assetver.URL("/assets/js/app.js") }></script>
 	<script src={ assetver.URL("/assets/js/ai-draft.js") }></script>
@@ -263,6 +274,7 @@ templ ContactsLayout(accounts []models.Account, contacts []models.Contact, selec
 			@popover.Script()
 			@copybutton.Script()
 			@toast.Script()
+			@collapsible.Script()
 			@AppSidebarResponsiveStyle()
 			<script src={ assetver.URL("/assets/js/actions.js") }></script>
 		</head>
@@ -276,6 +288,7 @@ templ ContactsLayout(accounts []models.Account, contacts []models.Contact, selec
 			@CalendarLoadingTemplates(accounts, uiSettings)
 			@AppSwitchEmptyPaneTemplates()
 			<script src={ assetver.URL("/assets/js/htmx.min.js") }></script>
+			<script src={ assetver.URL("/assets/js/mail-search.js") }></script>
 			<script src={ assetver.URL("/assets/js/virtual-scroll.js") }></script>
 			<script src={ assetver.URL("/assets/js/app.js") }></script>
 			<script src={ assetver.URL("/assets/js/settings.js") }></script>
@@ -348,6 +361,7 @@ templ AdminLayout(uiSettings map[string]string, userData AdminUsersData, avatarS
 			@popover.Script()
 			@copybutton.Script()
 			@toast.Script()
+			@collapsible.Script()
 			<script src={ assetver.URL("/assets/js/actions.js") }></script>
 		</head>
 		<body class="bg-background text-foreground antialiased surface-desk" data-ui-settings={ uiSettingsJSON(uiSettings) }>
@@ -438,6 +452,8 @@ templ SettingsPartial(accounts []models.Account, syncSettings models.SyncSetting
 	@GmailAccountDialog()
 	@OutlookAccountDialog()
 	@AddAccountDialog()
+	@DAVAccountDialog(DAVAccountDialogData{Service: "calendar"})
+	@ChooseMailTypeDialog()
 	<div id="edit-account-container"></div>
 }
 

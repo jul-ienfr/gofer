@@ -175,4 +175,56 @@ fire('click', button('data-mail-filter-button'))
 count(4)
 const restored = submit().query
 for (const name of ['unread', 'attachments', 'has_tags', 'no_threads']) assert.equal(restored.get(name), '1')
-console.log('Mail filters: all status choices, Apply counters, request parameters, Any, replacement, combined filters, Clear all, and restored state passed.')
+// Search commands fill in the same filters as the panel.
+const search = {value: '', dataset: {}, matches(selector) { return selector === '[data-mail-search-input]' }}
+function command(text) {
+  fire('click', button('data-mail-advanced-filter-clear'))
+  submit()
+  search.value = text
+  const event = {target: search, key: 'Enter', preventDefault() {}}
+  for (const listener of listeners.keydown || []) listener(event)
+  for (const [id, callback] of timers) { timers.delete(id); callback() }
+  return applied.at(-1).query
+}
+for (const [text, expected] of [
+  ['to:anna', {to: 'anna', recipient_type: 'to'}],
+  ['cc:anna', {to: 'anna', recipient_type: 'cc'}],
+  ['bcc:anna', {to: 'anna', recipient_type: 'bcc'}],
+  ['recipient:anna', {to: 'anna', recipient_type: null}],
+  ['to-domain:example.com', {recipient_domain: 'example.com', recipient_type: null}],
+  ['filetype:pdf', {attachment_type: 'pdf', attachment_extension: null}],
+  ['filetype:.DWG', {attachment_type: 'custom', attachment_extension: 'dwg'}],
+  ['larger:5', {min_size_mb: '5'}],
+  ['larger:2gb', {min_size_mb: '2048'}],
+  ['smaller:512kb', {max_size_mb: '0.5'}],
+  ['no:attachment', {no_attachments: '1', attachments: null}],
+  ['no:tags', {no_tags: '1'}],
+  ['no:thread', {no_threads: '1'}],
+  ['has:thread', {threads_only: '1'}],
+]) {
+  const query = command(text)
+  for (const [name, value] of Object.entries(expected)) assert.equal(query.get(name), value, text + ' sets ' + name)
+  assert.equal(query.get('q'), null, text + ' is a command, not words to search')
+}
+assert.equal(command('larger:big').get('q'), 'larger:big', 'A size that isn\'t one is searched as words')
+
+// The search field filters only on Enter: typing doesn't, and text still in
+// the field stays out of filters applied from the panel.
+fire('click', button('data-mail-advanced-filter-clear'))
+submit()
+const typedBefore = applied.length
+search.value = 'has:attachment invo'
+for (const listener of listeners.input || []) listener({target: search})
+for (const [id, callback] of timers) { timers.delete(id); callback() }
+assert.equal(applied.length, typedBefore, 'typing does not filter')
+click('status', 'unread')
+const typedApply = submit().query
+assert.equal((typedApply.get('q') || '').includes('invo'), false, 'text being typed is not part of an Apply')
+assert.equal(typedApply.get('unread'), '1')
+const entered = {target: search, key: 'Enter', preventDefault() {}}
+for (const listener of listeners.keydown || []) listener(entered)
+for (const [id, callback] of timers) { timers.delete(id); callback() }
+assert.equal(applied.at(-1).query.get('q').split(' ').includes('invo'), true, 'Enter searches what was typed')
+assert.equal(applied.at(-1).query.get('attachments'), '1')
+
+console.log('Mail filters: all status choices, Apply counters, request parameters, Any, replacement, combined filters, Clear all, restored state, search commands, and searching on Enter passed.')

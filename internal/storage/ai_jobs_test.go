@@ -72,8 +72,8 @@ func TestAIMigrationsUpgradeFromV132(t *testing.T) {
 	if err := db.Read().QueryRow(`SELECT MAX(version) FROM schema_version`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 142 {
-		t.Fatalf("schema version after upgrade = %d, want 142", version)
+	if version != CurrentSchemaVersion {
+		t.Fatalf("schema version after upgrade = %d, want %d", version, CurrentSchemaVersion)
 	}
 	var subject string
 	if err := db.Read().QueryRow(`SELECT subject FROM messages WHERE id = 1`).Scan(&subject); err != nil || subject != "Keep me" {
@@ -343,14 +343,14 @@ func TestAnalysisMigrationLeavesExistingVersionIntact(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if err := applyAIMigrations(db.Write(), 142); err != nil {
-		t.Fatalf("apply at 142: %v", err)
+	if err := applyAIMigrations(db.Write(), CurrentSchemaVersion); err != nil {
+		t.Fatalf("apply at %d: %v", CurrentSchemaVersion, err)
 	}
 	var version int
 	if err := db.Read().QueryRow(`SELECT MAX(version) FROM schema_version`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 142 {
-		t.Fatalf("version = %d, want 142", version)
+	if version != CurrentSchemaVersion {
+		t.Fatalf("version = %d, want %d", version, CurrentSchemaVersion)
 	}
 }

@@ -249,7 +249,7 @@ templ MailViewContent(email *models.Email, thread []models.ThreadItem) {
 			<div class="surface-paper rounded-md flex flex-col h-full overflow-hidden">
 				@MailViewHeader(email, thread)
 				<div class="h-px bg-gradient-to-r from-transparent via-amber-900/10 to-transparent"></div>
-				<div class="flex-1 overflow-y-auto">
+				<div class="flex-1 overflow-y-auto" data-mail-view-scroll>
 					<div class="mail-view-content mx-auto px-8 py-6">
 						@MailViewSender(email)
 						<div class="mail-view-mobile-tools mail-view-message-actions mt-2 -mr-1 flex items-center justify-end gap-0.5 lg:hidden">
@@ -730,7 +730,7 @@ templ MailViewHeader(email *models.Email, thread []models.ThreadItem) {
 							Variant:    button.VariantGhost,
 							Size:       button.SizeIcon,
 							Class:      "h-8 w-8 text-icon hover:text-ink hover:bg-ink/5",
-							Attributes: templ.Attributes{"data-on-click": onAction("archiveThread", email.ID)},
+							Attributes: templ.Attributes{"data-on-click": onAction("archiveThread", email.ID, actionElement), "data-mail-archive-account": email.AccountID},
 						}) {
 							@icon.Archive(icon.Props{Class: "size-4"})
 						}
@@ -743,7 +743,7 @@ templ MailViewHeader(email *models.Email, thread []models.ThreadItem) {
 					if mailEmailIsArchived(email) {
 						{ threadAwareLabel("Move to Inbox", "Move thread to Inbox", email) }
 					} else {
-						{ threadAwareLabel("Archive", "Archive thread", email) }
+						<span data-mail-archive-tooltip>{ threadAwareLabel("Archive", "Archive thread", email) }</span>
 					}
 				}
 			}
@@ -912,7 +912,7 @@ templ MailViewHeader(email *models.Email, thread []models.ThreadItem) {
 							View source
 						</span>
 					}
-					@dropdown.Item() {
+					@dropdown.Item(dropdown.ItemProps{Attributes: templ.Attributes{"data-on-click": onAction("printEmail", email.ID)}}) {
 						<span class="flex items-center gap-2">
 							@icon.Printer(icon.Props{Class: "size-4"})
 							Print
@@ -1266,6 +1266,7 @@ templ MailViewMobileLabels(email *models.Email) {
 // selects it; Move does the move. A folder of another account asks first,
 // since that copies the email there and deletes it here.
 templ MailMoveDialog(email *models.Email, accounts []models.Account) {
+	{{ accounts = mailAccounts(accounts) }}
 	@dialog.Dialog(dialog.Props{ID: "mail-move-dialog"}) {
 		@dialog.Content(dialog.ContentProps{Class: "sm:max-w-md"}) {
 			@dialog.Header() {

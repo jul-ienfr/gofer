@@ -70,6 +70,10 @@ type UserIMAP struct {
 	// outlookSubs is set while GOFER_OUTLOOK_WEBHOOKS is on.
 	outlookSubs *outlookSubscriptions
 	closing     bool
+
+	// outlookServiceChange refreshes the calendars and contacts Microsoft
+	// announced changes for.
+	outlookServiceChange OutlookServiceChange
 }
 type userIMAPJob struct{ owner, account string }
 type userIMAPKey struct {
@@ -374,6 +378,8 @@ func (s *UserIMAP) snapshotAccount(ctx context.Context, owner, id string, allowJ
 			// Signs in with its stored password, like plain IMAP.
 		} else if r.config.Provider == providers.ProviderJMAP {
 			return ErrJMAPSyncUnavailable
+		} else if r.config.Provider == providers.ProviderDAV {
+			return config.ErrAccountHasNoMail
 		} else if r.config.Provider != providers.ProviderIMAP || r.config.AuthMethod != "plain" {
 			return errors.New("routed worker supports plain IMAP and configured Gmail/Outlook OAuth accounts only")
 		}
@@ -498,6 +504,12 @@ func (s *UserIMAP) sync(ctx context.Context, owner, id string, repair, backgroun
 			}
 		}()
 		scope, err = s.snapshotAccount(ctx, owner, id, true)
+		if errors.Is(err, config.ErrAccountHasNoMail) {
+			// Its calendars and contacts sync on their own; there is no mail.
+			scope = nil
+			paused = true
+			return nil
+		}
 		if err != nil {
 			scope = nil
 			s.mu.Lock()
@@ -891,7 +903,7 @@ func (s *UserIMAP) Cleanup(ctx context.Context, id string) error {
 		}
 	}
 	// The sign-in is gone; Graph ends the subscription on its own.
-	s.outlookSubs.drop(ctx, id, nil, nil)
+	s.outlookSubs.dropAccount(id)
 	return s.blobs.DeleteAccount(id)
 }
 

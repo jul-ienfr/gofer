@@ -1419,6 +1419,28 @@ document.addEventListener("DOMContentLoaded", function () {
     setupMailPullToRefresh()
     setupMailSwipeActions()
 
+    // With no reading pane, a click selects a message, and a double click
+    // opens it in the list's place. Opening it by script (Enter, or the double
+    // click below) goes through as usual. This runs before htmx sees the click.
+    document.addEventListener("click", function (e) {
+      if (!e.isTrusted || !mailListOnlyLayout() || mailSelectionModeActive()) return
+      if (e.button !== 0 || e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return
+      var link = e.target.closest && e.target.closest("#mail-list-scroll :is(.mail-list-item[data-email-id], .thread-sub-item) > a")
+      if (!link || e.target.closest(".star-btn, [data-thread-toggle]")) return
+      e.preventDefault()
+      e.stopPropagation()
+      if (e.detail >= 2) {
+        link.click()
+        return
+      }
+      var row = link.closest(".mail-list-item[data-email-id]")
+      if (!row || link.parentElement !== row) return
+      selectedMailIds.clear()
+      setMailSelected(row.dataset.emailId, true)
+      lastSelectedMailId = row.dataset.emailId
+      syncMailSelectionControls()
+    }, true)
+
     document.addEventListener("click", function (e) {
       var rowLink = e.target.closest && e.target.closest(".mail-list-item[data-email-id] > a")
       if (rowLink && Date.now() < suppressMailRowClickUntil) {
@@ -1525,7 +1547,7 @@ document.addEventListener("DOMContentLoaded", function () {
         e.preventDefault()
         if (selectionAction.disabled) return
         if (selectionAction.hasAttribute("data-mail-delete-all")) deleteAllInMailFolder(selectionAction.dataset.mailDeleteAllFolder)
-        else performMailSelectionAction(mailSelectionActionName(selectionAction))
+        else performMailSelectionAction(mailSelectionActionName(selectionAction), selectionAction)
         return
       }
 
@@ -1565,8 +1587,29 @@ document.addEventListener("DOMContentLoaded", function () {
     })
 
     // Closing the reader drops the selection that opening the email seeded.
+    // With no reading pane, the message stays selected instead, so the list
+    // carries on from where it was.
     document.addEventListener("gofer:mail-view-closed", function (evt) {
       var emailId = evt.detail && evt.detail.emailId
+      if (emailId && mailListOnlyLayout()) {
+        selectedMailIds.clear()
+        setMailSelected(emailId, true)
+        lastSelectedMailId = emailId
+        syncMailSelectionControls()
+        var row = document.querySelector('#mail-list-scroll .mail-list-item[data-email-id="' + cssEscape(emailId) + '"]')
+        var link = row && row.querySelector(":scope > a")
+        // The row's transitions carry the list's coming back into view, so
+        // it takes focus only once it shows, a frame or two later.
+        var tries = 0
+        var focusRow = function () {
+          if (!link.isConnected) return
+          if (tries === 0) row.scrollIntoView({ block: "nearest" })
+          link.focus({ preventScroll: true })
+          if (document.activeElement !== link && ++tries < 20) requestAnimationFrame(focusRow)
+        }
+        if (link) requestAnimationFrame(focusRow)
+        return
+      }
       if (selectedMailIds.size === 1 && selectedMailIds.has(emailId)) clearMailSelection()
     })
 
@@ -1575,12 +1618,14 @@ document.addEventListener("DOMContentLoaded", function () {
       syncMailDeleteActionState()
       syncMailArchiveActionState()
       syncMailSelectionControls()
+      syncReaderArchiveAvailability()
     })
 
     seedMailSelectionFromActive()
     syncMailDeleteActionState()
     syncMailArchiveActionState()
     syncMailSelectionControls()
+    syncReaderArchiveAvailability()
     setupMailKeyboardShortcuts()
     setupMailDragAndDrop()
     setupMailContextMenu()
@@ -1922,7 +1967,12 @@ document.addEventListener("DOMContentLoaded", function () {
         mailSwipeActive = false
         suppressMailRowClickUntil = Date.now() + 400
         var action = actionFor(dx)
-        if (action && target.isConnected && Math.abs(dx) > target.offsetWidth * 0.35) {
+        var withoutArchive = action === "archive" && !mailFolderIsArchive(currentMailListFolderID()) ? mailAccountsWithoutArchive([target.dataset.accountId]) : []
+        if (action && withoutArchive.length && target.isConnected && Math.abs(dx) > target.offsetWidth * 0.35) {
+          // Its account has nowhere to archive to: it slides back and says so.
+          reset(target, link)
+          showArchiveUnavailable(target, withoutArchive, null)
+        } else if (action && target.isConnected && Math.abs(dx) > target.offsetWidth * 0.35) {
           if (navigator.vibrate) navigator.vibrate(12)
           commit(target, link, action)
         } else {
@@ -2071,7 +2121,8 @@ document.addEventListener("DOMContentLoaded", function () {
       var unstar = mailToolbarActionUndoes("star")
       setMailContextItem(root, "star", unstar ? "Unstar" : "Star", unstar ? "unstar" : "star")
       var unarchive = mailFolderIsArchive(folderID)
-      setMailContextItem(root, "archive", unarchive ? "Move to Inbox" : "Archive", unarchive ? "unarchive" : "archive")
+      var archiveItem = setMailContextItem(root, "archive", unarchive ? "Move to Inbox" : "Archive", unarchive ? "unarchive" : "archive")
+      markArchiveUnavailable(archiveItem, !unarchive && selectionWithoutArchive(Array.from(selectedMailIds)).length > 0)
       var spam = mailFolderIsSpam(folderID)
       showMailContextItem(root, "spam", !spam)
       showMailContextItem(root, "not-spam", spam)
@@ -2149,7 +2200,7 @@ document.addEventListener("DOMContentLoaded", function () {
       }
       // The rest are the toolbar's actions, which follow its read and star state.
       var button = document.querySelector('.mail-list-toolbar button[data-mail-selection-action="' + action + '"]')
-      performMailSelectionAction(button ? mailSelectionActionName(button) : action)
+      performMailSelectionAction(button ? mailSelectionActionName(button) : action, target ? mailRowById(target.id) : null)
     }
 
     // Right-clicking a folder in the sidebar offers what applies to the whole
@@ -3404,6 +3455,7 @@ document.addEventListener("DOMContentLoaded", function () {
         .then(function (data) {
           if (mailSelectAllKey(currentMailListController()) !== key) return
           var ids = (data && data.ids) || []
+          if (window.GoferMailSearch) window.GoferMailSearch.remember(ids)
           selectedMailIds.clear()
           selectedMailThreads.clear()
           selectedMailAccounts.clear()
@@ -3518,6 +3570,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
       var actions = document.querySelectorAll("[data-mail-selection-action]")
       for (var a = 0; a < actions.length; a++) actions[a].disabled = count === 0 || mailSelectionBusy
+      syncArchiveSelectionAvailability()
 
       var list = document.getElementById("mail-list")
       if (list) list.toggleAttribute("data-mail-has-selection", count > 0)
@@ -3717,6 +3770,15 @@ document.addEventListener("DOMContentLoaded", function () {
       toolbar._mailCompressStep = step
     }
 
+    // mailToolbarLabelWidth is a collapsible label's full width, to the
+    // fraction of a pixel. scrollWidth rounds, and a label capped at the
+    // rounded width lost part of a pixel, moving everything after it.
+    function mailToolbarLabelWidth(el) {
+      var range = document.createRange()
+      range.selectNodeContents(el)
+      return range.getBoundingClientRect().width
+    }
+
     // Each collapsible part with the width it takes now (mid-animation, maybe)
     // and the width it takes when shown, both counting the flex gap beside it.
     function mailToolbarCollapsibles(toolbar, actions) {
@@ -3725,7 +3787,7 @@ document.addEventListener("DOMContentLoaded", function () {
       states.forEach(function (_, el) {
         var gap = parseFloat(getComputedStyle(el.parentElement).columnGap) || 0
         var margin = parseFloat(getComputedStyle(el).marginLeft) || 0
-        var width = el.scrollWidth
+        var width = mailToolbarLabelWidth(el)
         if (el.style.getPropertyValue("--collapse-width") !== width + "px") el.style.setProperty("--collapse-width", width + "px")
         parts.push({ el: el, current: el.offsetWidth + gap + margin, full: width + gap })
       })
@@ -3737,7 +3799,7 @@ document.addEventListener("DOMContentLoaded", function () {
       var label = document.querySelector("[data-mail-sort-label]")
       if (!label || label.textContent === text) return
       label.textContent = text
-      label.style.setProperty("--collapse-width", label.scrollWidth + "px")
+      label.style.setProperty("--collapse-width", mailToolbarLabelWidth(label) + "px")
       syncMailActionOverflow()
     }
 
@@ -3848,8 +3910,14 @@ document.addEventListener("DOMContentLoaded", function () {
     var MAIL_BULK_CHUNK_SIZE = 200
 
     // sendBulkMessageAction resolves to the counts the chunks answered with,
-    // added up, such as { updated: 3, no_trash: 1 } for a delete.
+    // added up, such as { updated: 3, no_trash: 1 } for a delete. Lists, such
+    // as a search delete's kept_trash, are joined.
     function sendBulkMessageAction(path, targets, extra) {
+      var captured = mailActionPayload(Object.assign({ targets: targets }, extra || {}))
+      targets = captured.targets
+      extra = Object.assign({}, captured)
+      delete extra.targets
+      if (!("search_scope" in extra)) extra.search_scope = null
       var totals = {}
       var run = Promise.resolve()
       for (var start = 0; start < targets.length; start += MAIL_BULK_CHUNK_SIZE) {
@@ -3859,6 +3927,7 @@ document.addEventListener("DOMContentLoaded", function () {
           return response.json().then(function (data) {
             for (var key in data) {
               if (typeof data[key] === "number") totals[key] = (totals[key] || 0) + data[key]
+              else if (Array.isArray(data[key])) totals[key] = (totals[key] || []).concat(data[key])
             }
           }, function () {})
         })
@@ -3875,7 +3944,7 @@ document.addEventListener("DOMContentLoaded", function () {
         method: "POST",
         keepalive: true,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(mailActionPayload(body)),
       })
     }
 
@@ -3897,9 +3966,11 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     }
 
-    function performMailSelectionAction(action) {
+    // anchor is where the action was asked for, for a popover about it.
+    function performMailSelectionAction(action, anchor) {
       if (mailSelectionBusy || selectedMailIds.size === 0) return
       var ids = Array.from(selectedMailIds)
+      if (action === "archive" && !mailFolderIsArchive(currentMailListFolderID()) && archiveSelectionBlocked(ids, anchor)) return
       if (action === "labels") {
         var labelTargets = selectedMailTargets(ids)
         openLabelsDialog(labelTargets, function () {
@@ -3984,6 +4055,43 @@ document.addEventListener("DOMContentLoaded", function () {
     // The account a list row belongs to, also for selected rows scrolled out of
     // the page, which the list keeps as HTML, and for rows never loaded that
     // "Select all in this list" selected.
+    // selectionWithoutArchive lists the accounts of ids that have no Archive
+    // folder.
+    function selectionWithoutArchive(ids) {
+      return mailAccountsWithoutArchive(ids.map(mailRowAccountID))
+    }
+
+    // archiveSelectionBlocked shows why ids can't all be archived and returns
+    // true, or returns false when they can. When some of them can, the
+    // popover offers to archive just those.
+    function archiveSelectionBlocked(ids, anchor) {
+      var missing = selectionWithoutArchive(ids)
+      if (!missing.length) return false
+      var archivable = ids.filter(function (id) { return missing.indexOf(mailRowAccountID(id)) === -1 })
+      if (!anchor || !anchor.isConnected) {
+        var button = document.querySelector('.mail-list-toolbar [data-mail-selection-action="archive"]')
+        anchor = button && button.offsetParent ? button : mailRowById(ids[0])
+      }
+      showArchiveUnavailable(anchor, missing, archivable.length ? function () {
+        selectedMailIds.clear()
+        archivable.forEach(function (id) { setMailSelected(id, true) })
+        syncMailSelectionControls()
+        performMailSelectionAction("archive")
+      } : null)
+      return true
+    }
+
+    // The toolbar's Archive buttons, and its menu copies, grey out while the
+    // selection has mail of an account with no Archive folder.
+    function syncArchiveSelectionAvailability() {
+      var blocked = selectedMailIds.size > 0 && !mailFolderIsArchive(currentMailListFolderID()) &&
+        selectionWithoutArchive(Array.from(selectedMailIds)).length > 0
+      document.querySelectorAll('[data-mail-selection-action="archive"]').forEach(function (button) {
+        markArchiveUnavailable(button, blocked)
+      })
+      return blocked
+    }
+
     function mailRowAccountID(emailId) {
       var row = document.querySelector('#mail-list-scroll .mail-list-item[data-email-id="' + cssEscape(emailId) + '"]')
       if (row) return row.dataset.accountId || ""
@@ -4355,7 +4463,7 @@ document.addEventListener("DOMContentLoaded", function () {
         method: "POST",
         keepalive: true,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targets: targets, folder_id: folderID, source_folder_id: sourceFolderID }),
+        body: JSON.stringify(mailActionPayload({ targets: targets, folder_id: folderID, source_folder_id: sourceFolderID })),
       }).then(function (response) {
         if (response.ok) return
         return response.text().then(function (text) {
@@ -4395,6 +4503,16 @@ document.addEventListener("DOMContentLoaded", function () {
           return
         }
 
+        // With no reading pane, Escape takes an opened message back to the
+        // list, and the keys that move through the list leave it be: the
+        // arrows scroll the message instead.
+        var listOnlyReader = mailListOnlyReaderOpen()
+        if (e.key === "Escape" && listOnlyReader) {
+          e.preventDefault()
+          closeMobileMailView()
+          return
+        }
+
         if (e.key === "Escape" && (selectedMailIds.size > 0 || selectedMailIdForKeyboard())) {
           e.preventDefault()
           clearKeyboardMailSelection()
@@ -4402,6 +4520,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         var key = String(e.key || "").toLowerCase()
+        if (listOnlyReader && (key === "j" || key === "k" || key === "arrowdown" || key === "arrowup" || key === "enter" || key === "o")) return
         if (key === "j" || key === "arrowdown") {
           e.preventDefault()
           moveKeyboardMailSelection(1)
@@ -4649,13 +4768,13 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function setupMailFilters() {
-    var searchTimer = null
+    // The pills last shown, kept for when the list's header is replaced.
+    var shownPillKeys = Object.create(null)
     var committedQuery = ""
     var committedParticipant = ""
     var contactFilterSearchTimer = null
     var contactFilterSearchSequence = 0
     var activePillOverflowFrame = null
-    var filterResultsTimer = null
     var activePillAnimationDelay = 190
 
     function emptyFilters() {
@@ -4748,9 +4867,9 @@ document.addEventListener("DOMContentLoaded", function () {
         filters.sortBy = (sortForm.querySelector('[name="sort_by"]') || {}).value || "date"
         filters.sortOrder = (sortForm.querySelector('[name="sort_order"]:checked') || {}).value || "desc"
       }
-      var search = document.querySelector("[data-mail-search-input]")
-      var pendingQuery = search ? (search.value || "").trim() : ""
-      filters.query = [committedQuery, pendingQuery].filter(Boolean).join(" ")
+      // Only text searched with Enter counts; what's still in the field is
+      // being typed.
+      filters.query = committedQuery
       if (!advanced) filters.participant = committedParticipant
       return filters
     }
@@ -4759,13 +4878,20 @@ document.addEventListener("DOMContentLoaded", function () {
       return String(value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
     }
 
-    function syncFilterButton(filters) {
-      var count = (filters.unread ? 1 : 0) + (filters.starred ? 1 : 0) + (filters.attachments ? 1 : 0) +
+    function activeFilterCount(filters) {
+      return (filters.unread ? 1 : 0) + (filters.starred ? 1 : 0) + (filters.attachments ? 1 : 0) +
         (filters.read ? 1 : 0) + (filters.noAttachments ? 1 : 0) + (filters.hasTags ? 1 : 0) + (filters.noTags ? 1 : 0) +
         (filters.threadsOnly ? 1 : 0) + (filters.noThreads ? 1 : 0) + (filters.participant ? 1 : 0) + (filters.from ? 1 : 0) + (filters.to ? 1 : 0) +
         (filters.recipientType ? 1 : 0) + (filters.recipientDomain ? 1 : 0) + (filters.subject ? 1 : 0) + (filters.body ? 1 : 0) + (filters.fromDomain ? 1 : 0) +
         (filters.attachment ? 1 : 0) + (filters.attachmentType ? 1 : 0) + (filters.minSizeMB ? 1 : 0) + (filters.maxSizeMB ? 1 : 0) + (filters.tag ? 1 : 0) + (filters.accountId ? 1 : 0) +
         (filters.query ? 1 : 0) + (filters.afterDate ? 1 : 0) + (filters.beforeDate ? 1 : 0)
+    }
+
+    // mailFiltersActive reports whether the list has a search or a filter.
+    window.mailFiltersActive = function () { return activeFilterCount(readFilters()) > 0 }
+
+    function syncFilterButton(filters) {
+      var count = activeFilterCount(filters)
       var button = document.querySelector("[data-mail-filter-button]")
       var badge = document.querySelector("[data-mail-filter-count]")
       if (button) {
@@ -5142,6 +5268,17 @@ document.addEventListener("DOMContentLoaded", function () {
       bar.querySelectorAll("[data-mail-active-filter-key]").forEach(function (pill) {
         existingKeys[pill.getAttribute("data-mail-active-filter-key") || ""] = true
       })
+      // Moving to another folder or scope replaces the list's header, pills
+      // and all. The pills that were already showing stay put rather than
+      // dropping in again, and the strip opens without its transition.
+      var replacedBar = !bar._mailPillsRendered
+      var wasShowing = replacedBar && Object.keys(shownPillKeys).length > 0
+      if (replacedBar) {
+        existingKeys = shownPillKeys
+        hadOverflow = hadOverflow || wasShowing
+      }
+      bar._mailPillsRendered = true
+      shownPillKeys = Object.create(null)
       if (!pills.length) {
         hideActivePillBar(bar, panel)
         return
@@ -5154,12 +5291,20 @@ document.addEventListener("DOMContentLoaded", function () {
       for (var i = 0; i < pills.length; i++) {
         var pill = pills[i]
         var key = activePillKey(pill)
+        shownPillKeys[key] = true
         var pillClass = existingKeys[key] ? "mail-active-filter-pill mail-active-filter-pill-stable" : "mail-active-filter-pill"
         html += activePillButtonHTML(pill, 'data-mail-active-filter-pill="' + escapeHTML(JSON.stringify(pill)) + '" data-mail-active-filter-key="' + escapeHTML(key) + '"', pillClass)
       }
       html += '</div><button type="button" data-mail-active-filter-overflow class="mail-active-filter-overflow ' + (hadOverflow ? "mail-active-filter-overflow-stable " : "") + 'hidden" aria-expanded="false" aria-label="Show hidden filters">+0</button>'
       bar.innerHTML = html
-      bar.classList.remove("hidden")
+      if (wasShowing) {
+        bar.style.transition = "none"
+        bar.classList.remove("hidden")
+        bar.offsetHeight
+        bar.style.transition = ""
+      } else {
+        bar.classList.remove("hidden")
+      }
       ensureActivePillOverflowPanel(bar)
       scheduleActivePillOverflow(bar)
     }
@@ -5247,7 +5392,7 @@ document.addEventListener("DOMContentLoaded", function () {
       var heading = document.getElementById("mail-folder-name")
       if (!heading) return
       var defaultName = heading.getAttribute("data-mail-folder-default-name") || "Inbox"
-      heading.textContent = filters && filters.participant ? "All mail" : defaultName
+      heading.textContent = window.GoferMailSearch && window.GoferMailSearch.scope() ? "Search results" : filters && filters.participant ? "All mail" : defaultName
     }
 
     function clearAdvancedFilter(name) {
@@ -5288,27 +5433,32 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     }
 
-    function applyFiltersToResults(filters, delay) {
-      if (filterResultsTimer) {
-        clearTimeout(filterResultsTimer)
-        filterResultsTimer = null
-      }
-      var run = function () {
-        filterResultsTimer = null
-        if (virtualMailList) virtualMailList.applyFilters(filters).catch(function () {})
-      }
-      if (delay > 0) filterResultsTimer = window.setTimeout(run, delay)
-      else run()
+    // Starting or ending a search replaces the list: the rows fan out, then
+    // the results fan in. A change within a search moves the rows in one go,
+    // the leaving ones fanning out as the new ones fan in. Either starts at
+    // once, alongside the pill's animation.
+    function applyFiltersToResults(filters) {
+      if (!virtualMailList) return
+      var scoped = !!virtualMailList.searchScope
+      var wasSearching = scoped || activeFilterCount(virtualMailList.filters || {}) > 0
+      var searching = scoped || activeFilterCount(filters) > 0
+      virtualMailList.applyFilters(filters, { replace: wasSearching !== searching }).catch(function () {})
     }
 
-    function applyCurrentFilters(options) {
-      options = options || {}
+    function applyCurrentFilters() {
       var filters = readFilters()
       committedParticipant = filters.participant || ""
       syncMailFolderHeading(filters)
       syncFilterButton(filters)
       renderActivePills()
-      applyFiltersToResults(filters, options.delayResults === false ? 0 : activePillAnimationDelay)
+      // A scope chosen while there was nothing to search applies with the
+      // first search or filter.
+      var waitingScope = window.GoferMailSearch && !window.GoferMailSearch.scope() && window.GoferMailSearch.pending()
+      if (waitingScope && activeFilterCount(filters) > 0) {
+        window.GoferMailSearch.navigate(waitingScope)
+        return
+      }
+      applyFiltersToResults(filters)
     }
 
     function splitSearchTokens(text) {
@@ -5483,6 +5633,58 @@ document.addEventListener("DOMContentLoaded", function () {
       return !window.GoferSettings || GoferSettings.get("group_conversations") !== "false"
     }
 
+    function setRecipientFilter(value, type) {
+      if (!setInputValue("to", value)) return false
+      setInputValue("recipient_type", type)
+      return true
+    }
+
+    // filetype: takes one of the Filters panel's attachment types, such as
+    // pdf or image; anything else is a file extension.
+    function setAttachmentTypeFilter(value) {
+      var type = value.toLowerCase().replace(/^\./, "")
+      if (["pdf", "image", "document", "spreadsheet", "presentation", "archive", "audio", "video"].indexOf(type) !== -1) {
+        if (!setInputValue("attachment_type", type)) return false
+        syncAttachmentExtensionField()
+        return true
+      }
+      if (!/^[a-z0-9]{1,16}$/.test(type) || !setInputValue("attachment_type", "custom")) return false
+      syncAttachmentExtensionField()
+      return setInputValue("attachment_extension", type)
+    }
+
+    // searchSizeInMB reads larger: and smaller: sizes, in MB unless they say
+    // KB or GB, to the Filters panel's tenth of a MB.
+    function searchSizeInMB(value) {
+      var match = /^(\d+(?:\.\d+)?)\s*(k|kb|m|mb|g|gb)?$/i.exec(value)
+      if (!match) return null
+      var size = parseFloat(match[1])
+      var unit = (match[2] || "m").charAt(0).toLowerCase()
+      if (unit === "k") size = size / 1024
+      if (unit === "g") size = size * 1024
+      return Math.round(size * 10) / 10
+    }
+
+    // accountFilterID reads account: as an account's address, or enough of
+    // one to name a single account; anything else is taken as its ID.
+    function accountFilterID(value) {
+      var form = document.querySelector("[data-mail-advanced-filter-form]")
+      var input = form && form.querySelector('[name="account_id"]')
+      var select = input && input.closest(".select-container")
+      if (!select) return value
+      var wanted = value.toLowerCase()
+      var exact = null
+      var partial = []
+      select.querySelectorAll(".select-item").forEach(function (item) {
+        var text = ((item.querySelector(".select-item-text") || item).textContent || "").trim().toLowerCase()
+        var id = item.getAttribute("data-tui-selectbox-value") || ""
+        if (!id) return
+        if (text === wanted || id === value) exact = id
+        else if (text.indexOf(wanted) !== -1) partial.push(id)
+      })
+      return exact || (partial.length === 1 ? partial[0] : value)
+    }
+
     function applyKeywordToken(key, value) {
       key = (key || "").toLowerCase().replace(/_/g, "-")
       value = (value || "").trim()
@@ -5493,15 +5695,23 @@ document.addEventListener("DOMContentLoaded", function () {
       }
       if (key === "contact" || key === "participant") return setContactFilterValue(value)
       if (key === "from") return setInputValue("from", value)
-      if (key === "to" || key === "cc" || key === "bcc" || key === "recipient" || key === "recipients") return setInputValue("to", value)
+      // to:, cc: and bcc: each look in that field only; recipient: in any.
+      if (key === "to" || key === "cc" || key === "bcc") return setRecipientFilter(value, key)
+      if (key === "recipient" || key === "recipients") return setRecipientFilter(value, "")
       if (key === "subject" || key === "subj") return setInputValue("subject", value)
       if (key === "body") return setInputValue("body", value)
       if (key === "attachment" || key === "attach" || key === "filename") return setInputValue("attachment", value)
       if (key === "tag") return setInputValue("tag", value)
-      if (key === "account" || key === "account-id") return setInputValue("account_id", value)
+      if (key === "account" || key === "account-id") return setInputValue("account_id", accountFilterID(value))
       if (key === "after") return setInputValue("after_date", value)
       if (key === "before") return setInputValue("before_date", value)
       if (key === "from-domain" || key === "fromdomain" || key === "domain") return setInputValue("from_domain", value)
+      if (key === "to-domain" || key === "todomain" || key === "recipient-domain") return setInputValue("recipient_domain", value)
+      if (key === "filetype") return setAttachmentTypeFilter(value)
+      if (key === "larger" || key === "smaller") {
+        var megabytes = searchSizeInMB(value)
+        return megabytes !== null && setInputValue(key === "larger" ? "min_size_mb" : "max_size_mb", String(megabytes))
+      }
       if (key === "is") {
         if (value === "unread") setFilterTriState("status", "unread")
         else if (value === "read") setFilterTriState("status", "read")
@@ -5516,16 +5726,19 @@ document.addEventListener("DOMContentLoaded", function () {
         else return false
         return true
       }
+      if (key === "no") {
+        if (value === "attachment" || value === "attachments") setFilterTriState("attachments", "no")
+        else if (value === "tag" || value === "tags") setFilterTriState("tags", "no")
+        else if ((value === "thread" || value === "threads") && listsConversations()) setFilterTriState("threads", "no")
+        else return false
+        return true
+      }
       return false
     }
 
     function commitSearchInput(input) {
       var raw = (input && input.value ? input.value : "").trim()
       if (!raw) return false
-      if (searchTimer) {
-        clearTimeout(searchTimer)
-        searchTimer = null
-      }
       var tokens = splitSearchTokens(raw)
       var plain = []
       for (var i = 0; i < tokens.length; i++) {
@@ -5552,8 +5765,7 @@ document.addEventListener("DOMContentLoaded", function () {
       return true
     }
 
-    function clearActiveFilter(name, options) {
-      options = options || {}
+    function clearActiveFilter(name) {
       if (name === "q") {
         committedQuery = ""
         var search = document.querySelector("[data-mail-search-input]")
@@ -5574,7 +5786,14 @@ document.addEventListener("DOMContentLoaded", function () {
       else if (name === "threads_only" || name === "no_threads") setFilterTriState("threads", "")
       else clearAdvancedFilter(name)
       syncAdvancedFilterCount()
-      applyCurrentFilters(options)
+      // Clearing the search in search results goes back to the folder it
+      // started from, keeping any other filters.
+      if (name === "q" && window.GoferMailSearch && window.GoferMailSearch.scope()) {
+        renderActivePills()
+        window.GoferMailSearch.navigate(null)
+        return
+      }
+      applyCurrentFilters()
     }
 
     function removeActiveFilterWithAnimation(remove) {
@@ -5588,7 +5807,7 @@ document.addEventListener("DOMContentLoaded", function () {
       }
       pill.classList.add("mail-active-filter-pill-exiting")
       window.setTimeout(function () {
-        clearActiveFilter(name, { delayResults: false })
+        clearActiveFilter(name)
       }, 145)
     }
 
@@ -5603,12 +5822,15 @@ document.addEventListener("DOMContentLoaded", function () {
         // Small screens swap in a shorter placeholder (see mobile-nav.js).
         search.placeholder = search.hasAttribute("data-desktop-placeholder")
           ? search.getAttribute("data-mobile-placeholder")
-          : "Search, or use from: subject: body: then Enter"
+          : "Search mail"
       }
       renderActivePills()
       syncFilterButton(readFilters())
     }
 
+    window.readMailFilters = function () {
+      return readFilters()
+    }
     window.syncMailFilterControls = syncFilterControls
 
     document.addEventListener("submit", function (e) {
@@ -5629,7 +5851,7 @@ document.addEventListener("DOMContentLoaded", function () {
       }
       // Applying a sort reloads only the list, so the toolbar's label is updated here.
       var sortByInput = form.querySelector('[name="sort_by"]')
-      applyCurrentFilters({ delayResults: false })
+      applyCurrentFilters()
       if (window.animateMailSortLabel) window.animateMailSortLabel(mailSortLabelText(sortByInput ? sortByInput.value : ""))
     })
 
@@ -5731,6 +5953,21 @@ document.addEventListener("DOMContentLoaded", function () {
       renderActivePills()
     })
 
+    // A command chosen from the search help is typed into the field, ready
+    // for its value.
+    document.addEventListener("click", function (e) {
+      var command = e.target.closest && e.target.closest("[data-mail-search-command]")
+      if (!command) return
+      var search = document.querySelector("[data-mail-search-input]")
+      if (window.tui && window.tui.popover) window.tui.popover.close("mail-search-help")
+      if (!search) return
+      var text = command.getAttribute("data-mail-search-command")
+      var before = search.value.replace(/\s+$/, "")
+      search.value = (before ? before + " " : "") + text
+      search.focus()
+      search.setSelectionRange(search.value.length, search.value.length)
+    })
+
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape") closeActivePillOverflow()
       if (!e.target || !e.target.matches || !e.target.matches("[data-mail-search-input]")) return
@@ -5740,14 +5977,9 @@ document.addEventListener("DOMContentLoaded", function () {
     })
 
     document.addEventListener("input", function (e) {
-      if (e.target && e.target.matches && e.target.matches("[data-mail-search-input]")) {
-        if (searchTimer) clearTimeout(searchTimer)
-        searchTimer = setTimeout(function () {
-          searchTimer = null
-          applyCurrentFilters()
-        }, 250)
-        return
-      }
+      // The search field filters only on Enter (commitSearchInput), so
+      // search text and commands can take as long as they need.
+      if (e.target && e.target.matches && e.target.matches("[data-mail-search-input]")) return
       if (e.target && e.target.matches && e.target.matches("[data-tui-selectbox-search]") && e.target.closest("[data-mail-contact-filter-select]")) {
         scheduleContactFilterSearch(e.target)
       }
@@ -6228,7 +6460,10 @@ document.addEventListener("DOMContentLoaded", function () {
       handleCalendarSyncEvent(data)
     })
 
-    source.addEventListener("calendar-changed", function () {
+    source.addEventListener("calendar-changed", function (event) {
+      var data
+      try { data = JSON.parse(event.data) } catch (_) { data = null }
+      if (data && data.sources) refreshCalendarSidebar()
       scheduleCalendarCacheRefresh()
     })
 
@@ -6252,6 +6487,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
       refreshSidebarUnread()
       showBrowserTabNewMailNotification(data)
+      refreshSearchResultsFor(data)
       withMailListForFolder(data.folder_id, data.folder_role || "", function (vml) { vml.onNewEmail() })
     })
 
@@ -6264,32 +6500,7 @@ document.addEventListener("DOMContentLoaded", function () {
         fetchOutgoingSendStatus(data.send_id)
         startOutgoingSendPolling(data.send_id)
       }
-
-      if (data.status === "sent" && data.missing_folder === "sent" && data.account_id) {
-        hideSendStatus()
-        _outgoingMissingSentNoticed[data.send_id] = true
-        showMissingSentFolderToast(data.account_id)
-        handleComposeSendResult("sent", data)
-      } else if (data.status === "sent") {
-        showSendStatus("sent", "Message sent")
-        if (data.from_warning) {
-          showGoferToast({ id: "compose-from-warning-" + (data.send_id || ""), title: "Sent from another address", description: data.from_warning, variant: "warning", position: "bottom-right", duration: 15000, dismissible: true })
-        }
-        handleComposeSendResult("sent", data)
-      } else if (data.status === "retrying") {
-        var retrySeconds = Math.max(1, Number(data.retry_in_seconds) || 60)
-        var retryMinutes = Math.max(1, Math.ceil(retrySeconds / 60))
-        var retryText = data.error || "The provider could not send the message yet."
-        retryText += " Gofer will try again in " + retryMinutes + (retryMinutes === 1 ? " minute." : " minutes.")
-        showSendStatus("retrying", retryText)
-        handleComposeSendResult("retrying", data)
-      } else if (data.status === "ambiguous") {
-        showSendStatus("ambiguous", data.error || "Send status unknown")
-        handleComposeSendResult("ambiguous", data)
-      } else {
-        showSendStatus("failed", data.error || "Failed to send")
-        handleComposeSendResult("failed", data)
-      }
+      showComposeSendResult(data)
     })
 
     source.addEventListener("mutation", function (e) {
@@ -6418,6 +6629,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }, false)
         return
       }
+      refreshSearchResultsFor(data)
       if (data.refresh_only) {
         syncStatesByFolder[data.folder_id] = mailFolderSyncStateFromEvent(data, false)
         refreshSidebarUnread()
@@ -7234,6 +7446,15 @@ document.addEventListener("DOMContentLoaded", function () {
     return folderID.indexOf("acc_") !== 0
   }
 
+  // An open search reads many folders, so it refreshes when sync changes mail
+  // in any of them. Without "immediate", a burst of folder events becomes one
+  // refresh every few seconds.
+  function refreshSearchResultsFor(data) {
+    var vml = virtualMailList
+    if (!vml || !vml.searchScope || !window.GoferMailSearch || !window.GoferMailSearch.touches(data)) return
+    scheduleSyncRefresh(vml, { noAnimation: true, rebase: mailListNearTop(vml) })
+  }
+
   function withMailListForFolder(folderId, folderRole, fn, queueIfInactive) {
     if (typeof folderRole === "function") {
       queueIfInactive = fn
@@ -7307,6 +7528,9 @@ document.addEventListener("DOMContentLoaded", function () {
     pendingSyncEvents = remaining.slice(-50)
   }
 
+  // Also called by the mail actions outside this setup (see below), such as
+  // deleting or moving from the reader.
+  window.refreshSidebarUnread = refreshSidebarUnread
   function refreshSidebarUnread() {
     fetch("/api/folders/unread").then(function (r) { return r.json() }).then(function (counts) {
       var badges = document.querySelectorAll("[data-folder-unread]")
@@ -7589,12 +7813,26 @@ document.addEventListener("DOMContentLoaded", function () {
       var isOnSettings = mainContent && mainContent.querySelector("[data-settings-page]")
       var isOnContacts = !!document.getElementById("contacts-list-scroll")
       var mailListDetached = !virtualMailList || !virtualMailList.container || !document.body.contains(virtualMailList.container)
-      if (isOnSettings || isOnContacts || mailListDetached) {
+      var leavingSearch = !mailListDetached && virtualMailList && virtualMailList.searchScope
+      if (isOnSettings || isOnContacts || mailListDetached || leavingSearch) {
         if (typeof htmx !== "undefined") {
           virtualContactsList = null
           history.pushState({ folder: folderID, email: null }, "", "/folder/" + folderID + target.search)
-          if (mainContent) showMailContentLoading(mainContent, link)
-          htmx.ajax("GET", "/folder/" + folderID + "/full" + target.search, {target: "#main-content", swap: "outerHTML"})
+          // Search results clear before the folder loads, like any move
+          // between search and a folder; other pages show the loading state.
+          var loadFolder = function () {
+            htmx.ajax("GET", "/folder/" + folderID + "/full" + target.search, {target: "#main-content", swap: "outerHTML"})
+          }
+          if (leavingSearch && window.GoferMailSearch) {
+            var leaving = virtualMailList
+            window.GoferMailSearch.replaceList(leaving, "/folder/" + folderID + "/full" + target.search).catch(function () {
+              leaving.cancelTransitionClear()
+              loadFolder()
+            })
+          } else {
+            if (mainContent) showMailContentLoading(mainContent, link)
+            loadFolder()
+          }
         }
       } else {
         virtualMailList.switchFolder(folderID).then(function () {
@@ -7619,12 +7857,8 @@ document.addEventListener("DOMContentLoaded", function () {
       '</div>' +
       '<div class="mail-list-search-section">' +
       '<div class="mail-list-search-primary">' +
-      '<div class="mail-list-search-input-wrap relative groove rounded-lg min-w-0">' +
-      '<input type="text" placeholder="Search, or use from: subject: body: then Enter" disabled class="h-9 w-full pl-3 pr-3 rounded-lg text-sm bg-background border border-border/50 opacity-60" />' +
-      '</div>' +
-      '<div class="mail-list-search-actions">' +
-      '<button type="button" disabled class="mail-list-advanced-filter-button inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-xs font-semibold text-muted-foreground opacity-60"><span>Filters</span>' + pendingIcon("size-3.5") + '</button>' +
-      '</div>' +
+      pendingMailSearchHTML() +
+      '<div class="mail-list-search-actions">' + pendingFiltersButtonHTML() + '</div>' +
       '</div>' +
       '</div>' +
       '</div>' +
@@ -8059,6 +8293,27 @@ document.addEventListener("DOMContentLoaded", function () {
     return '<span class="inline-block ' + (className || "size-3.5") + ' rounded-sm bg-current opacity-30"></span>'
   }
 
+  // pendingMailSearchHTML mirrors the mail search bar (MailListHeader and
+  // MailSearchScopeMenu): the scope part, the field and the help button.
+  function pendingMailSearchHTML() {
+    return '<div class="mail-list-search-input-wrap groove flex min-w-0 items-stretch rounded-lg border border-border/50 bg-background opacity-70">' +
+        '<div class="mail-search-scope flex shrink-0"><span class="mail-search-scope-trigger relative flex h-full items-center gap-1.5 rounded-l-lg border-r border-border/60 bg-card pl-2.5 pr-2 text-xs font-semibold text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.35),1px_0_3px_rgba(0,0,0,0.08)]">' +
+          pendingIcon("size-3.5 shrink-0") + '<span class="mail-search-scope-label">This folder</span>' + pendingIcon("size-3.5 shrink-0") +
+        '</span></div>' +
+        '<div class="mail-list-search-field relative min-w-0 flex-1">' +
+          '<span class="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 rounded-sm bg-muted-foreground/30"></span>' +
+          '<input type="text" disabled placeholder="Search mail" class="h-9 w-full bg-transparent pl-8 pr-2 text-sm outline-none"/>' +
+        '</div>' +
+        '<span class="flex shrink-0 items-center px-2.5 text-muted-foreground">' + pendingIcon("size-3.5") + '</span>' +
+      '</div>'
+  }
+
+  // pendingFiltersButtonHTML mirrors the Filters button beside the mail and
+  // contacts searches (mailListFilterButtonClass).
+  function pendingFiltersButtonHTML() {
+    return '<button type="button" disabled class="mail-list-advanced-filter-button relative inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border bg-card px-2.5 text-xs font-semibold text-foreground shadow-xs opacity-70 dark:border-input dark:bg-card"><span>Filters</span>' + pendingIcon("size-3.5") + '</button>'
+  }
+
   // The mail list's Cards/Table switch sits in a capsule with the layout
   // button; contacts has the switch alone, as it was before the capsule.
   function pendingViewToggleHTML(viewMode, withLayoutButton) {
@@ -8088,12 +8343,8 @@ document.addEventListener("DOMContentLoaded", function () {
   function mailPendingHeaderHTML() {
     return '<div class="mail-list-header px-4 py-4 space-y-3">' +
       '<div class="mail-list-title-row flex items-center justify-between"><div class="mail-list-title flex items-center gap-2 min-w-0"><h2 id="mail-folder-name" class="text-lg font-bold tracking-tight" style="font-family: var(--font-serif)">Inbox</h2><span id="mail-folder-count" class="inline-flex h-5 min-w-10 items-center justify-center rounded-full bg-muted px-2 text-xs font-medium text-muted-foreground shadow-[0_1px_2px_rgba(0,0,0,0.06)] animate-pulse"></span></div></div>' +
-      '<div class="mail-list-search-section"><div class="mail-list-search-primary"><div class="mail-list-search-input-wrap relative groove rounded-lg min-w-0">' +
-          '<span class="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 rounded-sm bg-muted-foreground/30"></span>' +
-          '<input type="text" disabled placeholder="Search, or use from: subject: body: then Enter" class="h-9 w-full pl-8 pr-3 rounded-lg text-sm bg-background border border-border/50 outline-none opacity-70"/>' +
-        '</div><div class="mail-list-search-actions">' +
-          '<button type="button" disabled class="mail-list-advanced-filter-button inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-xs font-semibold text-foreground opacity-70"><span>Filters</span>' + pendingIcon("size-3.5") + '</button>' +
-        '</div></div></div>' +
+      '<div class="mail-list-search-section"><div class="mail-list-search-primary">' + pendingMailSearchHTML() +
+        '<div class="mail-list-search-actions">' + pendingFiltersButtonHTML() + '</div></div></div>' +
     '</div>'
   }
 
@@ -8104,7 +8355,7 @@ document.addEventListener("DOMContentLoaded", function () {
         '<span class="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 rounded-sm bg-muted-foreground/30"></span>' +
         '<input type="search" disabled placeholder="Search contacts" class="h-9 w-full rounded-lg border border-border/50 bg-background pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground opacity-70"/>' +
       '</div>' +
-      '<button type="button" disabled class="mail-list-advanced-filter-button inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-xs font-semibold text-foreground opacity-70"><span>Filters</span>' + pendingIcon("size-3.5") + '</button>' +
+      pendingFiltersButtonHTML() +
       '</div>' +
     '</div>'
   }
@@ -8276,12 +8527,17 @@ document.addEventListener("DOMContentLoaded", function () {
     virtualMailList = null
     virtualContactsList = null
     if (mode === "calendar") {
+      // Only the month template carries the sidebar; the panes show the view
+      // the calendar will open in.
       var template = document.getElementById("calendar-loading-month")
       if (!template) return
       var content = template.content.cloneNode(true)
+      var view = window.GoferSettings && GoferSettings.get("calendar_view") === "week" ? "week" : "month"
+      var weekTemplate = view === "week" && document.getElementById("calendar-loading-week")
+      var panes = weekTemplate ? weekTemplate.content.cloneNode(true) : content
       ;["sidebar-app-body", "sidebar-sync-controls", "mail-list", "mail-view"].forEach(function (id) {
         var root = document.getElementById(id)
-        var loading = content.querySelector("#" + id)
+        var loading = (id === "mail-list" || id === "mail-view" ? panes : content).querySelector("#" + id)
         if (root && loading) replaceAppPaneContents(root, loading, id === "mail-list")
       })
       initializeCalendarViewport()
@@ -8563,10 +8819,12 @@ document.addEventListener("DOMContentLoaded", function () {
     return {
       initials: (fallback || avatar) ? (fallback || avatar).textContent.trim() : "",
       avatar: image && !image.classList.contains("hidden") && image.complete && image.naturalWidth ? (image.currentSrc || image.getAttribute("src") || "") : "",
-      sender: textFrom(row, ".text-sm.truncate"),
-      time: textFrom(row, ".tabular-nums"),
-      subject: textFrom(row, "p.text-\\[13px\\]"),
-      preview: textFrom(row, "p.text-xs"),
+      // Font sizes and card placement can change; read the named fields so
+      // the subject or body preview never stands in for the sender or subject.
+      sender: textFrom(row, '[data-mail-card-field="from"], [data-mail-table-cell="from"]'),
+      time: textFrom(row, '[data-mail-card-field="date"] [data-mail-date-short], [data-mail-table-cell="date"] [data-mail-date-short]'),
+      subject: textFrom(row, '[data-mail-card-field="subject"], [data-mail-table-cell="subject"] > div > span'),
+      preview: textFrom(row, '[data-mail-card-field="preview"]'),
     }
   }
 
@@ -8741,6 +8999,10 @@ document.addEventListener("DOMContentLoaded", function () {
   function showMailViewLoading(trigger) {
     var mailView = document.getElementById("mail-view")
     if (!mailView) return
+    // With no reading pane, a message opening takes the list's place.
+    if (mailListOnlyLayout() && !mailListOnlyReaderOpen() && window.GoferMobileNav && window.GoferMobileNav.animatePaneOpen) {
+      window.GoferMobileNav.animatePaneOpen()
+    }
     var preview = getMailRowPreview(trigger) || {}
     var initials = escapeHTML(preview.initials || "")
     var avatarSrc = escapeHTML(preview.avatar || "")
@@ -8750,6 +9012,30 @@ document.addEventListener("DOMContentLoaded", function () {
     var avatar = avatarSrc
       ? '<img src="' + avatarSrc + '" alt="" class="mail-view-avatar size-11 rounded-full object-cover shrink-0 shadow-[0_2px_6px_rgba(0,0,0,0.2)]">'
       : '<div class="mail-view-avatar size-11 rounded-full bg-gradient-to-b from-amber-700/70 to-amber-900/70 flex items-center justify-center text-sm font-bold text-amber-100 shrink-0 shadow-[0_2px_6px_rgba(0,0,0,0.2)]' + (initials ? '' : ' animate-pulse') + '">' + initials + '</div>'
+    var senderHTML =
+      '<div class="mail-view-sender flex items-start gap-4">' +
+        avatar +
+        '<div class="flex-1 min-w-0">' +
+          '<div class="flex items-center gap-2 flex-wrap min-h-6">' +
+            (sender ? '<span class="font-semibold text-ink">' + sender + '</span>' : '<span class="h-4 w-40 rounded bg-ink/5 animate-pulse"></span>') +
+            '<span class="mail-view-address h-3 w-48 rounded bg-ink/5 animate-pulse"></span>' +
+          '</div>' +
+          '<div class="mt-1.5 h-3 w-28 rounded bg-ink/5 animate-pulse"></div>' +
+        '</div>' +
+      '</div>'
+    var bodyHTML =
+      '<div class="h-px bg-gradient-to-r from-transparent via-ink/10 to-transparent my-6"></div>' +
+      '<div class="mb-3 flex justify-end lg:justify-between">' +
+        '<div class="hidden lg:block h-7 w-48 shrink-0 rounded-lg bg-ink/[0.04] animate-pulse"></div>' +
+        '<div class="h-7 w-32 rounded-md border border-ink/10 bg-ink/[0.04] animate-pulse"></div>' +
+      '</div>' +
+      '<div class="space-y-3 py-2">' +
+        '<div class="h-4 w-full rounded bg-ink/5 animate-pulse"></div>' +
+        '<div class="h-4 w-11/12 rounded bg-ink/5 animate-pulse"></div>' +
+        '<div class="h-4 w-4/5 rounded bg-ink/5 animate-pulse"></div>' +
+        '<div class="h-4 w-2/3 rounded bg-ink/5 animate-pulse"></div>' +
+      '</div>'
+    if (keepMailViewChrome(mailView, trigger, senderHTML, bodyHTML)) return
     mailView.innerHTML =
       '<div class="mail-view-frame flex flex-col h-full" aria-busy="true" aria-label="Loading message">' +
         '<div class="surface-paper rounded-md flex flex-col h-full overflow-hidden">' +
@@ -8770,32 +9056,9 @@ document.addEventListener("DOMContentLoaded", function () {
           '<div class="h-px bg-gradient-to-r from-transparent via-amber-900/10 to-transparent"></div>' +
           '<div class="flex-1 overflow-y-auto">' +
             '<div class="mail-view-content mx-auto px-8 py-6">' +
-              '<div class="mail-view-sender flex items-start gap-4">' +
-                avatar +
-                '<div class="flex-1 min-w-0">' +
-                  '<div class="flex items-center gap-2 flex-wrap min-h-6">' +
-                    (sender ? '<span class="font-semibold text-ink">' + sender + '</span>' : '<span class="h-4 w-40 rounded bg-ink/5 animate-pulse"></span>') +
-                    '<span class="mail-view-address h-3 w-48 rounded bg-ink/5 animate-pulse"></span>' +
-                  '</div>' +
-                  '<div class="mt-1.5 h-3 w-28 rounded bg-ink/5 animate-pulse"></div>' +
-                '</div>' +
-              '</div>' +
-              '<div class="mail-view-subject-row flex items-start justify-between gap-4 mt-5">' +
-                (subject
-                  ? '<h1 class="text-xl font-bold tracking-tight text-ink min-w-0" style="font-family: var(--font-serif)">' + subject + '</h1>'
-                  : '<div class="h-6 w-2/3 rounded bg-ink/5 animate-pulse"></div>') +
-              '</div>' +
-              '<div class="h-px bg-gradient-to-r from-transparent via-ink/10 to-transparent my-6"></div>' +
-              '<div class="mb-3 flex justify-end lg:justify-between">' +
-                '<div class="hidden lg:block h-7 w-48 shrink-0 rounded-lg bg-ink/[0.04] animate-pulse"></div>' +
-                '<div class="h-7 w-32 rounded-md border border-ink/10 bg-ink/[0.04] animate-pulse"></div>' +
-              '</div>' +
-              '<div class="space-y-3 py-2">' +
-                '<div class="h-4 w-full rounded bg-ink/5 animate-pulse"></div>' +
-                '<div class="h-4 w-11/12 rounded bg-ink/5 animate-pulse"></div>' +
-                '<div class="h-4 w-4/5 rounded bg-ink/5 animate-pulse"></div>' +
-                '<div class="h-4 w-2/3 rounded bg-ink/5 animate-pulse"></div>' +
-              '</div>' +
+              senderHTML +
+              mailViewSkeletonSubject(subject) +
+              bodyHTML +
             '</div>' +
           '</div>' +
           '<div class="px-6 py-3 border-t border-ink/6">' +
@@ -8807,6 +9070,64 @@ document.addEventListener("DOMContentLoaded", function () {
           '</div>' +
         '</div>' +
       '</div>'
+  }
+
+  // subject is already escaped.
+  function mailViewSkeletonSubject(subject) {
+    return '<div class="mail-view-subject-row flex items-start justify-between gap-4 mt-5">' +
+      (subject
+        ? '<h1 class="text-xl font-bold tracking-tight text-ink min-w-0" style="font-family: var(--font-serif)">' + subject + '</h1>'
+        : '<div class="h-6 w-2/3 rounded bg-ink/5 animate-pulse"></div>') +
+      '</div>'
+  }
+
+  // keepMailViewChrome goes from one message to another without the reader's
+  // toolbar, menu and reply bar turning into placeholders and back: they stay
+  // where they are, and only what belongs to the message shows as loading.
+  // Until the next message arrives they still belong to the one being left,
+  // so they can't be used meanwhile. It returns false when the reader shows
+  // no message, or the next one is laid out differently (a conversation
+  // against a single message), and the whole reader shows as loading.
+  function keepMailViewChrome(mailView, trigger, senderHTML, bodyHTML) {
+    var frame = mailView.querySelector(":scope > .mail-view-frame:not([aria-busy])")
+    var opensThread = frame ? mailViewTriggerOpensThread(trigger) : null
+    if (opensThread === null) return false
+    var threadFrame = frame.querySelector(".mail-view-thread-frame")
+    var threadList = threadFrame && threadFrame.querySelector("[data-thread-list]")
+    var scroll = frame.querySelector("[data-mail-view-scroll]")
+    if (opensThread ? !threadList : !scroll) return false
+
+    var preview = getMailRowPreview(trigger) || {}
+    frame.setAttribute("aria-busy", "true")
+    frame.querySelectorAll(".mail-view-toolbar, .mail-view-thread-toolbar, [data-mail-calendar-footer], #reply-bar").forEach(function (part) {
+      part.inert = true
+    })
+    var date = frame.querySelector(".mail-view-date")
+    if (date && preview.time) date.textContent = preview.time
+    if (opensThread) {
+      var heading = threadFrame.querySelector(".mail-view-thread-toolbar .mail-view-subject-row h1")
+      if (heading && preview.subject) heading.textContent = preview.subject
+      threadList.innerHTML = '<div class="shrink-0"><article class="mail-thread-card surface-paper rounded-md">' +
+        '<div class="mail-view-content mx-auto px-8 py-6">' + senderHTML + bodyHTML + '</div></article></div>'
+      threadList.scrollTop = 0
+    } else {
+      scroll.innerHTML = '<div class="mail-view-content mx-auto px-8 py-6">' + senderHTML +
+        mailViewSkeletonSubject(escapeHTML(preview.subject || "")) + bodyHTML + '</div>'
+      scroll.scrollTop = 0
+      var footer = frame.querySelector("[data-mail-calendar-footer]")
+      if (footer) footer.innerHTML = ""
+    }
+    return true
+  }
+
+  // Whether a list row opens as a conversation, or null when it's no row.
+  // A message picked inside a conversation opens on its own.
+  function mailViewTriggerOpensThread(trigger) {
+    if (!trigger || !trigger.closest) return null
+    if (trigger.closest(".thread-sub-item")) return false
+    var row = trigger.closest(".mail-list-item[data-email-id]")
+    if (!row) return null
+    return row.dataset.hasThread === "true" && (!window.GoferSettings || GoferSettings.get("group_conversations") !== "false")
   }
 
   document.body.addEventListener("htmx:afterSettle", function (evt) {
@@ -8997,6 +9318,70 @@ function recoverComposeOutgoingSend(summary) {
   }
 }
 
+// showComposeSendResult says how a send ended, in place of its "Working..."
+// toast. The live updates tell it first; where they don't arrive, as behind
+// some company networks' filters, polling the send does (see
+// settleOutgoingSendFromSummary). Each outcome of a send shows once,
+// whichever comes first.
+var _outgoingSendShown = {}
+
+function showComposeSendResult(data) {
+  var outcome = data.status + "\n" + (data.error || "")
+  if (data.send_id) {
+    if (_outgoingSendShown[data.send_id] === outcome) return
+    _outgoingSendShown[data.send_id] = outcome
+  }
+  if (data.status === "sent" && data.missing_folder === "sent" && data.account_id) {
+    hideSendStatus()
+    _outgoingMissingSentNoticed[data.send_id] = true
+    showMissingSentFolderToast(data.account_id)
+    handleComposeSendResult("sent", data)
+  } else if (data.status === "sent") {
+    showSendStatus("sent", "Message sent")
+    if (data.from_warning) {
+      showGoferToast({ id: "compose-from-warning-" + (data.send_id || ""), title: "Sent from another address", description: data.from_warning, variant: "warning", position: "bottom-right", duration: 15000, dismissible: true })
+    }
+    handleComposeSendResult("sent", data)
+  } else if (data.status === "retrying") {
+    var retrySeconds = Math.max(1, Number(data.retry_in_seconds) || 60)
+    var retryMinutes = Math.max(1, Math.ceil(retrySeconds / 60))
+    var retryText = data.error || "The provider could not send the message yet."
+    retryText += " Gofer will try again in " + retryMinutes + (retryMinutes === 1 ? " minute." : " minutes.")
+    showSendStatus("retrying", retryText)
+    handleComposeSendResult("retrying", data)
+  } else if (data.status === "ambiguous") {
+    showSendStatus("ambiguous", data.error || "Send status unknown")
+    handleComposeSendResult("ambiguous", data)
+  } else {
+    showSendStatus("failed", data.error || "Failed to send")
+    handleComposeSendResult("failed", data)
+  }
+}
+
+// settleOutgoingSendFromSummary shows how a send started on this page ended,
+// from its polled status, in the live update's terms. Sends picked up again
+// on a reload stay quiet, as do ones still on their way.
+function settleOutgoingSendFromSummary(summary) {
+  if (!summary || !_outgoingSentHere[summary.id]) return
+  var data = { send_id: summary.id, account_id: summary.account_id, error: summary.last_error || "" }
+  if (summary.status === "sent") {
+    data.status = "sent"
+    data.error = ""
+  } else if (summary.status === "failed" || summary.status === "ambiguous") {
+    data.status = summary.status
+  } else if (summary.status === "pending" && Number(summary.attempt_count) > 0 && !summary.is_scheduled) {
+    data.status = "retrying"
+    var next = Date.parse(summary.next_attempt_at || "")
+    if (!isNaN(next)) data.retry_in_seconds = Math.max(1, Math.round((next - Date.now()) / 1000))
+  } else {
+    return
+  }
+  showComposeSendResult(data)
+  // Closing the compose form stops polling, but the copy for the Sent folder
+  // may still be on its way, and without live updates only polling hears of it.
+  if (!outgoingSendSummaryIsTerminal(summary)) startOutgoingSendPolling(summary.id)
+}
+
 function fetchOutgoingSendStatus(id) {
   if (!id) return Promise.resolve(null)
   return fetch("/api/outgoing-sends/" + encodeURIComponent(id), { headers: { "Accept": "application/json" } })
@@ -9011,6 +9396,9 @@ function fetchOutgoingSendStatus(id) {
     .then(function (summary) {
       if (!summary) return null
       applyOutgoingSendSummary(summary)
+      // Before recoverComposeOutgoingSend, which lets go of a finished send's
+      // compose form, so the result closes it as the live update would.
+      settleOutgoingSendFromSummary(summary)
       recoverComposeOutgoingSend(summary)
       noticeMissingSentFolder(summary)
       if (outgoingSendSummaryIsTerminal(summary)) stopOutgoingSendPolling(summary.id)
@@ -9285,6 +9673,20 @@ function wolfEmptyPaneClick(tile) {
 }
 
 // Returns from the full-screen reader to the list on small screens.
+// mailListOnlyLayout reports whether mail shows the list alone, with an opened
+// message in its place. Phones always work that way and keep their own rules.
+function mailListOnlyLayout() {
+  var main = document.getElementById("main-content")
+  return !!(main && main.dataset.mailPaneLayout === "list" && document.getElementById("mail-list-scroll")) &&
+    !window.matchMedia("(max-width: 1023.98px)").matches
+}
+
+// mailListOnlyReaderOpen reports whether a message has taken the list's place.
+function mailListOnlyReaderOpen() {
+  var view = document.getElementById("mail-view")
+  return mailListOnlyLayout() && !!(view && view.querySelector(":scope > :not([data-mail-view-empty])"))
+}
+
 function closeMobileMailView() {
   if (history.state && history.state.email && history.state.fromList) {
     history.back()
@@ -11108,6 +11510,7 @@ document.body.addEventListener("htmx:afterSwap", function (event) {
   if (!xhr || xhr !== _calendarViewSwitchRequest) return
   _calendarViewSwitchRequest = null
   setCalendarViewSwitch(xhr.goferCalendarViewSwitch)
+  if (window.GoferSettings) GoferSettings.set("calendar_view", xhr.goferCalendarViewSwitch)
   // The tabs were replaced with the new view. Carry on the indicator's slide from
   // where the old one had got to, for the rest of its time, rather than restarting.
   var indicator = document.querySelector("[data-calendar-view-indicator]")
@@ -11152,7 +11555,8 @@ function initializeCalendarVisibility() {
     if (status) status.style.opacity = state && state.saving ? "1" : "0"
     var sync = row && row.querySelector("[data-calendar-source-sync]")
     if (sync) sync.style.visibility = state && state.saving ? "hidden" : ""
-    var only = row && row.querySelector("[data-calendar-visibility-only]")
+    // Found by source ID: the row's menu opens outside the row.
+    var only = document.querySelector('[data-calendar-visibility-only="' + CSS.escape(input.dataset.calendarVisibility) + '"]')
     if (only) {
       var showsAll = calendarSourceIsOnlyVisible(input.dataset.calendarVisibility)
       only.setAttribute("aria-label", showsAll ? "Show all calendars" : "Show only " + (label ? label.textContent : "this calendar"))
@@ -11227,7 +11631,6 @@ document.addEventListener("change", function (event) {
 document.addEventListener("click", function (event) {
   var button = event.target.closest && event.target.closest("[data-calendar-visibility-only]")
   if (!button || button.disabled) return
-  // The button sits in the row's label; keep the click from toggling the checkbox.
   event.preventDefault()
   var sourceID = button.dataset.calendarVisibilityOnly
   var inputs = Array.from(document.querySelectorAll("[data-calendar-visibility]")).filter(function (input) { return !input.disabled })
@@ -14422,6 +14825,184 @@ function handleCalendarSyncEvent(data) {
   if (data.changed || (data.snapshot && previous && Date.parse(data.last_synced_at) > (Date.parse(previous.last_synced_at) || 0))) scheduleCalendarCacheRefresh()
 }
 
+// refreshCalendarSidebar redraws the list of calendars beside an open
+// Calendar after calendars were added or removed on their provider.
+// The list keeps its scroll position and its open "Other calendars"
+// sections: they are noted before the swap and put back as the new list goes
+// in, before it is drawn, so only the change itself shows.
+var _calendarSidebarKept = null
+
+function refreshCalendarSidebar() {
+  var body = document.querySelector('[data-sidebar-app-body="calendar"]')
+  if (!body || !window.htmx) return
+  var nav = body.querySelector("nav")
+  _calendarSidebarKept = {
+    replaced: body,
+    scroll: nav ? nav.scrollTop : 0,
+    open: Array.from(body.querySelectorAll('[data-calendar-other-sources][data-tui-collapsible-state="open"]')).map(function (root) { return root.dataset.calendarOtherSources }),
+  }
+  window.htmx.ajax("GET", window.location.pathname + window.location.search, { target: body, select: "#sidebar-app-body", swap: "outerHTML" }).then(updateCalendarSyncPresentation)
+}
+
+document.body.addEventListener("htmx:afterSwap", function () {
+  var kept = _calendarSidebarKept
+  var body = kept && document.querySelector('[data-sidebar-app-body="calendar"]')
+  // Other swaps, such as the calendar's own refresh, leave the list alone.
+  if (!body || body === kept.replaced) return
+  _calendarSidebarKept = null
+  kept.open.forEach(function (accountID) {
+    var root = body.querySelector('[data-calendar-other-sources="' + CSS.escape(accountID) + '"]')
+    if (!root) return
+    root.setAttribute("data-tui-collapsible-state", "open")
+    var trigger = root.querySelector('[data-tui-collapsible="trigger"]')
+    if (trigger) trigger.setAttribute("aria-expanded", "true")
+    var content = root.querySelector('[data-tui-collapsible="content"]')
+    if (!content) return
+    // Already open, without playing the opening again.
+    content.style.transition = "none"
+    content.classList.add("tui-collapsible-open")
+    void content.offsetHeight
+    content.style.transition = ""
+  })
+  var nav = body.querySelector("nav")
+  if (nav) nav.scrollTop = kept.scroll
+  initializeCalendarVisibility()
+})
+
+// A calendar under "Other calendars" starts syncing from its button and
+// moves up among the account's synced calendars; a synced one's menu stops
+// syncing it and moves it back down.
+document.addEventListener("click", function (event) {
+  var button = event.target.closest && event.target.closest("[data-calendar-source-start], [data-calendar-source-stop]")
+  if (!button || button.disabled) return
+  event.preventDefault()
+  var start = button.hasAttribute("data-calendar-source-start")
+  var sourceID = start ? button.dataset.calendarSourceStart : button.dataset.calendarSourceStop
+  button.disabled = true
+  button.setAttribute("aria-busy", "true")
+  var icon = button.querySelector("svg")
+  if (icon) icon.classList.add("animate-pulse")
+  fetch("/api/calendar/sources/" + encodeURIComponent(sourceID) + "/sync", {
+    method: start ? "POST" : "DELETE",
+    headers: { "Accept": "text/plain" },
+  }).then(function (response) {
+    if (response.ok) return
+    return response.text().then(function (text) { throw new Error((text || "").trim() || "Please try again.") })
+  }).then(function () {
+    refreshCalendarSidebar()
+    scheduleCalendarCacheRefresh()
+  }).catch(function (error) {
+    button.disabled = false
+    button.removeAttribute("aria-busy")
+    if (icon) icon.classList.remove("animate-pulse")
+    showGoferToast({ title: start ? "Could not sync this calendar" : "Could not stop syncing this calendar", description: error && error.message ? error.message : "Please try again.", variant: "error", icon: "error", position: "bottom-right", duration: 6000, dismissible: true })
+  })
+})
+
+// offerFullCalendarAccess explains that Google lets Gofer change only the
+// calendars it created, or for a calendar shared with the account, that it
+// can't change the account's own calendar list, and offers to sign the
+// account in again allowing it, coming back to this page.
+function offerFullCalendarAccess(data, action) {
+  var name = data.calendarSourceName || "this calendar"
+  var personal = action === "rename-mine" || action === "remove"
+  var doing = { "delete": "delete", "rename-mine": "rename", remove: "remove" }[action] || "rename"
+  window.goferConfirm({
+    title: "Allow Gofer to " + doing + " “" + name + "”" + (personal ? " just for you" : "") + "?",
+    message: personal
+      ? "Google lets Gofer change your calendar list only with full calendar access. Allow it to rename or remove “" + name + "” and other calendars shared with you, just for you, from here: Google asks you to sign in again and confirm, then brings you back."
+      : "Google lets Gofer rename and delete only the calendars it created. Allow full calendar access to manage “" + name + "” and every other calendar you own from here: Google asks you to sign in again and confirm, then brings you back.",
+    confirmLabel: "Allow full calendar access",
+  }).then(function (accepted) {
+    if (!accepted) return
+    var form = document.createElement("form")
+    form.method = "POST"
+    form.action = "/api/accounts/oauth2/authorize"
+    var fields = { flow_action: "reconnect", provider: "gmail", email_address: data.calendarAccountEmail || "", display_name: data.calendarAccountName || "", calendar_access: "full", return_to: window.location.pathname + window.location.search }
+    Object.keys(fields).forEach(function (key) {
+      var input = document.createElement("input")
+      input.type = "hidden"
+      input.name = key
+      input.value = fields[key]
+      form.appendChild(input)
+    })
+    document.body.appendChild(form)
+    form.submit()
+  })
+}
+
+// A Google calendar Gofer didn't create shows Rename and Delete greyed out;
+// choosing one offers full calendar access instead.
+document.addEventListener("click", function (event) {
+  var button = event.target.closest && event.target.closest("[data-calendar-source-needs-access]")
+  if (!button) return
+  event.preventDefault()
+  offerFullCalendarAccess(button.dataset, button.dataset.calendarSourceNeedsAccess)
+})
+
+// Rename and Delete in a synced calendar's menu change the calendar on its
+// provider. A delete is confirmed first: the calendar and its events are gone
+// for every app. A Google calendar shared with the account is instead renamed
+// or removed just in its own calendar list, which Google Calendar on the
+// account shows too.
+document.addEventListener("click", function (event) {
+  var button = event.target.closest && event.target.closest("[data-calendar-source-rename], [data-calendar-source-delete], [data-calendar-source-rename-mine], [data-calendar-source-remove]")
+  if (!button || button.disabled) return
+  event.preventDefault()
+  var personal = button.hasAttribute("data-calendar-source-rename-mine") || button.hasAttribute("data-calendar-source-remove")
+  var rename = button.hasAttribute("data-calendar-source-rename") || button.hasAttribute("data-calendar-source-rename-mine")
+  var sourceID = button.dataset.calendarSourceRename || button.dataset.calendarSourceDelete || button.dataset.calendarSourceRenameMine || button.dataset.calendarSourceRemove
+  var name = button.dataset.calendarSourceName || "this calendar"
+  var ask = personal && rename
+    ? window.goferPrompt({
+      title: "Rename just for you",
+      message: "Only you see this name, in Gofer and in Google Calendar on this account. Its owner and everyone else it's shared with still see the calendar's own name.",
+      label: "Calendar name", value: name, confirmLabel: "Rename",
+    }).then(function (next) {
+      next = (next || "").trim()
+      return next && next !== name ? { method: "PATCH", body: JSON.stringify({ name: next, just_for_me: true }) } : null
+    })
+    : personal
+    ? window.goferConfirm({
+      title: "Remove “" + name + "” from your list?",
+      message: "“" + name + "” disappears from Gofer and from Google Calendar on this account. The calendar and its events stay as they are for its owner and everyone else it's shared with, and you can add it again in Google Calendar.",
+      confirmLabel: "Remove from your list",
+    }).then(function (accepted) { return accepted ? { method: "DELETE", query: "?just_for_me=1" } : null })
+    : rename
+    ? window.goferPrompt({ title: "Rename calendar", label: "Calendar name", value: name, confirmLabel: "Rename" }).then(function (next) {
+      next = (next || "").trim()
+      return next && next !== name ? { method: "PATCH", body: JSON.stringify({ name: next }) } : null
+    })
+    : window.goferConfirm({
+      title: "Delete “" + name + "”?",
+      message: "“" + name + "” and all its events are deleted from " + (button.dataset.calendarProvider || "its server") + ", for every app and device that uses it. This can't be undone.",
+      confirmLabel: "Delete calendar",
+      destructive: true,
+    }).then(function (accepted) { return accepted ? { method: "DELETE" } : null })
+  ask.then(function (request) {
+    if (!request) return
+    return fetch("/api/calendar/sources/" + encodeURIComponent(sourceID) + (request.query || ""), {
+      method: request.method,
+      headers: request.body ? { "Content-Type": "application/json", "Accept": "text/plain" } : { "Accept": "text/plain" },
+      body: request.body,
+    }).then(function (response) {
+      if (response.ok) {
+        refreshCalendarSidebar()
+        scheduleCalendarCacheRefresh()
+        showGoferToast({ title: rename ? "Calendar renamed" : personal ? "Calendar removed from your list" : "Calendar deleted", variant: "success", icon: "success", position: "bottom-right", duration: 3000, dismissible: true })
+        return
+      }
+      if (response.headers.get("X-Gofer-Needs-Calendar-Access") === "google") {
+        offerFullCalendarAccess(button.dataset, personal ? (rename ? "rename-mine" : "remove") : rename ? "rename" : "delete")
+        return
+      }
+      return response.text().then(function (text) { throw new Error((text || "").trim() || "Please try again.") })
+    })
+  }).catch(function (error) {
+    showGoferToast({ title: rename ? "Could not rename the calendar" : personal ? "Could not remove the calendar" : "Could not delete the calendar", description: error && error.message ? error.message : "Please try again.", variant: "error", icon: "error", position: "bottom-right", duration: 6000, dismissible: true })
+  })
+})
+
 function scheduleCalendarCacheRefresh() {
   _calendarCacheRefreshPending = true
   if (_calendarCacheRefreshTimer) return
@@ -14636,6 +15217,7 @@ function _updateComposeBtn(disabled) {
 
 // selectComposeAccount sends as the account or identity of a From menu item.
 function selectComposeAccount(el, fromPane) {
+  deactivateComposeOneTimeFrom(document.getElementById(fromPane ? "compose-pane-form" : "compose-form"), true)
   var accountId = el.dataset.accountId
   var identityId = el.dataset.identityId || ""
   var email = identityId ? el.dataset.identityEmail : el.dataset.accountEmail
@@ -14656,12 +15238,317 @@ function selectComposeAccount(el, fromPane) {
 function syncComposeAccountItems(scope, accountId, identityId) {
   if (!scope || !accountId) return
   identityId = identityId || ""
+  var form = document.getElementById(scope === "pane" ? "compose-pane-form" : "compose-form")
+  var oneTime = composeOneTimeActive(form)
   var items = document.querySelectorAll('[data-compose-account-scope="' + scope + '"][data-compose-account-item]')
   for (var i = 0; i < items.length; i++) {
-    var selected = items[i].dataset.accountId === accountId && (items[i].dataset.identityId || "") === identityId
+    var selected = !oneTime && items[i].dataset.accountId === accountId && (items[i].dataset.identityId || "") === identityId
     items[i].dataset.composeAccountSelected = selected ? "true" : "false"
   }
+  var oneTimeItems = document.querySelectorAll('[data-compose-account-scope="' + scope + '"][data-compose-one-time-item]')
+  for (var j = 0; j < oneTimeItems.length; j++) oneTimeItems[j].dataset.composeAccountSelected = oneTime ? "true" : "false"
 }
+
+// _composeEaseHeight runs change, which may show, hide or refill el, and
+// eases el's height from before to after, so what sits below it, down to
+// the editor's own height, moves smoothly too. A hidden el is shown until it
+// has closed; then finish runs, if given. A change midway starts from where
+// the earlier one had got to.
+function _composeEaseHeight(el, change, animate, finish) {
+  if (!el) return
+  var before = el.classList.contains("hidden") ? 0 : el.getBoundingClientRect().height
+  var marginBefore = before ? getComputedStyle(el).marginTop : "0px"
+  if (el._composeEase) {
+    var earlier = el._composeEase
+    el._composeEase = null
+    earlier.cancel()
+    if (earlier._finish) earlier._finish()
+  }
+  el._composeChanging = true
+  try { change() } finally { el._composeChanging = false }
+  var hide = el.classList.contains("hidden")
+  if (!animate || !el.animate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (finish) finish()
+    return
+  }
+  el.classList.remove("hidden")
+  var after = hide ? 0 : el.getBoundingClientRect().height
+  var marginAfter = hide ? "0px" : getComputedStyle(el).marginTop
+  if (Math.abs(before - after) < 0.5 && marginBefore === marginAfter) {
+    if (hide) el.classList.add("hidden")
+    if (finish) finish()
+    return
+  }
+  el.style.overflow = "hidden"
+  var animation = el.animate([
+    { height: before + "px", marginTop: marginBefore, opacity: before ? 1 : 0 },
+    { height: after + "px", marginTop: marginAfter, opacity: after ? 1 : 0 },
+  ], { duration: 220, easing: "ease" })
+  animation._finish = finish
+  el._composeEase = animation
+  animation.onfinish = function () {
+    if (el._composeEase !== animation) return
+    el._composeEase = null
+    el.style.overflow = ""
+    if (hide) el.classList.add("hidden")
+    if (finish) finish()
+  }
+}
+
+// A one-time From is typed for just this message, in the row under From: a
+// name, an address, and the server that sends it (Send via), which is the
+// account's own or one of its identities' own SMTP servers. Its fields are
+// empty unless the row is on, so the form sends nothing for it then.
+function composeOneTimeRow(form) {
+  return form ? form.querySelector("[data-compose-one-time-from]") : null
+}
+
+function composeOneTimeActive(form) {
+  var row = composeOneTimeRow(form)
+  var active = row && row.querySelector("[data-compose-one-time-active]")
+  return !!(active && active.value === "1")
+}
+
+function _composeOneTimeForm(el) {
+  return el && el.closest ? el.closest("#compose-form, #compose-pane-form") : null
+}
+
+function _composeOneTimeRouteItems(row) {
+  return row ? row.querySelectorAll("[data-compose-send-via] .select-item") : []
+}
+
+function _composeOneTimeRouteUsable(item) {
+  return !!item && item.dataset.tuiSelectboxDisabled !== "true"
+}
+
+function _selectedComposeOneTimeRoute(row) {
+  var items = _composeOneTimeRouteItems(row)
+  for (var i = 0; i < items.length; i++) {
+    if (items[i].dataset.tuiSelectboxSelected === "true" && _composeOneTimeRouteUsable(items[i])) return items[i]
+  }
+  return null
+}
+
+// activateComposeOneTimeFrom turns the row on, with Send via the account's
+// own way when it takes other addresses.
+function activateComposeOneTimeFrom(form, animate) {
+  var row = composeOneTimeRow(form)
+  if (!row) return
+  var accountField = form.querySelector('input[name="account_id"]')
+  var accountId = accountField ? accountField.value : ""
+  _composeEaseHeight(row, function () {
+    row.querySelector("[data-compose-one-time-active]").value = "1"
+    row.classList.remove("hidden")
+    var identityField = form.querySelector('input[name="identity_id"]')
+    if (identityField) identityField.value = ""
+    setComposeOneTimeRoute(form, accountId, "")
+  }, animate)
+}
+
+// deactivateComposeOneTimeFrom turns the row off at once, so nothing in it
+// is sent, and empties it once it has closed.
+function deactivateComposeOneTimeFrom(form, animate) {
+  var row = composeOneTimeRow(form)
+  if (!row) return
+  var active = row.querySelector("[data-compose-one-time-active]")
+  if (row.classList.contains("hidden") && !row._composeEase && !(active && active.value)) return
+  _composeEaseHeight(row, function () {
+    if (active) active.value = ""
+    row.classList.add("hidden")
+    row.dataset.composeOneTimeChecked = "false"
+  }, animate, function () {
+    if (composeOneTimeActive(form)) return
+    var fields = row.querySelectorAll("input[name]")
+    for (var i = 0; i < fields.length; i++) fields[i].value = ""
+    var email = row.querySelector("[data-compose-one-time-email]")
+    if (email) email.removeAttribute("aria-invalid")
+    _renderComposeOneTimeNote(form, false)
+  })
+}
+
+// _composeSkipsField leaves the one-time From's fields out of what a form
+// sends while the row is off, as they empty only once it has closed.
+var _composeOneTimeFieldNames = { one_time_from: true, from_name: true, from_email: true, send_via: true }
+function _composeSkipsField(form, input) {
+  return !!_composeOneTimeFieldNames[input.name] && !composeOneTimeActive(form)
+}
+
+// syncComposeOneTimeFrom shows the row as the form's fields say, after they
+// were filled from a draft or moved between the dialog and the pane.
+function syncComposeOneTimeFrom(form) {
+  var row = composeOneTimeRow(form)
+  if (!row) return
+  var accountField = form.querySelector('input[name="account_id"]')
+  if (!composeOneTimeActive(form)) {
+    deactivateComposeOneTimeFrom(form, false)
+  } else {
+    if (row._composeEase) row._composeEase.cancel()
+    row._composeEase = null
+    row.style.overflow = ""
+    row.classList.remove("hidden")
+    var sendVia = row.querySelector("[data-compose-one-time-send-via]")
+    setComposeOneTimeRoute(form, accountField ? accountField.value : "", sendVia ? sendVia.value : "")
+  }
+  var identityField = form.querySelector('input[name="identity_id"]')
+  syncComposeAccountItems(form.id === "compose-pane-form" ? "pane" : "dialog", accountField ? accountField.value : "", identityField ? identityField.value : "")
+}
+
+// setComposeOneTimeRoute picks the Send via route of accountId through the
+// server of identityId, or its own way when identityId is empty; failing
+// that, another usable route of the account, then any usable route.
+function setComposeOneTimeRoute(form, accountId, identityId) {
+  var row = composeOneTimeRow(form)
+  if (!row) return
+  identityId = identityId || ""
+  var items = _composeOneTimeRouteItems(row)
+  var pick = null
+  for (var i = 0; !pick && i < items.length; i++) {
+    if (_composeOneTimeRouteUsable(items[i]) && items[i].dataset.accountId === accountId && (items[i].dataset.identityId || "") === identityId) pick = items[i]
+  }
+  for (var j = 0; !pick && j < items.length; j++) {
+    if (_composeOneTimeRouteUsable(items[j]) && items[j].dataset.accountId === accountId) pick = items[j]
+  }
+  for (var k = 0; !pick && k < items.length; k++) {
+    if (_composeOneTimeRouteUsable(items[k])) pick = items[k]
+  }
+  for (var m = 0; m < items.length; m++) items[m].dataset.tuiSelectboxSelected = items[m] === pick ? "true" : "false"
+  var hidden = row.querySelector("[data-compose-send-via] [data-tui-selectbox-hidden-input]")
+  if (hidden) {
+    hidden.value = pick ? pick.dataset.tuiSelectboxValue : ""
+    hidden.dispatchEvent(new Event("input", { bubbles: true }))
+  }
+  _applyComposeOneTimeRoute(form, pick)
+}
+
+// _applyComposeOneTimeRoute sends through route: its account, and its
+// identity's server, if any.
+function _applyComposeOneTimeRoute(form, route) {
+  var row = composeOneTimeRow(form)
+  if (!row) return
+  var sendVia = row.querySelector("[data-compose-one-time-send-via]")
+  if (sendVia) sendVia.value = route ? route.dataset.identityId || "" : ""
+  var accountField = form.querySelector('input[name="account_id"]')
+  if (route && accountField && accountField.value !== route.dataset.accountId) {
+    accountField.value = route.dataset.accountId
+    applyDefaultComposeSignature(form, true)
+  }
+  _renderComposeOneTimeDisplay(form)
+  _renderComposeOneTimeNote(form, row.dataset.composeOneTimeChecked === "true")
+}
+
+function _renderComposeOneTimeDisplay(form) {
+  var row = composeOneTimeRow(form)
+  var display = document.getElementById(form.id === "compose-pane-form" ? "compose-pane-from-display" : "compose-from-display")
+  if (!row || !display) return
+  var name = String(row.querySelector("[data-compose-one-time-name]").value || "").trim()
+  var email = String(row.querySelector("[data-compose-one-time-email]").value || "").trim()
+  if (!email) display.textContent = "Custom From"
+  else display.textContent = (name ? name + " <" : "") + email + (name ? ">" : "")
+}
+
+// composeOneTimeFromError says what keeps the one-time From from being
+// sent, or is empty when nothing does or the row is off.
+function composeOneTimeFromError(form) {
+  if (!composeOneTimeActive(form)) return ""
+  var row = composeOneTimeRow(form)
+  var email = String(row.querySelector("[data-compose-one-time-email]").value || "").trim()
+  if (!email) return "Enter the address to send from."
+  if (!_isComposeRecipientValid(email) || email.indexOf("*") >= 0) return "Enter a valid address to send from."
+  var route = _selectedComposeOneTimeRoute(row)
+  if (!route) return "Choose a server to send it."
+  if (route.dataset.fromKind === "domains") {
+    var domain = email.slice(email.lastIndexOf("@") + 1).toLowerCase()
+    var domains = String(route.dataset.fromDomains || "").toLowerCase().split(/\s+/).filter(Boolean)
+    if (domains.indexOf(domain) < 0) return "This server sends only from addresses at " + domains.join(", ") + "."
+  }
+  return ""
+}
+
+// _renderComposeOneTimeNote shows what is wrong with the address once it
+// has been checked, and otherwise what the chosen server does with it.
+function _renderComposeOneTimeNote(form, showError) {
+  var row = composeOneTimeRow(form)
+  var note = row && row.querySelector("[data-compose-one-time-note]")
+  if (!note) return
+  var email = row.querySelector("[data-compose-one-time-email]")
+  var error = showError ? composeOneTimeFromError(form) : ""
+  var route = _selectedComposeOneTimeRoute(row)
+  var text = error || (composeOneTimeActive(form) && route ? route.dataset.fromNote || "" : "")
+  var warns = !error && !!route && route.dataset.fromWarns === "true"
+  if (note.textContent !== text || note.classList.contains("hidden") === !!text) {
+    // Only an open row moves what is below it; one opening or closing
+    // already eases its whole height.
+    var animate = !row.classList.contains("hidden") && !row._composeEase && !row._composeChanging
+    _composeEaseHeight(note, function () {
+      if (text) note.textContent = text
+      note.classList.toggle("hidden", !text)
+    }, animate, function () {
+      if (note.classList.contains("hidden")) note.textContent = ""
+    })
+  }
+  note.classList.toggle("text-destructive", !!error)
+  note.classList.toggle("compose-one-time-warning", warns)
+  note.classList.toggle("text-muted-foreground", !error && !warns)
+  if (email) {
+    if (error) email.setAttribute("aria-invalid", "true")
+    else email.removeAttribute("aria-invalid")
+  }
+}
+
+// selectComposeOneTimeFrom is the "Custom From…" item of a From menu.
+function selectComposeOneTimeFrom(el, fromPane) {
+  var form = document.getElementById(fromPane ? "compose-pane-form" : "compose-form")
+  if (!form) return
+  var wasActive = composeOneTimeActive(form)
+  if (!wasActive) activateComposeOneTimeFrom(form, true)
+  var accountField = form.querySelector('input[name="account_id"]')
+  syncComposeAccountItems(form.id === "compose-pane-form" ? "pane" : "dialog", accountField ? accountField.value : "", "")
+  if (!wasActive) {
+    applyDefaultComposeSignature(form, true)
+    _markComposeDirty(form)
+  }
+  var email = composeOneTimeRow(form).querySelector("[data-compose-one-time-email]")
+  if (email) setTimeout(function () { email.focus() }, 0)
+}
+
+function changeComposeOneTimeFrom(el) {
+  var form = _composeOneTimeForm(el)
+  if (!form) return
+  _renderComposeOneTimeDisplay(form)
+  _renderComposeOneTimeNote(form, composeOneTimeRow(form).dataset.composeOneTimeChecked === "true")
+  _markComposeDirty(form)
+}
+
+// checkComposeOneTimeFrom checks a typed address when it is left, and keeps
+// checking it as it changes from then on.
+function checkComposeOneTimeFrom(el) {
+  var form = _composeOneTimeForm(el)
+  if (!form || !String(el.value || "").trim()) return
+  composeOneTimeRow(form).dataset.composeOneTimeChecked = "true"
+  _renderComposeOneTimeNote(form, true)
+}
+
+// validateComposeOneTimeFrom refuses to send or schedule a one-time From
+// that can't go out, and says why.
+function validateComposeOneTimeFrom(form) {
+  var error = composeOneTimeFromError(form)
+  if (!error) return true
+  composeOneTimeRow(form).dataset.composeOneTimeChecked = "true"
+  _renderComposeOneTimeNote(form, true)
+  showSendStatus("failed", error)
+  return false
+}
+
+document.addEventListener("change", function (event) {
+  var hidden = event.target
+  if (!hidden || !hidden.matches || !hidden.matches("[data-compose-send-via] [data-tui-selectbox-hidden-input]")) return
+  var form = _composeOneTimeForm(hidden)
+  if (!form) return
+  _applyComposeOneTimeRoute(form, _selectedComposeOneTimeRoute(composeOneTimeRow(form)))
+  var accountField = form.querySelector('input[name="account_id"]')
+  syncComposeAccountItems(form.id === "compose-pane-form" ? "pane" : "dialog", accountField ? accountField.value : "", "")
+  _markComposeDirty(form)
+})
 
 // The From menu fits its longest choice and may grow to the end of its row,
 // so long names and addresses fit. Popovers sit in the top layer, where CSS
@@ -14689,6 +15576,7 @@ function resetComposeForm(fromPane, skipCleanup) {
   for (var i = 0; i < fields.length; i++) fields[i].value = ""
   var modeField = form.querySelector('input[name="compose_mode"]')
   if (modeField) modeField.value = "new"
+  deactivateComposeOneTimeFrom(form, false)
   setComposeKind(form, "new")
   var editor = form.querySelector("[data-compose-editor]")
   if (editor) editor.innerHTML = ""
@@ -15949,7 +16837,19 @@ function saveComposeDraft(fromPane, auto) {
   var params = new URLSearchParams()
   var inputs = form.querySelectorAll("input, textarea")
   for (var i = 0; inputs && i < inputs.length; i++) {
-    if (inputs[i].name) params.append(inputs[i].name, inputs[i].value)
+    if (inputs[i].name && !_composeSkipsField(form, inputs[i])) params.append(inputs[i].name, inputs[i].value)
+  }
+  var oneTimeError = composeOneTimeFromError(form)
+  if (oneTimeError && /valid address|address to send/.test(oneTimeError)) {
+    // A draft may keep an address a server would refuse, but not one that
+    // isn't an address: an autosave waits for it, a manual save says so.
+    if (!auto) {
+      form._composeManualDraftSave = false
+      _setComposeDraftButtonState(form, "failed")
+      validateComposeOneTimeFrom(form)
+      return Promise.resolve(false)
+    }
+    ;["one_time_from", "from_name", "from_email", "send_via"].forEach(function (name) { params.delete(name) })
   }
 
   return fetch("/compose/draft", {
@@ -17012,9 +17912,14 @@ function syncComposeInlineImageInputs(form) {
 }
 
 function _composeValsFromDraft(draft) {
+  var oneTime = draft.one_time_from || null
   return {
     account_id: draft.account_id || "",
     identity_id: draft.identity_id || "",
+    one_time_from: oneTime ? "1" : "",
+    from_name: oneTime ? oneTime.name || "" : "",
+    from_email: oneTime ? oneTime.email || "" : "",
+    send_via: oneTime ? oneTime.send_via || "" : "",
     draft_id: draft.draft_id || "",
     to: draft.to || "",
     cc: draft.cc || "",
@@ -17325,6 +18230,7 @@ function sendCompose(fromPane) {
     showSendStatus("failed", "Fix invalid recipient addresses before sending")
     return
   }
+  if (!validateComposeOneTimeFrom(form)) return
   _syncComposeFormEditor(form)
   if (!validateComposeMessageSize(form)) return
 
@@ -17337,7 +18243,7 @@ function sendCompose(fromPane) {
   var params = new URLSearchParams()
   var inputs = form.querySelectorAll("input, textarea")
   for (var i = 0; inputs && i < inputs.length; i++) {
-    if (inputs[i].name) params.append(inputs[i].name, inputs[i].value)
+    if (inputs[i].name && !_composeSkipsField(form, inputs[i])) params.append(inputs[i].name, inputs[i].value)
   }
 
   showSendStatus("sending", "Sending...")
@@ -17590,6 +18496,7 @@ function scheduleCompose(fromPane, trigger) {
     showSendStatus("failed", "Fix invalid recipient addresses before scheduling")
     return
   }
+  if (!validateComposeOneTimeFrom(form)) return
   _syncComposeFormEditor(form)
   if (!validateComposeMessageSize(form)) return
 
@@ -17626,7 +18533,7 @@ function scheduleCompose(fromPane, trigger) {
   var params = new URLSearchParams()
   var inputs = form.querySelectorAll("input, textarea")
   for (var i = 0; inputs && i < inputs.length; i++) {
-    if (inputs[i].name) params.append(inputs[i].name, inputs[i].value)
+    if (inputs[i].name && !_composeSkipsField(form, inputs[i])) params.append(inputs[i].name, inputs[i].value)
   }
   params.set("schedule_date", dateValue)
   params.set("schedule_hour", hourValue)
@@ -17821,6 +18728,10 @@ function composeValuesFromSource(source, mode) {
   var vals = {
     account_id: source.account_id || "",
     identity_id: source.identity_id || "",
+    one_time_from: "",
+    from_name: "",
+    from_email: "",
+    send_via: "",
     draft_id: "",
     to: "",
     cc: "",
@@ -17896,6 +18807,7 @@ function writeComposePrefill(form, vals, prefix, mode) {
   setComposeKind(form, mode)
   _showComposeOptionalFields(form, vals)
   setComposeAccount(form, vals.account_id, vals.identity_id)
+  syncComposeOneTimeFrom(form)
   applyDefaultComposeSignature(form, true)
   focusComposePrefill(form, mode)
 }
@@ -18261,6 +19173,10 @@ function toggleRead(emailId) {
 }
 
 function toggleThreadRead(emailId, threadId) {
+  if (window.GoferMailSearch && window.GoferMailSearch.scope()) {
+    var row = window.GoferMailSearch.rowData(emailId)
+    return runScopedMailAction(emailId, "read", true, { state: row && row.isRead === "true" ? "unread" : "read" })
+  }
   fetch("/api/messages/" + emailId + "/thread/read", { method: "POST" })
     .then(function (r) { return r.json() })
     .then(function (data) {
@@ -18315,6 +19231,10 @@ function toggleStar(emailId) {
 
 // Stars every message in the thread, or unstars them all when any is starred.
 function toggleThreadStar(emailId, threadId) {
+  if (window.GoferMailSearch && window.GoferMailSearch.scope()) {
+    var row = window.GoferMailSearch.rowData(emailId)
+    return runScopedMailAction(emailId, "star", true, { state: row && row.starred === "true" ? "unstarred" : "starred" })
+  }
   fetch("/api/messages/" + encodeURIComponent(emailId) + "/thread/star", { method: "POST" })
     .then(function (r) {
       if (!r.ok) throw new Error("Failed to star thread")
@@ -18353,11 +19273,18 @@ function beginOptimisticMailRemoval(emailId) {
   return vml
 }
 
+// finishOptimisticMailRemoval brings the list and the sidebar's counts up to
+// date once the server has done what was asked. The action has worked by
+// then, so nothing here may count as it failing.
 function finishOptimisticMailRemoval(vml) {
-  if (vml && typeof vml.refreshCurrentFolder === "function") {
-    vml.refreshCurrentFolder({ noAnimation: true }).catch(function () {})
+  try {
+    if (vml && typeof vml.refreshCurrentFolder === "function") {
+      vml.refreshCurrentFolder({ noAnimation: true }).catch(function () {})
+    }
+    if (typeof window.refreshSidebarUnread === "function") window.refreshSidebarUnread()
+  } catch (err) {
+    console.error("refresh after a mail action:", err)
   }
-  refreshSidebarUnread()
 }
 
 function restoreOptimisticMailRemoval(emailId, vml) {
@@ -18403,8 +19330,45 @@ function confirmPermanentMailDelete(emailId, permanentURL) {
         .then(function (response) {
           if (!response.ok) return mailDeleteResponseError(response)
           finishOptimisticMailRemoval(vml)
+          showMailDeletedToast(false, true)
         })
         .catch(function (err) { failMailDelete(emailId, vml, err, permanentURL) })
+    },
+  })
+}
+
+// Search results can include mail already in Trash, which a delete keeps.
+// Deleting it again is for good, so the toast asks first, then deletes only
+// those, in chunks the server accepts.
+function confirmPermanentSearchDelete(targets) {
+  var one = targets.length === 1
+  showGoferToast({
+    id: "mail-search-permanent-delete",
+    title: one ? "Delete the email permanently?" : "Delete " + targets.length.toLocaleString() + " emails permanently?",
+    description: (one ? "It's" : "They're") + " already in Trash, so this can't be undone.",
+    variant: "warning", icon: "warning", position: "bottom-right", duration: 10000, dismissible: true,
+    secondaryActionLabel: "Delete permanently",
+    onSecondaryAction: function () {
+      dismissGoferToast(document.getElementById("mail-search-permanent-delete"))
+      var run = Promise.resolve()
+      for (var start = 0; start < targets.length; start += 200) {
+        run = run.then(function (chunk) {
+          return fetch("/api/messages/delete", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(mailActionPayload({ targets: chunk, permanent: true })),
+          }).then(function (response) { if (!response.ok) return mailDeleteResponseError(response) })
+        }.bind(null, targets.slice(start, start + 200)))
+      }
+      run.then(function () {
+        var container = document.getElementById("mail-list-scroll")
+        var controller = container && container._virtualMailList
+        if (controller) return controller.refreshCurrentFolder({ noAnimation: true })
+      }).then(function () {
+        if (window.goferRefreshSidebarUnread) window.goferRefreshSidebarUnread()
+      }).catch(function (err) {
+        var reason = err && err.reason ? err.reason : "Try again in a moment."
+        showGoferToast({ id: "mail-delete-error", title: "Couldn't delete the email", description: reason, variant: "error", icon: "error", position: "bottom-right", duration: 8000, dismissible: true })
+      })
     },
   })
 }
@@ -18422,6 +19386,7 @@ function mailDeleteResponseError(response) {
 // A batch of mail actions that skipped mail of an account without the folder
 // it needs says so, and offers to choose the folder.
 function showMailActionSkippedToast(action, totals) {
+  if (totals && totals.kept_trash && totals.kept_trash.length) confirmPermanentSearchDelete(totals.kept_trash)
   var missing = totals && totals.missingFolder
   if (!missing) return
   var count = action === "delete" ? totals.no_trash : (action === "archive" ? totals.no_archive : totals.failed)
@@ -18461,21 +19426,204 @@ function openFolderRolesSettings(accountID) {
 }
 
 function deleteMessage(emailId) {
+  if (window.GoferMailSearch && window.GoferMailSearch.scope()) return runScopedMailAction(emailId, "delete", false)
+  var permanent = mailDeleteIsPermanent()
   var vml = beginOptimisticMailRemoval(emailId)
   var url = "/api/messages/" + encodeURIComponent(emailId) + mailDeleteFolderQuery()
   fetch(url, { method: "DELETE" })
     .then(function (response) {
       if (!response.ok) return mailDeleteResponseError(response)
       finishOptimisticMailRemoval(vml)
+      showMailDeletedToast(false, permanent)
     })
     .catch(function (err) { failMailDelete(emailId, vml, err, mailPermanentDeleteURL(url)) })
+}
+
+// Delete removes mail for good where the list's Delete button says so, as
+// in Trash; elsewhere it moves it to Trash.
+function mailDeleteIsPermanent() {
+  var button = document.querySelector('[data-mail-selection-action="delete"]')
+  return !!(button && button.dataset.mailDeletePermanent === "true")
+}
+
+function showMailDeletedToast(thread, permanent) {
+  var what = thread ? "the conversation" : "the email"
+  var title = permanent ? "Deleted " + what + " permanently" : "Moved " + what + " to Trash"
+  showGoferToast({ id: "mail-deleted", title: title, variant: "success", icon: "success", position: "bottom-right", duration: 3000, dismissible: true })
 }
 
 function mailPermanentDeleteURL(url) {
   return url + (url.indexOf("?") === -1 ? "?" : "&") + "permanent=1"
 }
 
-function archiveThread(emailId) {
+// mailAccountsWithoutArchive lists which of accountIDs have no Archive folder
+// to archive into, as the sidebar marks them. Accounts it doesn't know are
+// left to the server, which says so if it can't archive.
+function mailAccountsWithoutArchive(accountIDs) {
+  var missing = []
+  ;(accountIDs || []).forEach(function (id) {
+    if (!id || missing.indexOf(id) !== -1) return
+    if (document.querySelector('[data-sidebar-account="' + CSS.escape(id) + '"][data-sidebar-account-no-archive]')) missing.push(id)
+  })
+  return missing
+}
+
+function mailAccountName(accountID) {
+  var name = document.querySelector('[data-sidebar-account="' + CSS.escape(accountID) + '"] .sidebar-account-toggle > span')
+  return name ? name.textContent.trim() : ""
+}
+
+// markArchiveUnavailable greys an Archive control out while what it would
+// archive includes mail of an account with no Archive folder. It still
+// answers a click, with showArchiveUnavailable.
+function markArchiveUnavailable(control, unavailable) {
+  if (!control) return
+  control.toggleAttribute("data-archive-unavailable", !!unavailable)
+  if (unavailable) control.setAttribute("aria-disabled", "true")
+  else control.removeAttribute("aria-disabled")
+  // Its tooltip says so too, and says what it did again once it can.
+  var root = control.closest("[data-tui-popover-root]")
+  var tooltip = root && root.querySelector("[data-mail-archive-tooltip]")
+  if (!tooltip) return
+  if (unavailable && tooltip.textContent !== "Can't archive") {
+    tooltip.dataset.archiveLabel = tooltip.textContent
+    tooltip.textContent = "Can't archive"
+  } else if (!unavailable && tooltip.textContent === "Can't archive") {
+    tooltip.textContent = tooltip.dataset.archiveLabel || "Archive"
+  }
+}
+
+// The reader's Archive button names the account of the message it shows.
+function syncReaderArchiveAvailability() {
+  document.querySelectorAll("#mail-view [data-mail-archive-account]").forEach(function (button) {
+    markArchiveUnavailable(button, mailAccountsWithoutArchive([button.dataset.mailArchiveAccount]).length > 0)
+  })
+}
+
+function closeArchiveUnavailable() {
+  var open = document.getElementById("archive-unavailable")
+  if (!open) return
+  if (open.matches(":popover-open")) open.hidePopover()
+  open.remove()
+}
+
+// showArchiveUnavailable says, next to anchor, that the accounts in missing
+// have no Archive folder, and offers to choose or create one for each, as the
+// toast does when archiving fails. archiveRest, when some of the messages can
+// still be archived, archives those; the popover offers it too. On a phone it
+// opens as a sheet from the bottom.
+function showArchiveUnavailable(anchor, missing, archiveRest) {
+  closeArchiveUnavailable()
+  if (!missing || !missing.length) return
+  // The button's tooltip would sit under the popover.
+  var tooltipRoot = anchor && anchor.closest && anchor.closest("[data-tui-popover-root]")
+  if (tooltipRoot && window.tui && window.tui.popover) window.tui.popover.closeElement(tooltipRoot)
+  var panel = document.createElement("div")
+  panel.id = "archive-unavailable"
+  panel.className = "archive-unavailable"
+  panel.setAttribute("popover", "auto")
+  panel.setAttribute("role", "dialog")
+  panel.setAttribute("aria-labelledby", "archive-unavailable-title")
+
+  var single = missing.length === 1
+  var name = single ? mailAccountName(missing[0]) : ""
+  var title = document.createElement("h2")
+  title.id = "archive-unavailable-title"
+  title.textContent = archiveRest ? "Some of these emails can't be archived" : "Can't archive"
+  var text = document.createElement("p")
+  if (archiveRest) {
+    text.textContent = single
+      ? "The mailbox of some of the selected emails" + (name ? ", " + name + "," : "") + " has no Archive folder."
+      : "The mailboxes of some of the selected emails have no Archive folder."
+  } else {
+    text.textContent = single
+      ? (name ? name + " has" : "This account has") + " no Archive folder. Choose one, or create it, to archive its email."
+      : "These accounts have no Archive folder. Choose one, or create it, for each."
+  }
+  panel.appendChild(title)
+  panel.appendChild(text)
+
+  var actions = document.createElement("div")
+  actions.className = "archive-unavailable-actions"
+  missing.forEach(function (accountID) {
+    var choose = document.createElement("button")
+    choose.type = "button"
+    var accountName = mailAccountName(accountID)
+    choose.textContent = single || !accountName ? "Choose an Archive folder" : "Choose one for " + accountName
+    choose.addEventListener("click", function () {
+      closeArchiveUnavailable()
+      openFolderRolesSettings(accountID)
+    })
+    actions.appendChild(choose)
+  })
+  if (archiveRest) {
+    var rest = document.createElement("button")
+    rest.type = "button"
+    rest.className = "archive-unavailable-primary"
+    rest.textContent = "Archive the others"
+    rest.addEventListener("click", function () {
+      closeArchiveUnavailable()
+      archiveRest()
+    })
+    actions.appendChild(rest)
+  }
+  panel.appendChild(actions)
+  panel.addEventListener("toggle", function (event) {
+    if (event.newState === "closed") panel.remove()
+  })
+  document.body.appendChild(panel)
+  panel.showPopover()
+  placeArchiveUnavailable(panel, anchor)
+  var first = actions.querySelector("button:last-child")
+  if (first) first.focus({ preventScroll: true })
+}
+
+// Escape closes it, before the mail shortcuts take Escape to clear the
+// selection.
+document.addEventListener("keydown", function (event) {
+  if (event.key !== "Escape") return
+  var open = document.getElementById("archive-unavailable")
+  if (!open || !open.matches(":popover-open")) return
+  event.preventDefault()
+  event.stopPropagation()
+  closeArchiveUnavailable()
+}, true)
+
+// Under the anchor, lined up with its right edge and kept on screen; above
+// it when there is no room below. A phone shows it as a sheet instead.
+function placeArchiveUnavailable(panel, anchor) {
+  if (window.matchMedia("(max-width: 1023.98px)").matches) return
+  var rect = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : null
+  if (!rect || (!rect.width && !rect.height)) {
+    // A menu item that closed with its menu: the reader's or the list's
+    // Archive button stands in, or else the middle of the screen.
+    var stand = document.querySelector('#mail-view [data-mail-archive-account], .mail-list-toolbar [data-mail-selection-action="archive"]')
+    rect = stand ? stand.getBoundingClientRect() : null
+  }
+  var width = panel.offsetWidth
+  var height = panel.offsetHeight
+  var margin = 8
+  var left, top
+  if (rect && (rect.width || rect.height)) {
+    left = Math.min(Math.max(margin, rect.right - width), window.innerWidth - width - margin)
+    top = rect.bottom + 6
+    if (top + height > window.innerHeight - margin) top = Math.max(margin, rect.top - height - 6)
+  } else {
+    left = (window.innerWidth - width) / 2
+    top = (window.innerHeight - height) / 3
+  }
+  panel.style.left = Math.round(left) + "px"
+  panel.style.top = Math.round(top) + "px"
+}
+
+function archiveThread(emailId, button) {
+  var account = button && button.dataset ? button.dataset.mailArchiveAccount : ""
+  var withoutArchive = mailAccountsWithoutArchive([account])
+  if (withoutArchive.length) {
+    showArchiveUnavailable(button, withoutArchive, null)
+    return
+  }
+  if (window.GoferMailSearch && window.GoferMailSearch.scope()) return runScopedMailAction(emailId, "archive", true)
   fetch("/api/messages/" + emailId + "/thread/archive", { method: "POST" })
     .then(function (response) {
       var missing = missingFolderFromResponse(response)
@@ -18496,12 +19644,15 @@ function archiveThread(emailId) {
 }
 
 function deleteThread(emailId) {
+  if (window.GoferMailSearch && window.GoferMailSearch.scope()) return runScopedMailAction(emailId, "delete", true)
+  var permanent = mailDeleteIsPermanent()
   var vml = beginOptimisticMailRemoval(emailId)
   var url = "/api/messages/" + encodeURIComponent(emailId) + "/thread" + mailDeleteFolderQuery()
   fetch(url, { method: "DELETE" })
     .then(function (response) {
       if (!response.ok) return mailDeleteResponseError(response)
       finishOptimisticMailRemoval(vml)
+      showMailDeletedToast(true, permanent)
     })
     .catch(function (err) { failMailDelete(emailId, vml, err, mailPermanentDeleteURL(url)) })
 }
@@ -18522,7 +19673,35 @@ function markThreadNotSpam(emailId) {
   markSpamState(emailId, true, true)
 }
 
+function runScopedMailAction(emailId, action, thread, extra) {
+  var body = Object.assign({ targets: [{ id: String(emailId), thread: !!thread }] }, extra || {})
+  return fetch("/api/messages/" + action, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(mailActionPayload(body))
+  }).then(function (response) {
+    if (!response.ok) return mailDeleteResponseError(response)
+    return response.json()
+  }).then(function (totals) {
+    showMailActionSkippedToast(action, totals)
+    ;(totals.message_ids || []).forEach(function (id) {
+      if (action === "read") document.querySelectorAll('[data-read-email="' + id + '"]').forEach(function (button) { setReadButtonIcon(button, extra.state === "read") })
+      if (action === "star") document.querySelectorAll('[data-star-email="' + id + '"]').forEach(function (button) { setStarButtonIcon(button, extra.state === "starred") })
+    })
+    if (action === "read") syncThreadReadButtons()
+    if (action === "star") syncThreadStarButtons()
+    var container = document.getElementById("mail-list-scroll")
+    var controller = container && container._virtualMailList
+    if (controller) return controller.refreshCurrentFolder({ noAnimation: true })
+  }).then(function () { if (window.goferRefreshSidebarUnread) window.goferRefreshSidebarUnread() }).catch(function () {
+    showGoferToast({ title: "Couldn't change the selected mail", variant: "error", duration: 5000 })
+  })
+}
+
+function mailActionPayload(body) {
+  return window.GoferMailSearch ? window.GoferMailSearch.payload(body) : body
+}
+
 function mailActionCurrentFolderID() {
+  if (window.GoferMailSearch && window.GoferMailSearch.scope()) return ""
   var container = document.getElementById("mail-list-scroll")
   if (container && container._virtualMailList && container._virtualMailList.folderID) return container._virtualMailList.folderID
   if (container && container.dataset.folderId) return container.dataset.folderId
@@ -18734,7 +19913,7 @@ function syncMailSpamActionState(folderID) {
 
 function mailViewRequestURL(emailID, single) {
   var params = new URLSearchParams()
-  var folderID = mailActionCurrentFolderID()
+  var folderID = window.GoferMailSearch && window.GoferMailSearch.scope() ? window.GoferMailSearch.folderFor(emailID) : mailActionCurrentFolderID()
   if (folderID) params.set("folder_id", folderID)
   if (single) params.set("single", "1")
   var query = params.toString()
@@ -18746,7 +19925,7 @@ function markSpamState(emailId, notSpam, thread) {
   fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ targets: [{ id: String(emailId), thread: !!thread }], folder_id: mailActionCurrentFolderID() })
+    body: JSON.stringify(mailActionPayload({ targets: [{ id: String(emailId), thread: !!thread }], folder_id: mailActionCurrentFolderID() }))
   })
     .then(function (response) {
       var missing = missingFolderFromResponse(response)
@@ -18780,7 +19959,7 @@ function openLabelsDialog(targets, done) {
   fetch("/mail/labels-dialog", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ targets: targets, folder_id: folderID }),
+    body: JSON.stringify(mailActionPayload({ targets: targets, folder_id: folderID })),
   })
     .then(function (response) {
       if (!response.ok) throw new Error("labels dialog unavailable")
@@ -18953,7 +20132,7 @@ function postLabelChunk(path, targets, label, folderID) {
   return fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ targets: targets, label: label, folder_id: folderID }),
+    body: JSON.stringify(mailActionPayload({ targets: targets, label: label, folder_id: folderID })),
   }).then(function (response) {
     if (response.ok) return
     return response.text().then(function (text) {
@@ -19022,7 +20201,7 @@ function moveMessagesOutOfFolder(emailId, path, body, report) {
   fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
+    body: JSON.stringify(mailActionPayload(body))
   })
     .then(function (response) {
       if (!response.ok) {
@@ -19085,6 +20264,28 @@ function openMoveDialog(emailId, thread, selection) {
       }
     })
     .catch(function () {})
+}
+
+// printEmail loads the message, with its details on top and in light colors,
+// in a frame nobody sees; it opens the print dialog itself once loaded.
+function printEmail(emailId) {
+  if (!/^\d+$/.test(String(emailId))) return
+  var previous = document.getElementById("email-print-frame")
+  if (previous) previous.remove()
+  var frame = document.createElement("iframe")
+  frame.id = "email-print-frame"
+  frame.title = "Print"
+  frame.tabIndex = -1
+  frame.setAttribute("aria-hidden", "true")
+  frame.setAttribute("sandbox", "allow-scripts allow-modals")
+  // Off-screen rather than hidden, which some browsers won't print.
+  frame.style.cssText = "position:fixed;left:-10000px;top:0;width:720px;height:600px;border:0"
+  var params = new URLSearchParams({ print: "1", theme: "light", bg: "#ffffff", fg: "#111111" })
+  if (emailBodyWantsLargeText()) params.set("text", "large")
+  var reading = document.querySelector('[data-email-body-frame][data-email-id="' + emailId + '"]')
+  if (reading && reading.dataset.remoteLoaded === "true") params.set("remote", "true")
+  frame.src = "/email/" + encodeURIComponent(emailId) + "/body?" + params.toString()
+  document.body.appendChild(frame)
 }
 
 // The source dialog downloads the message when it isn't saved, which can
@@ -19400,7 +20601,7 @@ function confirmMessagesToAccount(mode) {
   fetch("/api/messages/to-account", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ targets: pending.targets, folder_id: pending.folderID, source_folder_id: pending.sourceFolderID, mode: mode }),
+    body: JSON.stringify(mailActionPayload({ targets: pending.targets, folder_id: pending.folderID, source_folder_id: pending.sourceFolderID, mode: mode })),
   })
     .then(function (response) {
       if (response.ok) return response.json()
@@ -20229,7 +21430,7 @@ function _readComposeFormValues(form) {
   var vals = {}
   var inputs = form.querySelectorAll("input, textarea")
   for (var i = 0; inputs && i < inputs.length; i++) {
-    if (inputs[i].name) vals[inputs[i].name] = inputs[i].value
+    if (inputs[i].name) vals[inputs[i].name] = _composeSkipsField(form, inputs[i]) ? "" : inputs[i].value
   }
   var fromDisplay = form.querySelector("[id$='-from-display']")
   if (fromDisplay) vals._fromDisplay = fromDisplay.innerHTML
@@ -20265,6 +21466,7 @@ function _writeComposeFormValues(form, vals, prefix) {
     setComposeAccount(form, vals.account_id, vals.identity_id)
   }
   if (vals.account_id) syncComposeAccountItems(form.id === "compose-pane-form" ? "pane" : "dialog", vals.account_id, vals.identity_id)
+  syncComposeOneTimeFrom(form)
   _setComposeEditorValue(form, vals.body || "", vals.html_body || "", vals.inline_images || [])
   renderComposeAttachments(form, vals.attachments || [])
   form.dataset.composeUploadsPending = "0"

@@ -143,6 +143,7 @@ func newManagedApplication(parent context.Context, path string, maxOpen int) (re
 	aiBus := aievents.NewBus()
 	app.mailbox.SetAIEvents(aiBus)
 	app.mailbox.SetTestPushSender(app.notifications.SendTestPush)
+	app.imap.OnOutlookServiceChange(app.mailbox.OutlookServiceChanged)
 	aiReady, err := startManagedAIWorker(ctx, s.central, s.routing, aiBus, centralAccounts)
 	if err != nil {
 		return nil, fmt.Errorf("start managed AI worker: %w", err)

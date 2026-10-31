@@ -34,6 +34,34 @@ func JMAPCalendars(ctx context.Context, cfg *models.AccountConfig, password stri
 	return calendars.List, nil
 }
 
+// CreateJMAPCalendar makes a calendar named name on the account's JMAP server
+// and returns its id.
+func CreateJMAPCalendar(ctx context.Context, cfg *models.AccountConfig, password, name string) (string, error) {
+	client, session, account, err := jmapCalendarsSession(ctx, cfg, password)
+	if err != nil {
+		return "", err
+	}
+	return client.CreateCalendar(ctx, session, account, name)
+}
+
+// RenameJMAPCalendar gives a calendar on the account's JMAP server a new
+// name, and DeleteJMAPCalendar deletes it with its events.
+func RenameJMAPCalendar(ctx context.Context, cfg *models.AccountConfig, password, id, name string) error {
+	client, session, account, err := jmapCalendarsSession(ctx, cfg, password)
+	if err != nil {
+		return err
+	}
+	return client.RenameCalendar(ctx, session, account, id, name)
+}
+
+func DeleteJMAPCalendar(ctx context.Context, cfg *models.AccountConfig, password, id string) error {
+	client, session, account, err := jmapCalendarsSession(ctx, cfg, password)
+	if err != nil {
+		return err
+	}
+	return client.DestroyCalendar(ctx, session, account, id)
+}
+
 // JMAPEventsFromICS has the server read an iCalendar file into JMAP events,
 // one for each UID in it, in the form that server stores them.
 func JMAPEventsFromICS(ctx context.Context, cfg *models.AccountConfig, password string, data []byte) ([]jmap.CalendarEvent, error) {

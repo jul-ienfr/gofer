@@ -197,14 +197,14 @@ func jmapChosenAddressBooks(r *http.Request, available []jmap.AddressBook) []mod
 
 // writeJMAPContactBooks answers a discovery request with a JMAP account's
 // address books, streamed like CardDAV discovery when the client asks for it.
-func writeJMAPContactBooks(w http.ResponseWriter, r *http.Request, books []jmap.AddressBook, err error) {
+func writeJMAPContactBooks(w http.ResponseWriter, r *http.Request, books []jmap.AddressBook, create *davCreate, err error) {
 	if !strings.Contains(r.Header.Get("Accept"), "application/x-ndjson") {
 		if err != nil {
 			writeJSONError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"address_books": jmapFormAddressBooks(books)})
+		_ = json.NewEncoder(w).Encode(cardDAVDiscoveryResult(jmapFormAddressBooks(books), create))
 		return
 	}
 	w.Header().Set("Content-Type", "application/x-ndjson")
@@ -216,7 +216,9 @@ func writeJMAPContactBooks(w http.ResponseWriter, r *http.Request, books []jmap.
 		_ = encoder.Encode(map[string]any{"type": "error", "error": err.Error()})
 		return
 	}
-	_ = encoder.Encode(map[string]any{"type": "done", "address_books": jmapFormAddressBooks(books)})
+	done := cardDAVDiscoveryResult(jmapFormAddressBooks(books), create)
+	done["type"] = "done"
+	_ = encoder.Encode(done)
 }
 
 // jmapAccountConnection is a shared-store JMAP account's connection and
@@ -240,11 +242,37 @@ func (h *Handler) discoverJMAPContactBooks(w http.ResponseWriter, r *http.Reques
 	ctx, cancel := context.WithTimeout(r.Context(), cardDAVDiscoveryOverallTimeout)
 	defer cancel()
 	cfg, password, err := h.jmapAccountConnection(ctx, accountID)
+	create, createErr := davChangeFromForm(r)
+	if err == nil {
+		err = createErr
+	}
+	if err == nil {
+		err = changeJMAPAddressBook(ctx, cfg, password, create)
+	}
 	var books []jmap.AddressBook
 	if err == nil {
 		books, err = mail.JMAPAddressBooks(ctx, cfg, password)
 	}
-	writeJMAPContactBooks(w, r, books, err)
+	if err == nil {
+		h.dropDeletedAddressBook(ctx, h.userID(ctx), accountID, create)
+	}
+	writeJMAPContactBooks(w, r, books, create, err)
+}
+
+// changeJMAPAddressBook makes, renames or deletes the JMAP address book
+// change asks for, if any.
+func changeJMAPAddressBook(ctx context.Context, cfg *models.AccountConfig, password string, change *davCreate) error {
+	var err error
+	switch {
+	case change == nil:
+	case change.Target == "":
+		change.Created, err = mail.CreateJMAPAddressBook(ctx, cfg, password, change.Name)
+	case change.Delete:
+		err = mail.DeleteJMAPAddressBook(ctx, cfg, password, change.Target)
+	default:
+		err = mail.RenameJMAPAddressBook(ctx, cfg, password, change.Target, change.Name)
+	}
+	return err
 }
 
 // saveJMAPContactSync saves contacts over JMAP for the shared store: the
@@ -292,7 +320,11 @@ func (h *Handler) saveJMAPContactSync(w http.ResponseWriter, r *http.Request, us
 // per-user stores.
 func (h *Handler) discoverUserJMAPContactBooks(w http.ResponseWriter, r *http.Request, owner, id string) {
 	var books []jmap.AddressBook
-	var lookupErr error
+	create, lookupErr := davChangeFromForm(r)
+	if lookupErr != nil {
+		writeJMAPContactBooks(w, r, nil, nil, lookupErr)
+		return
+	}
 	err := h.userIMAP.RunAccountService(r.Context(), owner, id, mail.AccountServiceContacts, cardDAVDiscoveryOverallTimeout, func(ctx context.Context) error {
 		snapshot, err := h.userAccounts.SnapshotServices(ctx, owner, id)
 		if err != nil {
@@ -307,14 +339,19 @@ func (h *Handler) discoverUserJMAPContactBooks(w http.ResponseWriter, r *http.Re
 		if err != nil {
 			return err
 		}
-		books, lookupErr = mail.JMAPAddressBooks(ctx, cfg, password)
-		return h.userAccounts.ValidateContactServices(ctx, snapshot)
+		if lookupErr = changeJMAPAddressBook(ctx, cfg, password, create); lookupErr != nil {
+			return h.userAccounts.ValidateContactServices(ctx, snapshot)
+		}
+		if books, lookupErr = mail.JMAPAddressBooks(ctx, cfg, password); lookupErr != nil {
+			return h.userAccounts.ValidateContactServices(ctx, snapshot)
+		}
+		return h.dropUserDeletedAddressBook(ctx, snapshot, create)
 	})
 	if err != nil {
 		userContactSetupError(w, r, err)
 		return
 	}
-	writeJMAPContactBooks(w, r, books, lookupErr)
+	writeJMAPContactBooks(w, r, books, create, lookupErr)
 }
 
 // saveUserJMAPContactSync is saveJMAPContactSync for the per-user stores.

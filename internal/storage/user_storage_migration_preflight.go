@@ -436,6 +436,8 @@ func migrationSourceColumns(ctx context.Context, tx *sql.Tx, table *UserStorageM
 		missing = []string{"role_choice"}
 	} else if table.Name == "messages" && version < 132 {
 		missing = []string{"list_id"}
+	} else if table.Name == "calendar_sources" && version < 133 {
+		missing = []string{"created_in_gofer"}
 	}
 	for _, name := range missing {
 		if actual[name] {

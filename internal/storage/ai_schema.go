@@ -291,11 +291,10 @@ func migrateAISchema(db *sql.DB, version int, statements ...string) error {
 }
 
 func applyAIMigrations(db *sql.DB, currentVersion int) error {
-	if currentVersion >= 142 {
+	if currentVersion >= 143 {
 		return nil
 	}
 	for _, migrate := range []func(*sql.DB) error{
-		migrateV132ToV133,
 		migrateV133ToV134,
 		migrateV134ToV135,
 		migrateV135ToV136,
@@ -305,6 +304,7 @@ func applyAIMigrations(db *sql.DB, currentVersion int) error {
 		migrateV139ToV140,
 		migrateV140ToV141,
 		migrateV141ToV142,
+		migrateV142ToV143,
 	} {
 		if err := migrate(db); err != nil {
 			return err
@@ -313,39 +313,39 @@ func applyAIMigrations(db *sql.DB, currentVersion int) error {
 	return nil
 }
 
-func migrateV132ToV133(db *sql.DB) error {
-	return migrateAISchema(db, 133, aiAnalysisJobsTableSQL)
-}
-
 func migrateV133ToV134(db *sql.DB) error {
-	return migrateAISchema(db, 134, aiAnalysisResultsTableSQL, aiAnalysisAnswersTableSQL)
+	return migrateAISchema(db, 134, aiAnalysisJobsTableSQL)
 }
 
 func migrateV134ToV135(db *sql.DB) error {
-	return migrateAISchema(db, 135, aiLegitimacyProfilesTableSQL)
+	return migrateAISchema(db, 135, aiAnalysisResultsTableSQL, aiAnalysisAnswersTableSQL)
 }
 
 func migrateV135ToV136(db *sql.DB) error {
-	return migrateAISchema(db, 136, aiProjectsTableSQL, aiProjectRoutesTableSQL, aiMessageProjectsTableSQL)
+	return migrateAISchema(db, 136, aiLegitimacyProfilesTableSQL)
 }
 
 func migrateV136ToV137(db *sql.DB) error {
-	return migrateAISchema(db, 137, aiConnectorsTableSQL, aiRoutingOutboxTableSQL)
+	return migrateAISchema(db, 137, aiProjectsTableSQL, aiProjectRoutesTableSQL, aiMessageProjectsTableSQL)
 }
 
 func migrateV137ToV138(db *sql.DB) error {
-	return migrateAISchema(db, 138, aiLLMProvidersTableSQL, aiLLMGenerationsTableSQL)
+	return migrateAISchema(db, 138, aiConnectorsTableSQL, aiRoutingOutboxTableSQL)
 }
 
 func migrateV138ToV139(db *sql.DB) error {
-	return migrateAISchema(db, 139, aiAutomationActionsTableSQL, aiUnsubscribeAttemptsTableSQL)
+	return migrateAISchema(db, 139, aiLLMProvidersTableSQL, aiLLMGenerationsTableSQL)
 }
 
 func migrateV139ToV140(db *sql.DB) error {
-	return migrateAISchema(db, 140, aiAPITokensTableSQL, aiAuditEventsTableSQL)
+	return migrateAISchema(db, 140, aiAutomationActionsTableSQL, aiUnsubscribeAttemptsTableSQL)
 }
 
 func migrateV140ToV141(db *sql.DB) error {
+	return migrateAISchema(db, 141, aiAPITokensTableSQL, aiAuditEventsTableSQL)
+}
+
+func migrateV141ToV142(db *sql.DB) error {
 	tx, err := db.Begin()
 	if err != nil {
 		return err
@@ -355,11 +355,11 @@ func migrateV140ToV141(db *sql.DB) error {
 	if err := tx.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_version`).Scan(&current); err != nil {
 		return err
 	}
-	if current >= 141 {
+	if current >= 142 {
 		return nil
 	}
 	if _, err := tx.Exec(aiPromptVersionsTableSQL); err != nil {
-		return fmt.Errorf("apply schema 141: %w", err)
+		return fmt.Errorf("apply schema 142: %w", err)
 	}
 	appSettings, err := tableExistsTx(tx, "app_settings")
 	if err != nil {
@@ -400,13 +400,13 @@ func migrateV140ToV141(db *sql.DB) error {
 			}
 		}
 	}
-	if err := markSchemaVersion(tx, 141); err != nil {
+	if err := markSchemaVersion(tx, 142); err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
-func migrateV141ToV142(db *sql.DB) error {
+func migrateV142ToV143(db *sql.DB) error {
 	tx, err := db.Begin()
 	if err != nil {
 		return err
@@ -416,7 +416,7 @@ func migrateV141ToV142(db *sql.DB) error {
 	if err := tx.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_version`).Scan(&current); err != nil {
 		return err
 	}
-	if current >= 142 {
+	if current >= 143 {
 		return nil
 	}
 	columns := []struct {
@@ -437,10 +437,10 @@ func migrateV141ToV142(db *sql.DB) error {
 			continue
 		}
 		if _, err := tx.Exec(column.sql); err != nil {
-			return fmt.Errorf("apply schema 142 (%s): %w", column.name, err)
+			return fmt.Errorf("apply schema 143 (%s): %w", column.name, err)
 		}
 	}
-	if err := markSchemaVersion(tx, 142); err != nil {
+	if err := markSchemaVersion(tx, 143); err != nil {
 		return err
 	}
 	return tx.Commit()

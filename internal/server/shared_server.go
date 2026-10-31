@@ -166,6 +166,7 @@ func RunShared(rootCtx context.Context) error {
 
 	mux := http.NewServeMux()
 	h := handler.New(db, accountStore, syncer, blobStore, authManager, vapidPublicKey, mailCredentials)
+	syncer.OnOutlookServiceChange(h.OutlookServiceChanged)
 	h.SetTestPushSender(notificationService.SendTestPush)
 	aiBus := aievents.NewBus()
 	h.SetAIEvents(aiBus)
@@ -191,6 +192,11 @@ func RunShared(rootCtx context.Context) error {
 			db.SetThreadingState(storage.ThreadingState{InProgress: false})
 		} else {
 			log.Printf("boot: background threading worker finished")
+		}
+		// The search index no longer counts inline images as attachments;
+		// older entries are corrected once.
+		if err := db.EnsureSearchAttachmentNames(ctx); err != nil {
+			log.Printf("boot: %v", err)
 		}
 
 		log.Printf("boot: sync orchestrator startup launched")
