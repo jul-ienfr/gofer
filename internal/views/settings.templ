@@ -27,7 +27,7 @@ import (
 	"github.com/cristianadrielbraun/gofer/components/tooltip"
 )
 
-templ SettingsPage(accounts []models.Account, syncSettings models.SyncSettings, activeTab string, uiSettings map[string]string, signatureData []models.AccountSignatureData) {
+templ SettingsPage(accounts []models.Account, syncSettings models.SyncSettings, activeTab string, uiSettings map[string]string, signatureData []models.AccountSignatureData, aiSettings AISettingsData) {
 	<div class="flex-1 flex flex-col min-w-0 overflow-hidden" data-settings-page>
 		<div class="flex-1 overflow-y-auto">
 			<div id="settings-content" class="max-w-3xl px-8 py-10">
@@ -48,6 +48,8 @@ templ SettingsPage(accounts []models.Account, syncSettings models.SyncSettings, 
 					@SettingsRegionalTab(uiSettings)
 				} else if activeTab == "compose-display" {
 					@SettingsComposeDisplayTab(uiSettings, signatureData)
+				} else if activeTab == "ai" {
+					@AISettingsTab(aiSettings)
 				} else if activeTab == "advanced" {
 					@SettingsAdvancedTab(uiSettings)
 				} else if activeTab == "export-import" {
@@ -78,6 +80,8 @@ func settingsSectionHeading(section string) (string, string) {
 			return "Regional", "Choose the time zone used for message dates and scheduled sends."
 		case "compose-display":
 			return "Compose and display", "Customize compose windows, message lists, signatures, and translation."
+		case "ai":
+			return "AI assistant", "Configure Jev analysis, reply drafting, routing, and guarded automation."
 		case "security":
 			return "Security", "Manage sign-in methods, active sessions, and security activity."
 		case "security-open":

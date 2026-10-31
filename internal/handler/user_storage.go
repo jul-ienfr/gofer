@@ -63,7 +63,7 @@ func (h *Handler) RegisterUserStorageRoutes(ctx context.Context, mux *http.Serve
 		return errors.New("account lifecycle hooks require a scoped account repository")
 	}
 	// Share immutable services, not Handler mutexes or mutable worker state.
-	routed := &Handler{db: h.db, auth: h.auth, syncer: h.syncer, userStorage: routing,
+	routed := &Handler{db: h.db, aiEvents: h.aiEvents, aiWorkerReady: h.aiWorkerReady, aiLLMClient: h.aiLLMClient, auth: h.auth, syncer: h.syncer, userStorage: routing,
 		blobStore: h.blobStore,
 		userIMAP:  option.IMAP, userCredentials: option.Credentials, userAccounts: option.Accounts, userAccountHooks: option.Hooks, userStorageContext: ctx, userDeletions: make(map[string]*userAccountDeletionJob),
 		vapidPublicKey: h.vapidPublicKey, testPush: h.testPush, userBackfillQueue: make(chan userContactBackfillJob, 32),
@@ -73,7 +73,7 @@ func (h *Handler) RegisterUserStorageRoutes(ctx context.Context, mux *http.Serve
 		providerAvatarHTTPClient: h.providerAvatarHTTPClient,
 		avatarWarmupOwner:        h,
 		userBackfills:            make(map[string]struct{}), contactSyncRunning: make(map[string]struct{}),
-		mailRuleRuns:             newMailRuleRuns()}
+		mailRuleRuns: newMailRuleRuns()}
 	if option.IMAP != nil {
 		if h.blobStore != nil && h.blobStore != option.IMAP.Blobs() {
 			return errors.New("routed compose must use the IMAP blob store")

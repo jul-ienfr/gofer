@@ -1,0 +1,310 @@
+package views
+
+import (
+	"fmt"
+	"strings"
+	"time"
+)
+
+type AIAnalysisPanelData struct {
+	MessageID          int64
+	Model              string
+	PriorityLabel      string
+	PriorityConfidence float64
+	RiskLabel          string
+	RiskConfidence     float64
+	IntentLabel        string
+	IntentConfidence   float64
+	ProjectLabel       string
+	ProjectConfidence  float64
+	Summary            string
+	LatencyMS          int64
+	PromptVersion      string
+	LegitimacyState    string
+	LegitimacyScore    float64
+	SenderEmail        string
+	SenderVIP          bool
+	SenderAllowlisted  bool
+	SenderBlocked      bool
+	AutomationKind     string
+	AutomationState    string
+	AutomationActionID string
+	AutomationUndoBy   time.Time
+	Answers            []AIAnalysisPanelAnswer
+	WorkerReady        bool
+}
+
+type AIAnalysisPanelAnswer struct {
+	QuestionKey string
+	Type        string
+	Choice      string
+	Score       float64
+	Noul        float64
+	Confidence  float64
+}
+
+templ AIAnalysisPanel(data AIAnalysisPanelData) {
+	<section id={ fmt.Sprintf("ai-analysis-%d", data.MessageID) } class="mt-5 rounded-lg border border-border bg-muted/20 px-4 py-3" data-ai-analysis-panel>
+		<div class="flex flex-wrap items-center gap-2">
+			<span class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Jev analysis</span>
+			if data.Model != "" {
+				<span class="text-[11px] text-muted-foreground/70">{ data.Model }</span>
+			}
+			<span class="ml-auto flex items-center gap-2">
+				@aiAnalysisBadge("Priority", aiPriorityText(data.PriorityLabel), aiPriorityClass(data.PriorityLabel))
+				@aiAnalysisBadge("Risk", aiRiskText(data.RiskLabel), aiRiskClass(data.RiskLabel))
+				if data.IntentLabel != "" {
+					@aiAnalysisBadge("Reply", aiIntentText(data.IntentLabel), aiIntentClass(data.IntentLabel))
+				}
+				if data.ProjectLabel != "" {
+					@aiAnalysisBadge("Domain", data.ProjectLabel, "border-border bg-background text-muted-foreground")
+				}
+			</span>
+		</div>
+		if data.SenderEmail != "" {
+			<div class="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+				@aiAnalysisBadge("Sender", aiTrustText(data), aiTrustClass(data))
+				<span class="truncate">{ data.SenderEmail }</span>
+				if data.LegitimacyState != "unknown" {
+					<span>{ fmt.Sprintf("trust %s", aiPercent(data.LegitimacyScore)) }</span>
+				}
+			</div>
+		}
+		if data.RiskLabel == "phishing" {
+			<p class="mt-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs font-medium text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+				Jev flags this message as phishing. No draft or routing action should be trusted without review.
+			</p>
+		} else if data.RiskLabel == "spam" {
+			<p class="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+				Jev flags this message as spam. Automation follows your opt-in settings and the project permission.
+			</p>
+		} else if data.RiskLabel == "unsure" {
+			<p class="mt-3 rounded-md border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
+				Jev is unsure about this sender. Automated actions require review.
+			</p>
+		}
+		if data.Summary != "" {
+			<p class="mt-3 text-sm leading-relaxed text-foreground">{ data.Summary }</p>
+		}
+		if data.AutomationActionID != "" {
+			<div class="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-xs" data-ai-automation>
+				<span class="font-medium text-foreground">{ aiAutomationText(data) }</span>
+				if data.AutomationState == "executed" && data.AutomationUndoBy.After(time.Now()) {
+					<button
+						type="button"
+						class="rounded-md border border-border px-2 py-1 text-[11px] font-medium hover:bg-muted"
+						data-ai-undo={ data.AutomationActionID }
+						data-ai-undo-message={ fmt.Sprintf("%d", data.MessageID) }
+					>Undo</button>
+				}
+				<span class="text-muted-foreground" data-ai-undo-status></span>
+			</div>
+		}
+		<div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+			<span>{ fmt.Sprintf("Priority confidence %s", aiPercent(data.PriorityConfidence)) }</span>
+			<span>{ fmt.Sprintf("Risk confidence %s", aiPercent(data.RiskConfidence)) }</span>
+			if data.LatencyMS > 0 {
+				<span>{ fmt.Sprintf("%d ms", data.LatencyMS) }</span>
+			}
+			if data.PromptVersion != "" {
+				<span>{ data.PromptVersion }</span>
+			}
+		</div>
+		<details class="mt-3 group">
+			<summary class="cursor-pointer list-none text-[11px] font-medium text-muted-foreground hover:text-foreground">Raw answers</summary>
+			<div class="mt-2 grid gap-1.5 sm:grid-cols-2">
+				for _, answer := range data.Answers {
+					<div class="rounded-md border border-border/70 bg-background px-2.5 py-1.5 text-[11px]">
+						<span class="font-semibold text-foreground">{ answer.QuestionKey }</span>
+						<span class="text-muted-foreground">{ aiAnswerText(answer) }</span>
+					</div>
+				}
+			</div>
+		</details>
+		<div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+			<div class="flex items-center gap-3">
+				if data.WorkerReady {
+					<button
+						type="button"
+						class="text-[11px] font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground"
+						hx-post={ fmt.Sprintf("/api/ai/messages/%d/reanalyze", data.MessageID) }
+						hx-target={ fmt.Sprintf("#ai-analysis-%d", data.MessageID) }
+						hx-swap="outerHTML"
+					>Reanalyze</button>
+				} else {
+					<span class="text-[11px] text-muted-foreground">The Jev worker is not configured.</span>
+				}
+				if data.RiskLabel == "legit" || data.RiskLabel == "unsure" {
+					<button
+						type="button"
+						class="rounded-md border border-border bg-background px-2 py-1 text-[11px] font-medium text-foreground hover:bg-muted"
+						data-ai-draft={ fmt.Sprintf("%d", data.MessageID) }
+					>Draft reply</button>
+					<span class="text-[11px] text-muted-foreground" data-ai-draft-status></span>
+				}
+			</div>
+			<span class="text-[11px] text-muted-foreground/70">Draft-first: analysis never sends or deletes mail.</span>
+		</div>
+	</section>
+}
+
+templ AIAnalysisQueued(messageID int64) {
+	<section id={ fmt.Sprintf("ai-analysis-%d", messageID) } class="mt-5 rounded-lg border border-border bg-muted/20 px-4 py-3" data-ai-analysis-panel>
+		<div class="flex items-center gap-2 text-xs text-muted-foreground">
+			<span class="inline-block size-2 animate-pulse rounded-full bg-amber-500"></span>
+			<span>Jev analysis queued. Reload the message to see the result.</span>
+		</div>
+	</section>
+}
+
+templ aiAnalysisBadge(label, value, class string) {
+	<span class={ "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide", class }>
+		<span class="opacity-60">{ label }</span>
+		<span>{ value }</span>
+	</span>
+}
+
+func aiPriorityText(label string) string {
+	switch label {
+	case "high":
+		return "High"
+	case "normal":
+		return "Normal"
+	case "low":
+		return "Low"
+	default:
+		return "Unknown"
+	}
+}
+
+func aiPriorityClass(label string) string {
+	switch label {
+	case "high":
+		return "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+	case "normal":
+		return "border-sky-300 bg-sky-50 text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200"
+	default:
+		return "border-border bg-background text-muted-foreground"
+	}
+}
+
+func aiRiskText(label string) string {
+	switch label {
+	case "legit":
+		return "Legit"
+	case "spam":
+		return "Spam"
+	case "phishing":
+		return "Phishing"
+	case "unsure":
+		return "Unsure"
+	default:
+		return "Unknown"
+	}
+}
+
+func aiRiskClass(label string) string {
+	switch label {
+	case "legit":
+		return "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+	case "spam":
+		return "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+	case "phishing":
+		return "border-red-300 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"
+	default:
+		return "border-border bg-background text-muted-foreground"
+	}
+}
+
+func aiAutomationText(data AIAnalysisPanelData) string {
+	name := "Automation applied"
+	switch data.AutomationKind {
+	case "move_junk":
+		name = "Moved to Junk"
+	case "route_move":
+		name = "Moved by a project route"
+	}
+	if data.AutomationState == "undone" {
+		return name + " · undone"
+	}
+	return name
+}
+
+func aiTrustText(data AIAnalysisPanelData) string {
+	switch {
+	case data.SenderBlocked:
+		return "Blocked"
+	case data.SenderVIP:
+		return "VIP"
+	case data.SenderAllowlisted:
+		return "Trusted"
+	}
+	switch data.LegitimacyState {
+	case "trusted":
+		return "Trusted"
+	case "neutral":
+		return "Neutral"
+	case "suspicious":
+		return "Suspicious"
+	case "malicious":
+		return "Malicious"
+	default:
+		return "Unknown"
+	}
+}
+
+func aiTrustClass(data AIAnalysisPanelData) string {
+	switch {
+	case data.SenderBlocked || data.LegitimacyState == "malicious":
+		return "border-red-300 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"
+	case data.SenderVIP || data.SenderAllowlisted || data.LegitimacyState == "trusted":
+		return "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+	case data.LegitimacyState == "suspicious":
+		return "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+	default:
+		return "border-border bg-background text-muted-foreground"
+	}
+}
+
+func aiIntentText(label string) string {
+	if label == "reply_required" {
+		return "Reply needed"
+	}
+	return "No reply"
+}
+
+func aiIntentClass(label string) string {
+	if label == "reply_required" {
+		return "border-violet-300 bg-violet-50 text-violet-900 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-200"
+	}
+	return "border-border bg-background text-muted-foreground"
+}
+
+func aiPercent(value float64) string {
+	if value < 0 {
+		value = 0
+	}
+	if value > 1 {
+		value = 1
+	}
+	return fmt.Sprintf("%.0f%%", value*100)
+}
+
+func aiAnswerText(answer AIAnalysisPanelAnswer) string {
+	var value string
+	switch answer.Type {
+	case "score":
+		value = fmt.Sprintf("%.0f", answer.Score)
+	case "noul":
+		value = aiPercent(answer.Noul)
+	default:
+		value = strings.TrimSpace(answer.Choice)
+	}
+	if value == "" {
+		value = "n/a"
+	}
+	if answer.Confidence > 0 {
+		return fmt.Sprintf("%s (%s confidence)", value, aiPercent(answer.Confidence))
+	}
+	return value
+}

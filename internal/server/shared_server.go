@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/cristianadrielbraun/gofer/internal/aievents"
 	"github.com/cristianadrielbraun/gofer/internal/auth"
 	"github.com/cristianadrielbraun/gofer/internal/config"
 	"github.com/cristianadrielbraun/gofer/internal/handler"
@@ -166,6 +167,21 @@ func RunShared(rootCtx context.Context) error {
 	mux := http.NewServeMux()
 	h := handler.New(db, accountStore, syncer, blobStore, authManager, vapidPublicKey, mailCredentials)
 	h.SetTestPushSender(notificationService.SendTestPush)
+	aiBus := aievents.NewBus()
+	h.SetAIEvents(aiBus)
+	aiReady, err := startAIWorker(ctx, db, aiBus, accountStore)
+	if err != nil {
+		log.Fatalf("failed to start AI worker: %v", err)
+	}
+	h.SetAIWorkerReady(aiReady)
+	if llmClient, endpoint, err := configuredLLMClient(); err != nil {
+		log.Fatalf("failed to configure LLM drafting: %v", err)
+	} else if llmClient != nil {
+		h.SetAIDraftingClient(llmClient)
+		log.Printf("boot: LLM drafting enabled (endpoint %s)", endpoint)
+	} else {
+		log.Printf("boot: LLM drafting disabled; set GOFER_LLM_BASE_URL and GOFER_LLM_MODEL to enable it")
+	}
 
 	go func() {
 		log.Printf("boot: background threading worker started")

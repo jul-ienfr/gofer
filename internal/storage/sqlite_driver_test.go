@@ -8,11 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestSlowQueryLogTimesStatementsAndTransactions(t *testing.T) {
-	SetSlowQueryThreshold(time.Nanosecond)
+	SetSlowQueryThreshold(-1)
 	t.Cleanup(func() { SetSlowQueryThreshold(0) })
 	var output bytes.Buffer
 	previous := log.Writer()

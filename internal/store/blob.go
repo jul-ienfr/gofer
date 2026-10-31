@@ -366,6 +366,11 @@ func (s *BlobStore) DeleteAccount(accountID string) error {
 	if accountID == "" || accountID == "." || accountID == ".." || strings.ContainsAny(accountID, `/\`) {
 		return fmt.Errorf("invalid account blob owner")
 	}
+	if info, err := os.Stat(s.basePath); err == nil && !info.IsDir() {
+		return fmt.Errorf("blob store path is not a directory")
+	} else if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("inspect blob store path: %w", err)
+	}
 	return os.RemoveAll(filepath.Join(s.basePath, accountID))
 }
 

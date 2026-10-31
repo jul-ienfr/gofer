@@ -385,7 +385,7 @@ func (db *DB) CompleteOutgoingSend(ctx context.Context, id, sentMessageID string
 			SET status = ?, sent_message_id = ?, last_error = '', locked_at = NULL,
 				sent_copy_status = ?, sent_copy_attempt_count = 0, sent_copy_last_error = '',
 				sent_copy_locked_at = NULL, sent_copy_next_attempt_at = CURRENT_TIMESTAMP,
-				`+outgoingSentClearSQL+`, updated_at = CURRENT_TIMESTAMP
+				` + outgoingSentClearSQL + `, updated_at = CURRENT_TIMESTAMP
 			WHERE id = ? AND status = ?`
 	}
 	result, err := db.Write().ExecContext(ctx, query, OutgoingSendSent, sentMessageID, sentCopyStatus, id, OutgoingSendSending)

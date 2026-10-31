@@ -99,7 +99,7 @@ func TestMailListLooksUpAvatarsOncePerPage(t *testing.T) {
 	var output bytes.Buffer
 	previous := log.Writer()
 	log.SetOutput(&output)
-	SetSlowQueryThreshold(time.Nanosecond)
+	SetSlowQueryThreshold(-1)
 	t.Cleanup(func() { SetSlowQueryThreshold(0); log.SetOutput(previous) })
 	if _, err := db.GetEmailsRange(context.Background(), "box-inbox", 0, 50); err != nil {
 		t.Fatal(err)

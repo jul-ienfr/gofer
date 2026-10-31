@@ -56,6 +56,9 @@ Storage:
   gofer storage inspect [--db PATH]
   gofer storage migrate [--db PATH] --to PATH [--working-dir PATH] [--retry]
   gofer storage compress [--dir PATH] [--dry-run]
+  gofer storage backup [--dir PATH] [--db PATH] [--out PATH] [--force]
+  gofer storage verify --from PATH
+  gofer storage restore --from PATH [--dir PATH] [--force] [--allow-newer-schema] [--no-safety-backup]
 `
 
 func runApplication(ctx context.Context, args []string, stdout, stderr io.Writer, serve func()) int {

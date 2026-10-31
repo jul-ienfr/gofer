@@ -4,12 +4,12 @@
 
 # The build stage runs on the build machine's architecture and cross-compiles
 # for the target, so multi-architecture images build without emulation.
-FROM --platform=$BUILDPLATFORM golang:1.27.1-alpine3.24 AS build
+FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine3.24 AS build
 
 ARG TARGETOS
 ARG TARGETARCH
 ARG BUILDARCH
-ARG TAILWIND_VERSION=v4.2.4
+ARG TAILWIND_VERSION=v4.3.3
 ARG TEMPL_VERSION=v0.3.1001
 ARG ESBUILD_VERSION=v0.28.2
 # The release version and commit shown in Settings > About. The build has no
@@ -24,8 +24,8 @@ RUN apk add --no-cache curl libstdc++ libgcc
 # Tailwind's standalone CLI, checked against the release checksums.
 RUN set -eu; \
     case "$BUILDARCH" in \
-      amd64) asset=tailwindcss-linux-x64-musl; sum=d2c074a053f3cb63e3c250e16accabbac9c8aa704bb7d1bd53781ee5dde0e65e ;; \
-      arm64) asset=tailwindcss-linux-arm64-musl; sum=c4b49541f9121fcb6cf3fd8e4bcfaa0467b320473c10b418381c1535b0281869 ;; \
+      amd64) asset=tailwindcss-linux-x64-musl; sum=a04d34ceacc8f52cbe8920ad846cdeb61d3d0021dba32db0d1f77c9d9fad7a6c ;; \
+      arm64) asset=tailwindcss-linux-arm64-musl; sum=71ea4be79c9de9827545682df3e040053fb535d37c71ed2cfdedf9385a0868e0 ;; \
       *) echo "unsupported build architecture: $BUILDARCH" >&2; exit 1 ;; \
     esac; \
     curl -fsSL -o /usr/local/bin/tailwindcss "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/${asset}"; \

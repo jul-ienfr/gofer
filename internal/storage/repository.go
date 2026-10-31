@@ -1686,6 +1686,11 @@ func (db *DB) UpsertSyncMessages(ctx context.Context, msgs []SyncMessage) error 
 				m.DateSent = storedDate.Time
 			}
 		}
+		if m.Arrived && !m.IsDraft && !preserveLocalDraft {
+			if err := enqueueAnalysisTx(ctx, tx, msgID, m.AccountID, m.FolderID, m.MessageID, CurrentAnalysisVersion); err != nil {
+				return fmt.Errorf("enqueue analysis: %w", err)
+			}
+		}
 
 		var remoteUID any
 		if m.RemoteUID > 0 {
@@ -2011,6 +2016,12 @@ func (db *DB) UpsertProviderSyncMessages(ctx context.Context, msgs []ProviderSyn
 					`UPDATE messages SET body_text_path = NULL, body_html_path = NULL, body_html_original_path = NULL, raw_path = NULL WHERE id = ?`, msgID); err != nil {
 					return nil, fmt.Errorf("clear edited draft body: %w", err)
 				}
+			}
+		}
+
+		if m.Arrived && !m.IsDraft {
+			if err := enqueueAnalysisTx(ctx, tx, msgID, m.AccountID, m.FolderID, m.InternetMessageID, CurrentAnalysisVersion); err != nil {
+				return nil, fmt.Errorf("enqueue analysis: %w", err)
 			}
 		}
 
@@ -5187,12 +5198,12 @@ func (db *DB) GetFolderEmailCountFilteredForUser(ctx context.Context, userID, fo
 	var count int
 	err := db.Read().QueryRowContext(ctx,
 		`WITH `+filterSQL.withClause+`visible AS (
-		 SELECT ROW_NUMBER() OVER (PARTITION BY ` + key + ` ORDER BY m.date_received DESC, m.id DESC) AS rn,
-		        MIN(mfs.is_read) OVER (PARTITION BY ` + key + `) AS thread_is_read,
-		        MAX(mfs.is_starred) OVER (PARTITION BY ` + key + `) AS thread_is_starred,		        
-		        MAX(m.has_attachments) OVER (PARTITION BY ` + key + `) AS thread_has_attachments,
-		        SUM(COALESCE(m.size_bytes, 0)) OVER (PARTITION BY ` + key + `) AS thread_size_bytes,
-		        COUNT(*) OVER (PARTITION BY ` + key + `) AS thread_count
+		 SELECT ROW_NUMBER() OVER (PARTITION BY `+key+` ORDER BY m.date_received DESC, m.id DESC) AS rn,
+		        MIN(mfs.is_read) OVER (PARTITION BY `+key+`) AS thread_is_read,
+		        MAX(mfs.is_starred) OVER (PARTITION BY `+key+`) AS thread_is_starred,		        
+		        MAX(m.has_attachments) OVER (PARTITION BY `+key+`) AS thread_has_attachments,
+		        SUM(COALESCE(m.size_bytes, 0)) OVER (PARTITION BY `+key+`) AS thread_size_bytes,
+		        COUNT(*) OVER (PARTITION BY `+key+`) AS thread_count
 		 FROM message_folder_state mfs
 		 JOIN messages m ON mfs.message_id = m.id
 		 `+filterSQL.joinClause+`
@@ -5219,12 +5230,12 @@ func (db *DB) GetFolderEmailCountFiltered(ctx context.Context, folderID string, 
 		var count int
 		err := db.Read().QueryRowContext(ctx,
 			`WITH `+filterSQL.withClause+`visible AS (
-			 SELECT ROW_NUMBER() OVER (PARTITION BY ` + key + ` ORDER BY m.date_received DESC, m.id DESC) AS rn,
-			        MIN(mfs.is_read) OVER (PARTITION BY ` + key + `) AS thread_is_read,
-			        MAX(mfs.is_starred) OVER (PARTITION BY ` + key + `) AS thread_is_starred,			        
-			        MAX(m.has_attachments) OVER (PARTITION BY ` + key + `) AS thread_has_attachments,
-			        SUM(COALESCE(m.size_bytes, 0)) OVER (PARTITION BY ` + key + `) AS thread_size_bytes,
-			        COUNT(*) OVER (PARTITION BY ` + key + `) AS thread_count
+			 SELECT ROW_NUMBER() OVER (PARTITION BY `+key+` ORDER BY m.date_received DESC, m.id DESC) AS rn,
+			        MIN(mfs.is_read) OVER (PARTITION BY `+key+`) AS thread_is_read,
+			        MAX(mfs.is_starred) OVER (PARTITION BY `+key+`) AS thread_is_starred,			        
+			        MAX(m.has_attachments) OVER (PARTITION BY `+key+`) AS thread_has_attachments,
+			        SUM(COALESCE(m.size_bytes, 0)) OVER (PARTITION BY `+key+`) AS thread_size_bytes,
+			        COUNT(*) OVER (PARTITION BY `+key+`) AS thread_count
 			 FROM messages m
 			 JOIN message_folder_state mfs ON m.id = mfs.message_id
 			 JOIN folders f ON mfs.folder_id = f.id
@@ -5239,12 +5250,12 @@ func (db *DB) GetFolderEmailCountFiltered(ctx context.Context, folderID string, 
 	var count int
 	err := db.Read().QueryRowContext(ctx,
 		`WITH `+filterSQL.withClause+`visible AS (
-		 SELECT ROW_NUMBER() OVER (PARTITION BY ` + key + ` ORDER BY m.date_received DESC, m.id DESC) AS rn,
-		        MIN(mfs.is_read) OVER (PARTITION BY ` + key + `) AS thread_is_read,
-		        MAX(mfs.is_starred) OVER (PARTITION BY ` + key + `) AS thread_is_starred,		        
-		        MAX(m.has_attachments) OVER (PARTITION BY ` + key + `) AS thread_has_attachments,
-		        SUM(COALESCE(m.size_bytes, 0)) OVER (PARTITION BY ` + key + `) AS thread_size_bytes,
-		        COUNT(*) OVER (PARTITION BY ` + key + `) AS thread_count
+		 SELECT ROW_NUMBER() OVER (PARTITION BY `+key+` ORDER BY m.date_received DESC, m.id DESC) AS rn,
+		        MIN(mfs.is_read) OVER (PARTITION BY `+key+`) AS thread_is_read,
+		        MAX(mfs.is_starred) OVER (PARTITION BY `+key+`) AS thread_is_starred,		        
+		        MAX(m.has_attachments) OVER (PARTITION BY `+key+`) AS thread_has_attachments,
+		        SUM(COALESCE(m.size_bytes, 0)) OVER (PARTITION BY `+key+`) AS thread_size_bytes,
+		        COUNT(*) OVER (PARTITION BY `+key+`) AS thread_count
 		 FROM message_folder_state mfs JOIN messages m ON mfs.message_id = m.id
 		 `+filterSQL.joinClause+`
 		 WHERE mfs.folder_id = ? AND mfs.is_deleted = 0`+filterSQL.cteClause+`

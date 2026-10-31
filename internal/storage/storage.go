@@ -57,7 +57,7 @@ type ThreadingState struct {
 	Total      int  `json:"total"`
 }
 
-const CurrentSchemaVersion = 132
+const CurrentSchemaVersion = 142
 
 func New(dbPath string) (*DB, error) {
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
@@ -178,6 +178,9 @@ func (db *DB) requireCurrentSchema() error {
 	if err := db.read.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_version`).Scan(&version); err != nil {
 		return fmt.Errorf("read schema version: %w", err)
 	}
+	if version > CurrentSchemaVersion {
+		return fmt.Errorf("database schema version %d was written by a newer Gofer release; this release supports %d", version, CurrentSchemaVersion)
+	}
 	if version != CurrentSchemaVersion {
 		return fmt.Errorf("database schema version %d is not supported; expected %d", version, CurrentSchemaVersion)
 	}
@@ -242,12 +245,24 @@ func openDB(path string, options ...string) (*sql.DB, error) {
 	return db, nil
 }
 
+// SQLiteFileURL returns a file URI that SQLite accepts on both POSIX and
+// Windows. A Windows absolute path such as C:/mail/gofer.db must become
+// file:///C:/mail/gofer.db; file:C:/mail/gofer.db is parsed with C: as the
+// URI authority and fails with "invalid uri authority".
+func SQLiteFileURL(path string) *url.URL {
+	slashPath := filepath.ToSlash(path)
+	if filepath.VolumeName(path) != "" {
+		slashPath = "/" + strings.TrimPrefix(slashPath, "/")
+	}
+	return &url.URL{Scheme: "file", Path: slashPath}
+}
+
 func openReadOnlyDB(path string, pragmas ...string) (*sql.DB, error) {
 	absolutePath, err := filepath.Abs(path)
 	if err != nil {
 		return nil, fmt.Errorf("resolve database path: %w", err)
 	}
-	databaseURL := url.URL{Scheme: "file", Path: filepath.ToSlash(absolutePath)}
+	databaseURL := SQLiteFileURL(absolutePath)
 	query := databaseURL.Query()
 	query.Set("mode", "ro")
 	query.Add("_pragma", "foreign_keys(1)")
@@ -292,7 +307,10 @@ func (db *DB) migrate() error {
 
 	const targetSchemaVersion = CurrentSchemaVersion
 
-	if currentVersion >= targetSchemaVersion {
+	if currentVersion > targetSchemaVersion {
+		return fmt.Errorf("database schema version %d was written by a newer Gofer release; this release supports %d", currentVersion, targetSchemaVersion)
+	}
+	if currentVersion == targetSchemaVersion {
 		log.Printf("schema at version %d, no migration needed", currentVersion)
 		return nil
 	}
@@ -301,10 +319,13 @@ func (db *DB) migrate() error {
 		if _, err := tx.Exec(string(schema)); err != nil {
 			return fmt.Errorf("apply schema: %w", err)
 		}
-		log.Printf("schema initialized at version %d", targetSchemaVersion)
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("commit migration: %w", err)
 		}
+		if err := applyAIMigrations(db.write, 132); err != nil {
+			return fmt.Errorf("apply AI migrations: %w", err)
+		}
+		log.Printf("schema initialized at version %d", targetSchemaVersion)
 		return nil
 	}
 
@@ -1102,6 +1123,9 @@ func (db *DB) migrate() error {
 		if err := migrateV131ToV132(db.write); err != nil {
 			return fmt.Errorf("migrate v131 to v132: %w", err)
 		}
+	}
+	if err := applyAIMigrations(db.write, currentVersion); err != nil {
+		return fmt.Errorf("apply AI migrations: %w", err)
 	}
 
 	if _, err := db.write.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
@@ -4492,7 +4516,10 @@ func migrateFolderReferences(tx *sql.Tx, entries []folderIdentityMigration) erro
 }
 
 func markSchemaVersion(tx *sql.Tx, version int) error {
-	_, err := tx.Exec(`INSERT OR REPLACE INTO schema_version (version) VALUES (?)`, version)
+	if _, err := tx.Exec(`DELETE FROM schema_version`); err != nil {
+		return err
+	}
+	_, err := tx.Exec(`INSERT INTO schema_version (version) VALUES (?)`, version)
 	return err
 }
 

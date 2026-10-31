@@ -1,0 +1,10 @@
+Gofer
+Copyright (c) 2026 Cristián Braun
+
+This distribution is a fork of Gofer (https://github.com/cristianadrielbraun/gofer)
+and includes an optional AI mail assistant (Jev analysis, policy, legitimacy,
+project routing and LLM drafts).
+
+The upstream MIT license is retained in LICENSE. Third-party Go modules and
+front-end packages remain under their respective licenses; see go.mod,
+package.json and node_modules metadata for details.

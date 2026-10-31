@@ -30,9 +30,9 @@ Grab a binary from the [releases page](https://github.com/cristianadrielbraun/go
 
 Prefer Docker? There's an image at `ghcr.io/cristianadrielbraun/gofer` and an example [`compose.yaml`](./compose.yaml); see [docs/setup.md](./docs/setup.md#docker).
 
-Auth modes, accounts, upgrades, and deployment are all in [docs/setup.md](./docs/setup.md). Please keep backups before upgrading.
+Auth modes, accounts, upgrades, and deployment are all in [docs/setup.md](./docs/setup.md). Please keep backups before upgrading. See [docs/backup-restore.md](./docs/backup-restore.md) for the backup and restore runbook and [docs/release-rollback.md](./docs/release-rollback.md) for release and rollback procedures.
 
-To build from source you need Go 1.27.1+, `templ`, `tailwindcss`, and `task`:
+To build from source you need Go 1.27.3+, `templ`, `tailwindcss`, and `task`:
 
 ```sh
 task dev      # dev server with hot reload, at http://local.localhost:8090

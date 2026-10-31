@@ -24,11 +24,20 @@ func RunStorageCommand(ctx context.Context, args []string, stdout, stderr io.Wri
 	if len(args) > 1 && args[1] == "migrate" {
 		return true, runStorageMigrationCommand(ctx, args[2:], stdout, stderr)
 	}
+	if len(args) > 1 && args[1] == "backup" {
+		return true, runStorageBackupCommand(ctx, args[2:], stdout, stderr)
+	}
+	if len(args) > 1 && args[1] == "verify" {
+		return true, runStorageVerifyCommand(args[2:], stdout, stderr)
+	}
+	if len(args) > 1 && args[1] == "restore" {
+		return true, runStorageRestoreCommand(ctx, args[2:], stdout, stderr)
+	}
 	if len(args) > 1 && args[1] == "compress" {
 		return true, runStorageCompressCommand(ctx, args[2:], stdout, stderr)
 	}
 	if len(args) < 2 || args[1] != "inspect" {
-		fmt.Fprintln(stderr, "usage: gofer storage inspect [--db PATH] | migrate [--db PATH] --to PATH [--working-dir PATH] [--retry] | compress [--dir PATH] [--dry-run]")
+		fmt.Fprintln(stderr, "usage: gofer storage inspect [--db PATH] | migrate [--db PATH] --to PATH [--working-dir PATH] [--retry] | compress [--dir PATH] [--dry-run] | backup [--dir PATH] [--db PATH] [--out PATH] [--force] | verify --from PATH | restore --from PATH [--dir PATH] [--force] [--allow-newer-schema] [--no-safety-backup]")
 		return true, 2
 	}
 	flags := flag.NewFlagSet("storage inspect", flag.ContinueOnError)

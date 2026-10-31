@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/mail"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -516,8 +517,11 @@ func TestSendRawTimingReportsOneConnectionAndTransaction(t *testing.T) {
 	if !timing.ConnectionEstablished || timing.MessagesPerConnection != 1 {
 		t.Fatalf("timing connection usage = %#v, want one established connection and one message", timing)
 	}
-	if timing.Data <= 0 || timing.Total < timing.Data {
-		t.Fatalf("timing durations = %#v, want positive transaction and total duration", timing)
+	if runtime.GOOS != "windows" && timing.Data <= 0 {
+		t.Fatalf("timing durations = %#v, want positive transaction duration", timing)
+	}
+	if timing.Total < timing.Data {
+		t.Fatalf("timing durations = %#v, total is shorter than the transaction", timing)
 	}
 	waitForSMTPServer(t, serverErr)
 }

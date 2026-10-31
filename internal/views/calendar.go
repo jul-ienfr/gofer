@@ -164,7 +164,7 @@ func calendarDayLabel(day CalendarDay) string {
 func calendarDayClass(day CalendarDay) string {
 	classes := "relative flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-b border-border/70 bg-background p-1.5 sm:p-2 transition-colors data-[calendar-day-selected=true]:bg-primary/10 data-[calendar-day-selected=true]:ring-2 data-[calendar-day-selected=true]:ring-inset data-[calendar-day-selected=true]:ring-primary"
 	if !day.InMonth {
-		return classes + " bg-muted/20 text-muted-foreground/45"
+		return classes + " bg-muted/20 text-muted-foreground"
 	}
 	if day.IsWeekend {
 		classes += " bg-muted/[0.08]"
@@ -181,7 +181,7 @@ func calendarDayNumberClass(day CalendarDay) string {
 		return classes + " bg-primary text-primary-foreground shadow-sm"
 	}
 	if !day.InMonth {
-		return classes + " text-muted-foreground/45"
+		return classes + " text-muted-foreground"
 	}
 	return classes + " text-foreground"
 }

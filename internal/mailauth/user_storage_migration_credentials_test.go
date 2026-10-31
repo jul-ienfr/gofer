@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -174,7 +173,8 @@ func (f *migrationCredentialFixture) begin(t *testing.T) (*sql.Conn, *sql.Tx, []
 	if err != nil {
 		t.Fatal(err)
 	}
-	uri := url.URL{Scheme: "file", Path: path, RawQuery: "mode=ro"}
+	uri := storage.SQLiteFileURL(path)
+	uri.RawQuery = "mode=ro"
 	if _, err := conn.ExecContext(t.Context(), `ATTACH DATABASE ? AS migration_source`, uri.String()); err != nil {
 		t.Fatal(err)
 	}

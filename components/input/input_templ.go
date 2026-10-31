@@ -326,7 +326,7 @@ func Input(props ...Props) templ.Component {
 				Size:       button.SizeIcon,
 				Variant:    button.VariantGhost,
 				Class:      "absolute right-0 top-1/2 -translate-y-1/2 opacity-50 cursor-pointer",
-				Attributes: templ.Attributes{"data-tui-input-toggle-password": p.ID},
+				Attributes: templ.Attributes{"data-tui-input-toggle-password": p.ID, "aria-label": "Show password", "aria-pressed": "false"},
 			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var11), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

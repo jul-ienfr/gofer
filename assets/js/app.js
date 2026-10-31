@@ -1,6 +1,16 @@
 // Gofer's pages run no inline code, so htmx needn't evaluate any either.
 if (window.htmx) window.htmx.config.allowEval = false
 
+// A fragment jump moves the sequential focus start but not activeElement in
+// every browser. Focus the main landmark explicitly so the skip link works
+// for keyboard and screen-reader users.
+document.addEventListener("click", function (event) {
+  var link = event.target && event.target.closest ? event.target.closest('a[href="#main-content"]') : null
+  if (!link) return
+  var main = document.getElementById("main-content")
+  if (main) window.requestAnimationFrame(function () { main.focus() })
+})
+
 function setupPageRequestOwnership() {
   if (window._goferPageRequestOwnershipReady) return
   window._goferPageRequestOwnershipReady = true
@@ -4464,6 +4474,10 @@ document.addEventListener("DOMContentLoaded", function () {
       if (!target || !target.closest) return false
 
       if (target.closest("input, textarea, select, [contenteditable='true'], [data-compose-editor], [data-compose-pane]")) return true
+      // Let focused links and controls receive Enter themselves. The mail
+      // shortcut must not swallow activation of the skip link, toolbar buttons,
+      // or any other native control.
+      if (target.closest("a[href], button, summary, [role='button'], [role='link'], [role='menuitem'], [role='tab']")) return true
       if (document.querySelector("dialog[open]")) return true
       return false
     }
@@ -4846,7 +4860,7 @@ document.addEventListener("DOMContentLoaded", function () {
       document.querySelectorAll("[data-mail-filter-panel-button]").forEach(function (btn) {
         var active = btn === panelButton
         btn.setAttribute("data-active", active ? "true" : "false")
-        btn.setAttribute("aria-selected", active ? "true" : "false")
+        btn.setAttribute("aria-pressed", active ? "true" : "false")
       })
 
       var box = nextSection.closest("[data-mail-filter-panel-box]")
@@ -20192,6 +20206,8 @@ function refetchBody(emailId) {
     if (open) {
       _composeActive = true
       _updateComposeBtn(true)
+    } else if (!document.querySelector("[data-compose-pane]")) {
+      _updateComposeBtn(false)
     }
   })
 

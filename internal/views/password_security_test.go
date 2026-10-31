@@ -11,7 +11,7 @@ import (
 
 func TestSettingsLayoutLoadsPasskeyControllersForHTMXSecurityNavigation(t *testing.T) {
 	var output bytes.Buffer
-	if err := SettingsLayout(nil, models.SyncSettings{}, "accounts", nil, nil).Render(context.Background(), &output); err != nil {
+	if err := SettingsLayout(nil, models.SyncSettings{}, "accounts", nil, nil, AISettingsData{}).Render(context.Background(), &output); err != nil {
 		t.Fatalf("SettingsLayout.Render() error = %v", err)
 	}
 	html := output.String()

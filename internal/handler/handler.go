@@ -10,11 +10,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/a-h/templ"
+	"github.com/cristianadrielbraun/gofer/internal/aievents"
 	"github.com/cristianadrielbraun/gofer/internal/assetver"
 	"github.com/cristianadrielbraun/gofer/internal/auth"
 	avatarresolver "github.com/cristianadrielbraun/gofer/internal/avatar"
 	"github.com/cristianadrielbraun/gofer/internal/calendar"
 	"github.com/cristianadrielbraun/gofer/internal/config"
+	"github.com/cristianadrielbraun/gofer/internal/llm"
 	mail "github.com/cristianadrielbraun/gofer/internal/mail"
 	mailautodiscover "github.com/cristianadrielbraun/gofer/internal/mail/autodiscover"
 	"github.com/cristianadrielbraun/gofer/internal/mail/imap"
@@ -26,9 +28,9 @@ import (
 	"github.com/cristianadrielbraun/gofer/internal/providerquota"
 	"github.com/cristianadrielbraun/gofer/internal/providers"
 	"github.com/cristianadrielbraun/gofer/internal/storage"
+	"github.com/cristianadrielbraun/gofer/internal/store"
 	"github.com/cristianadrielbraun/gofer/internal/themebuilder"
 	"github.com/cristianadrielbraun/gofer/internal/themecolors"
-	"github.com/cristianadrielbraun/gofer/internal/store"
 	"github.com/cristianadrielbraun/gofer/internal/translation"
 	"github.com/cristianadrielbraun/gofer/internal/views"
 	"golang.org/x/oauth2"
@@ -52,6 +54,11 @@ import (
 
 type Handler struct {
 	db                         *storage.DB
+	aiEvents                   *aievents.Bus
+	aiWorkerReady              bool
+	aiLLMClient                *llm.Client
+	aiAPIRateMu                sync.Mutex
+	aiAPIRate                  map[string]*aiAPIRateBucket
 	userStorage                *storage.AccountRouting
 	ownedMailbox               *Handler
 	userIMAP                   *mail.UserIMAP
@@ -434,6 +441,45 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+microsoftDeviceSignInPath, h.handleMicrosoftDeviceSignInPage)
 	mux.HandleFunc("POST "+microsoftDeviceSignInPath, h.handleMicrosoftDeviceSignInPoll)
 	mux.HandleFunc("POST /api/accounts/oauth2/authorize", h.handleAccountOAuthAuthorize)
+	mux.HandleFunc("GET /api/ai/settings", h.handleAISettingsGet)
+	mux.HandleFunc("PUT /api/ai/settings", h.handleAISettingsUpdate)
+	mux.HandleFunc("GET /api/ai/audit", h.handleAIAuditList)
+	mux.HandleFunc("GET /api/ai/events", h.handleAIEvents)
+	mux.HandleFunc("GET /api/ai/messages/{id}/analysis", h.handleAIMessageAnalysis)
+	mux.HandleFunc("GET /api/ai/messages/{id}/analysis/panel", h.handleAIAnalysisPanel)
+	mux.HandleFunc("POST /api/ai/messages/{id}/reanalyze", h.handleAIReanalyze)
+	mux.HandleFunc("POST /api/ai/messages/{id}/draft", h.handleAIDraft)
+	mux.HandleFunc("GET /api/ai/projects", h.handleAIProjects)
+	mux.HandleFunc("POST /api/ai/projects", h.handleAIProjects)
+	mux.HandleFunc("POST /api/ai/projects/defaults", h.handleAIProjectDefaults)
+	mux.HandleFunc("GET /api/ai/projects/{id}", h.handleAIProject)
+	mux.HandleFunc("PUT /api/ai/projects/{id}", h.handleAIProject)
+	mux.HandleFunc("PATCH /api/ai/projects/{id}", h.handleAIProject)
+	mux.HandleFunc("DELETE /api/ai/projects/{id}", h.handleAIProject)
+	mux.HandleFunc("GET /api/ai/projects/{id}/routes", h.handleAIProjectRoutes)
+	mux.HandleFunc("POST /api/ai/projects/{id}/routes", h.handleAIProjectRoutes)
+	mux.HandleFunc("DELETE /api/ai/routes/{id}", h.handleAIRoute)
+	mux.HandleFunc("GET /api/ai/legitimacy", h.handleAILegitimacyProfiles)
+	mux.HandleFunc("PUT /api/ai/legitimacy/{email}", h.handleAILegitimacyProfile)
+	mux.HandleFunc("GET /api/ai/connectors", h.handleAIConnectors)
+	mux.HandleFunc("POST /api/ai/connectors", h.handleAIConnectors)
+	mux.HandleFunc("PATCH /api/ai/connectors/{id}", h.handleAIConnector)
+	mux.HandleFunc("DELETE /api/ai/connectors/{id}", h.handleAIConnector)
+	mux.HandleFunc("GET /api/ai/routing", h.handleAIRoutingStatus)
+	mux.HandleFunc("POST /api/ai/automation/{id}/undo", h.handleAIAutomationUndo)
+	mux.HandleFunc("GET /api/ai/tokens", h.handleAIAPITokens)
+	mux.HandleFunc("POST /api/ai/tokens", h.handleAIAPITokens)
+	mux.HandleFunc("DELETE /api/ai/tokens/{id}", h.handleAIAPIToken)
+
+	mux.Handle("GET /api/v1/me", h.RequireAIToken("read", http.HandlerFunc(h.handleAPIv1Me)))
+	mux.Handle("GET /api/v1/projects", h.RequireAIToken("read", http.HandlerFunc(h.handleAIProjects)))
+	mux.Handle("GET /api/v1/legitimacy", h.RequireAIToken("read", http.HandlerFunc(h.handleAILegitimacyProfiles)))
+	mux.Handle("GET /api/v1/routing", h.RequireAIToken("read", http.HandlerFunc(h.handleAIRoutingStatus)))
+	mux.Handle("GET /api/v1/settings", h.RequireAIToken("read", http.HandlerFunc(h.handleAISettingsGet)))
+	mux.Handle("GET /api/v1/messages/{id}/analysis", h.RequireAIToken("read", http.HandlerFunc(h.handleAIMessageAnalysis)))
+	mux.Handle("POST /api/v1/messages/{id}/reanalyze", h.RequireAIToken("write", http.HandlerFunc(h.handleAIReanalyze)))
+	mux.Handle("POST /api/v1/messages/{id}/draft", h.RequireAIToken("draft", http.HandlerFunc(h.handleAIDraft)))
+	mux.Handle("POST /api/v1/automation/{id}/undo", h.RequireAIToken("write", http.HandlerFunc(h.handleAIAutomationUndo)))
 
 	mux.HandleFunc("GET /", h.handleIndex)
 	mux.HandleFunc("GET /email/{id}", h.handleEmailPartial)
@@ -3466,19 +3512,20 @@ func (h *Handler) handleSettings(w http.ResponseWriter, r *http.Request) {
 	syncSettings := h.buildSyncSettings(ctx, accounts)
 	uiSettings := h.db.GetUISettings(ctx, h.userID(ctx))
 	signatureData := h.buildAccountSignatureData(ctx, accounts)
+	aiSettings := h.aiSettingsData(ctx, h.userID(ctx))
 
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("Content-Type", "text/html")
-		views.SettingsPartial(displayAccounts, syncSettings, "accounts", uiSettings, signatureData).Render(ctx, w)
+		views.SettingsPartial(displayAccounts, syncSettings, "accounts", uiSettings, signatureData, aiSettings).Render(ctx, w)
 		return
 	}
 
-	views.SettingsLayout(displayAccounts, syncSettings, "accounts", uiSettings, signatureData).Render(ctx, w)
+	views.SettingsLayout(displayAccounts, syncSettings, "accounts", uiSettings, signatureData, aiSettings).Render(ctx, w)
 }
 
 func (h *Handler) handleSettingsTab(w http.ResponseWriter, r *http.Request) {
 	tab := r.PathValue("tab")
-	if tab != "accounts" && tab != "sync" && tab != "rules" && tab != "operations" && tab != "contacts" && tab != "appearance" && tab != "regional" && tab != "compose-display" && tab != "security" && tab != "advanced" && tab != "export-import" && tab != "about" {
+	if tab != "accounts" && tab != "sync" && tab != "rules" && tab != "operations" && tab != "contacts" && tab != "appearance" && tab != "regional" && tab != "compose-display" && tab != "ai" && tab != "security" && tab != "advanced" && tab != "export-import" && tab != "about" {
 		http.NotFound(w, r)
 		return
 	}
@@ -3505,14 +3552,15 @@ func (h *Handler) handleSettingsTab(w http.ResponseWriter, r *http.Request) {
 	syncSettings := h.buildSyncSettings(ctx, accounts)
 	uiSettings := h.db.GetUISettings(ctx, h.userID(ctx))
 	signatureData := h.buildAccountSignatureData(ctx, accounts)
+	aiSettings := h.aiSettingsData(ctx, h.userID(ctx))
 
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("Content-Type", "text/html")
-		views.SettingsPartial(displayAccounts, syncSettings, tab, uiSettings, signatureData).Render(ctx, w)
+		views.SettingsPartial(displayAccounts, syncSettings, tab, uiSettings, signatureData, aiSettings).Render(ctx, w)
 		return
 	}
 
-	views.SettingsLayout(displayAccounts, syncSettings, tab, uiSettings, signatureData).Render(ctx, w)
+	views.SettingsLayout(displayAccounts, syncSettings, tab, uiSettings, signatureData, aiSettings).Render(ctx, w)
 }
 
 func (h *Handler) renderPasswordSecurityTab(w http.ResponseWriter, r *http.Request, status int, override *views.PasswordSecurityData) {

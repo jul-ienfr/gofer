@@ -431,7 +431,7 @@ func aboutLibraries(bundled, modules []attribution.Library) templ.Component {
 			templ_7745c5c3_Var19 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "<div class=\"settings-card bg-card rounded-lg border p-6 space-y-5\" data-about-libraries><div><h3 class=\"text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1\">Open-source software</h3><p class=\"text-xs text-muted-foreground leading-relaxed\">Gofer is built on the work of these projects. <a href=\"/settings/about/licenses\" target=\"_blank\" class=\"text-primary hover:underline\">Read the full license texts</a>.</p></div><div class=\"settings-row border-t border-border/60 pt-5\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "<div class=\"settings-card bg-card rounded-lg border p-6 space-y-5\" data-about-libraries><div><h3 class=\"text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1\">Open-source software</h3><p class=\"text-xs text-muted-foreground leading-relaxed\">Gofer is built on the work of these projects. <a href=\"/settings/about/licenses\" target=\"_blank\" class=\"text-primary underline underline-offset-2 hover:decoration-2\">Read the full license texts</a>.</p></div><div class=\"settings-row border-t border-border/60 pt-5\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

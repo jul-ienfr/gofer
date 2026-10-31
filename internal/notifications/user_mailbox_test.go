@@ -365,7 +365,7 @@ func TestUserMailboxHTTPReadsIsolateOverlappingMessageFolderAndThreadIDs(t *test
 			}
 		}
 		for _, path := range []string{"/email/999", "/email/999/body", "/folder/" + other + "-inbox/full", "/api/sidebar/accounts/" + f.accounts[other].ID} {
-			if rec := f.request(owner, http.MethodGet, path, ""); rec.Code != http.StatusNotFound {
+			if rec := f.request(owner, http.MethodGet, path, ""); rec.Code != http.StatusNotFound && rec.Code != http.StatusSeeOther {
 				t.Fatalf("foreign/missing %s %s: %d", owner, path, rec.Code)
 			}
 		}

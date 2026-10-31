@@ -45,18 +45,19 @@ func init() {
 }
 
 // SetSlowQueryThreshold enables logging of slower statements and
-// transactions. Zero or a negative value disables it.
+// transactions. Zero disables it; a negative threshold logs every operation,
+// which makes diagnostics deterministic where the platform clock is coarse.
 func SetSlowQueryThreshold(threshold time.Duration) {
 	slowQueryThreshold.Store(int64(threshold))
 }
 
 func logIfSlow(kind, query string, started time.Time) {
 	threshold := time.Duration(slowQueryThreshold.Load())
-	if threshold <= 0 {
+	if threshold == 0 {
 		return
 	}
 	elapsed := time.Since(started)
-	if elapsed < threshold {
+	if threshold > 0 && elapsed < threshold {
 		return
 	}
 	log.Printf("storage: slow %s %dms: %s", kind, elapsed.Milliseconds(), compactQuery(query))

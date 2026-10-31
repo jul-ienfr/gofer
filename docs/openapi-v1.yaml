@@ -1,0 +1,167 @@
+openapi: 3.1.0
+info:
+  title: Gofer AI API
+  version: 1.0.0
+  description: |
+    Scoped AI endpoints for external clients. Create a bearer token in
+    Settings → AI → API access. Tokens are shown once and stored hashed.
+servers:
+  - url: http://127.0.0.1:8090
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/me:
+    get:
+      summary: Return the token identity and scopes
+      operationId: getMe
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Token identity
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/projects:
+    get:
+      summary: List AI projects visible to the token owner
+      operationId: listProjects
+      responses:
+        "200":
+          description: Project list
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/v1/legitimacy:
+    get:
+      summary: List sender legitimacy profiles
+      operationId: listLegitimacy
+      responses:
+        "200":
+          description: Sender profiles
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/v1/routing:
+    get:
+      summary: List recent routing deliveries, unsubscribe attempts and automation actions
+      operationId: listRouting
+      responses:
+        "200":
+          description: Routing activity
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/v1/settings:
+    get:
+      summary: Read AI settings
+      operationId: getSettings
+      responses:
+        "200":
+          description: AI settings
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/v1/messages/{id}/analysis:
+    get:
+      summary: Read the latest Jev analysis for a message
+      operationId: getMessageAnalysis
+      parameters:
+        - $ref: "#/components/parameters/MessageID"
+      responses:
+        "200":
+          description: Analysis result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "404":
+          description: Message not found or not owned by the token owner
+  /api/v1/messages/{id}/reanalyze:
+    post:
+      summary: Queue a new Jev analysis
+      operationId: reanalyzeMessage
+      parameters:
+        - $ref: "#/components/parameters/MessageID"
+      responses:
+        "200":
+          description: Analysis queued
+        "404":
+          description: Message not found or not owned by the token owner
+        "409":
+          description: Worker unavailable
+  /api/v1/messages/{id}/draft:
+    post:
+      summary: Generate a reply draft for human review
+      operationId: draftReply
+      parameters:
+        - $ref: "#/components/parameters/MessageID"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: Draft compose payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  compose:
+                    type: object
+                    additionalProperties: true
+        "404":
+          description: Message not found or not owned by the token owner
+        "409":
+          description: Drafting disabled or blocked by policy
+  /api/v1/automation/{id}/undo:
+    post:
+      summary: Undo an automatic Junk or route move within its seven-day window
+      operationId: undoAutomation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Move undone
+        "404":
+          description: Action not found or not owned by the token owner
+        "409":
+          description: Action expired or no longer undoable
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: gfr_…
+  parameters:
+    MessageID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+  responses:
+    Unauthorized:
+      description: Missing, invalid, expired or revoked bearer token

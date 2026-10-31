@@ -26,8 +26,14 @@ func (c *Config) Middleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
+		// Bearer-token API requests do not carry ambient session cookies, so
+		// the browser same-origin check does not apply to them.
+		if strings.HasPrefix(r.URL.Path, "/api/v1/") {
+			next.ServeHTTP(w, r)
+			return
+		}
 		if requiresSameOrigin(r) && !c.isSameOriginRequest(r) {
-			requestBlocked(w, r, "Cross-origin request blocked. Check that GOFER_BASE_URL matches the URL used to open Gofer, including http:// or https:// and the port. If Gofer is behind a reverse proxy, use its public URL. Update the setting and restart Gofer before trying again.", http.StatusForbidden)
+			requestBlocked(w, r, "cross-origin request blocked. Check that GOFER_BASE_URL matches the URL used to open Gofer, including http:// or https:// and the port. If Gofer is behind a reverse proxy, use its public URL. Update the setting and restart Gofer before trying again.", http.StatusForbidden)
 			return
 		}
 

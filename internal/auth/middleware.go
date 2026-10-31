@@ -229,6 +229,10 @@ func isPublicPath(path string) bool {
 			return true
 		}
 	}
+	// API v1 requests authenticate themselves with a bearer token.
+	if strings.HasPrefix(path, "/api/v1/") {
+		return true
+	}
 	// Signed message-file links carry their own proof of access: the frame
 	// showing a message can't send the session cookie with its image requests.
 	return strings.HasPrefix(path, "/api/message-file/")

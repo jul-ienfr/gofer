@@ -256,6 +256,7 @@ templ MailViewContent(email *models.Email, thread []models.ThreadItem) {
 							@EmailBodyStyleCycleButton(email.ID)
 							@EmailTranslateIconButton(email.ID)
 						</div>
+						<div id={"ai-analysis-"+email.ID} hx-get={"/api/ai/messages/"+email.ID+"/analysis/panel"} hx-trigger="load" hx-swap="innerHTML"></div>
 						<div class="h-px bg-gradient-to-r from-transparent via-ink/10 to-transparent my-6"></div>
 						@MailViewBody(email)
 					</div>
@@ -294,6 +295,7 @@ templ MailViewThreadContent(email *models.Email, thread []models.ThreadItem) {
 					</button>
 				</div>
 			</div>
+			<div id={"ai-analysis-"+email.ID} class="mail-view-content mx-auto w-full px-8" hx-get={"/api/ai/messages/"+email.ID+"/analysis/panel"} hx-trigger="load" hx-swap="innerHTML"></div>
 		</div>
 		<div data-thread-list class="mail-view-thread-scroll flex-1 min-h-0 overflow-y-auto flex flex-col gap-2">
 			for _, item := range thread {

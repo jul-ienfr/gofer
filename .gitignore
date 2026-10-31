@@ -13,3 +13,8 @@ data/
 
 assets/css/output.css
 assets/min/
+.cache/
+.tools/
+.smoke/
+.gocache/
+node_modules/

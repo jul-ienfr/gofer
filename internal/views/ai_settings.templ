@@ -1,0 +1,195 @@
+package views
+
+import (
+	switchcomp "github.com/cristianadrielbraun/gofer/components/switch"
+)
+
+type AISettingsData struct {
+	AnalysisEnabled        bool
+	DraftingEnabled        bool
+	AutoSpamEnabled        bool
+	AutoUnsubscribeEnabled bool
+	WorkerReady            bool
+	DraftingReady          bool
+}
+
+templ AISettingsTab(data AISettingsData) {
+	<div class="mt-6 space-y-6">
+		<div class="settings-card bg-card rounded-lg border p-6 space-y-5">
+			<div>
+				<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">Jev analysis</h3>
+				<p class="text-xs text-muted-foreground">Classify incoming mail by priority, reply need, risk and domain. Analysis never sends mail. Spam automation runs only when explicitly enabled below and allowed by the project.</p>
+			</div>
+			<form data-ai-settings-form class="space-y-4" novalidate>
+				<div class="settings-row border-t border-border/60 pt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+					<div class="min-w-0">
+						<h4 class="text-sm font-medium text-foreground">Analyze new mail</h4>
+						<p class="text-xs text-muted-foreground mt-1">Queue arrived messages for Jev. Drafts, Sent and Trash are excluded.</p>
+						if !data.WorkerReady {
+							<p class="text-xs text-amber-700 dark:text-amber-300 mt-1">The Jev worker is not configured on this server. Set GOFER_JEV_API_KEY, restart Gofer, then enable analysis.</p>
+						}
+					</div>
+					<div class="w-full sm:w-44 shrink-0">
+						@settingsSwitchBox("Enabled") {
+							@switchcomp.Switch(switchcomp.Props{
+								ID:       "ai-analysis-enabled",
+								Name:     "analysis_enabled",
+								Checked:  data.AnalysisEnabled,
+								Disabled: !data.WorkerReady && !data.AnalysisEnabled,
+								Attributes: templ.Attributes{"data-ai-setting": "analysis_enabled"},
+							})
+						}
+					</div>
+				</div>
+				<div class="settings-row border-t border-border/60 pt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+					<div class="min-w-0">
+						<h4 class="text-sm font-medium text-foreground">Draft replies</h4>
+						<p class="text-xs text-muted-foreground mt-1">Allow a compatible LLM to prepare a draft in your voice. Drafts always wait for human review.</p>
+						if !data.DraftingReady {
+							<p class="text-xs text-amber-700 dark:text-amber-300 mt-1">No LLM endpoint is configured. Set GOFER_LLM_BASE_URL and GOFER_LLM_MODEL, restart Gofer, then enable drafting.</p>
+						}
+					</div>
+					<div class="w-full sm:w-44 shrink-0">
+						@settingsSwitchBox("Enabled") {
+							@switchcomp.Switch(switchcomp.Props{
+								ID:         "ai-drafting-enabled",
+								Name:       "drafting_enabled",
+								Checked:    data.DraftingEnabled,
+								Disabled:   !data.DraftingReady && !data.DraftingEnabled,
+								Attributes: templ.Attributes{"data-ai-setting": "drafting_enabled"},
+							})
+						}
+					</div>
+				</div>
+				<div class="settings-row border-t border-border/60 pt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+					<div class="min-w-0">
+						<h4 class="text-sm font-medium text-foreground">Move obvious spam</h4>
+						<p class="text-xs text-muted-foreground mt-1">Moves high-confidence Jev spam to the account's Junk folder when the project also allows auto-spam. Phishing, unsure, trusted, VIP and previously answered senders are never moved. A Junk or Spam folder is required.</p>
+					</div>
+					<div class="w-full sm:w-44 shrink-0">
+						@settingsSwitchBox("Enabled") {
+							@switchcomp.Switch(switchcomp.Props{
+								ID:         "ai-auto-spam-enabled",
+								Name:       "auto_spam_enabled",
+								Checked:    data.AutoSpamEnabled,
+								Attributes: templ.Attributes{"data-ai-setting": "auto_spam_enabled"},
+							})
+						}
+					</div>
+				</div>
+				<div class="settings-row border-t border-border/60 pt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+					<div class="min-w-0">
+						<h4 class="text-sm font-medium text-foreground">Try unsubscribe</h4>
+						<p class="text-xs text-muted-foreground mt-1">Sends an RFC 8058 one-click unsubscribe (HTTPS POST, no cookies, no redirects) for high-confidence spam when the project allows automation. Mailto-only, trusted, VIP and previously answered senders are skipped. No email reply is sent.</p>
+					</div>
+					<div class="w-full sm:w-44 shrink-0">
+						@settingsSwitchBox("Enabled") {
+							@switchcomp.Switch(switchcomp.Props{
+								ID:         "ai-auto-unsubscribe-enabled",
+								Name:       "auto_unsubscribe_enabled",
+								Checked:    data.AutoUnsubscribeEnabled,
+								Attributes: templ.Attributes{"data-ai-setting": "auto_unsubscribe_enabled"},
+							})
+						}
+					</div>
+				</div>
+				<div class="flex items-center justify-between gap-3 border-t border-border/60 pt-5">
+					<p class="text-xs text-muted-foreground" data-ai-settings-status>Changes are audited.</p>
+					<button type="submit" class="inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50" data-ai-settings-save>Save</button>
+				</div>
+			</form>
+		</div>
+		<div class="settings-card bg-card rounded-lg border p-6">
+			<div class="flex flex-wrap items-start justify-between gap-3">
+				<div>
+					<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">Projects</h3>
+					<p class="text-xs text-muted-foreground">Projects group related mail. Routing and drafting permissions are enforced by the policy engine before any action.</p>
+				</div>
+				<button type="button" class="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted" data-ai-projects-seed>Create defaults</button>
+			</div>
+			<div class="mt-4 divide-y divide-border/60" data-ai-projects>
+				<p class="py-3 text-xs text-muted-foreground">Loading projects…</p>
+			</div>
+			<p class="mt-3 text-xs text-muted-foreground" data-ai-projects-status></p>
+		</div>
+		<div class="settings-card bg-card rounded-lg border p-6">
+			<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Routing webhooks</h3>
+			<p class="text-xs text-muted-foreground mb-4">A route with a <code>webhook</code> action sends a signed, body-free notification to the selected connector. Secrets are encrypted with the server key and never returned to the browser.</p>
+			<form class="grid gap-3 sm:grid-cols-2" data-ai-connector-form>
+				<label class="text-xs font-medium">Name
+					<input name="name" required maxlength="80" class="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm" placeholder="n8n production">
+				</label>
+				<label class="text-xs font-medium">HTTPS URL
+					<input name="url" required type="url" class="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm" placeholder="https://n8n.example.com/webhook/gofer">
+				</label>
+				<label class="text-xs font-medium">Signing secret
+					<input name="secret" required type="password" autocomplete="new-password" class="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm">
+				</label>
+				<div class="flex items-end gap-3">
+					<label class="flex items-center gap-2 text-xs">
+						<input name="allow_private" type="checkbox" class="h-4 w-4 rounded border-border">
+						Allow private HTTP
+					</label>
+					<button type="submit" class="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground">Add connector</button>
+				</div>
+			</form>
+			<div class="mt-4 divide-y divide-border/60" data-ai-connectors>
+				<p class="py-3 text-xs text-muted-foreground">Loading connectors…</p>
+			</div>
+			<p class="mt-3 text-xs text-muted-foreground" data-ai-connectors-status></p>
+			<div class="mt-5 border-t border-border/60 pt-4">
+				<h4 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Recent automation</h4>
+				<div class="mt-2 divide-y divide-border/60" data-ai-deliveries>
+					<p class="py-3 text-xs text-muted-foreground">Loading activity…</p>
+				</div>
+			</div>
+		</div>
+		<div class="settings-card bg-card rounded-lg border p-6">
+			<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">API access</h3>
+			<p class="text-xs text-muted-foreground mb-4">Create scoped bearer tokens for shortcuts and scripts. Tokens are shown once, stored hashed, and never grant access to the web session.</p>
+			<form class="grid gap-3 sm:grid-cols-2" data-ai-token-form>
+				<label class="text-xs font-medium">Name
+					<input name="name" required maxlength="80" class="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm" placeholder="iOS shortcut">
+				</label>
+				<label class="text-xs font-medium">Expires in
+					<select name="expires_in_days" class="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm">
+						<option value="30">30 days</option>
+						<option value="90" selected>90 days</option>
+						<option value="365">1 year</option>
+					</select>
+				</label>
+				<div class="flex flex-wrap items-center gap-4 sm:col-span-2">
+					<label class="flex items-center gap-2 text-xs"><input type="checkbox" name="scope_read" checked class="h-4 w-4 rounded border-border">Read</label>
+					<label class="flex items-center gap-2 text-xs"><input type="checkbox" name="scope_draft" class="h-4 w-4 rounded border-border">Draft</label>
+					<label class="flex items-center gap-2 text-xs"><input type="checkbox" name="scope_write" class="h-4 w-4 rounded border-border">Write</label>
+					<button type="submit" class="ml-auto rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground">Generate token</button>
+				</div>
+			</form>
+			<div class="mt-4 hidden rounded-md border border-amber-300 bg-amber-50 p-3 text-xs dark:border-amber-700 dark:bg-amber-950" data-ai-token-result>
+				<p class="font-medium">Copy this token now. It will not be shown again.</p>
+				<code class="mt-2 block break-all rounded bg-background p-2" data-ai-token-secret></code>
+			</div>
+			<div class="mt-4 divide-y divide-border/60" data-ai-tokens>
+				<p class="py-3 text-xs text-muted-foreground">Loading tokens…</p>
+			</div>
+			<p class="mt-3 text-xs text-muted-foreground" data-ai-tokens-status></p>
+		</div>
+		<div class="settings-card bg-card rounded-lg border p-6">
+			<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Sender legitimacy</h3>
+			<p class="text-xs text-muted-foreground mb-4">Habits and authorizations learned per sender. Trust lowers risk but never overrides a Jev phishing result.</p>
+			<div class="divide-y divide-border/60" data-ai-legitimacy>
+				<p class="py-3 text-xs text-muted-foreground">Loading senders…</p>
+			</div>
+			<p class="mt-3 text-xs text-muted-foreground" data-ai-legitimacy-status></p>
+		</div>
+		<div class="settings-card bg-card rounded-lg border p-6">
+			<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Safety</h3>
+			<ul class="list-disc pl-5 text-xs leading-relaxed text-muted-foreground space-y-1">
+				<li>Jev phishing and spam results never create a draft or route a message.</li>
+				<li>An unsure result never triggers automatic spam handling.</li>
+				<li>Local trust signals can lower risk, never override a phishing result.</li>
+				<li>Analyze, reanalyze and setting changes are recorded in the audit log.</li>
+			</ul>
+		</div>
+	</div>
+}

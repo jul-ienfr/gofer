@@ -1,0 +1,83 @@
+name: Windows
+
+on:
+  push:
+    branches:
+      - main
+      - fork/windows-v1
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install asset tools
+        run: |
+          go install github.com/a-h/templ/cmd/templ@v0.3.1001
+          npm install --no-save @tailwindcss/cli@4.3.3
+
+      - name: Build Windows binary
+        shell: pwsh
+        run: |
+          $templ = Join-Path (go env GOPATH) "bin\templ.exe"
+          pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/build-windows.ps1 -Templ $templ
+
+      - name: Test Windows-affected packages
+        run: go test ./internal/storage ./internal/backup ./internal/a11y ./internal/views ./internal/authoperator ./internal/store ./internal/handler ./internal/aipipeline ./internal/airouting ./internal/unsubscribe ./internal/config -count=1 -timeout 20m
+
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path .smoke | Out-Null
+          $env:GOFER_DB_PATH = "$PWD\.smoke\gofer.db"
+          $env:GOFER_ADDR = "127.0.0.1:18090"
+          $env:GOFER_BASE_URL = "http://127.0.0.1:18090"
+          $env:GOFER_AUTH_MODE = "open"
+          $env:GOFER_OPEN_BROWSER = "false"
+          $server = Start-Process .\dist\gofer.exe -PassThru -RedirectStandardOutput .smoke\server.log -RedirectStandardError .smoke\server.err
+          $ready = $false
+          for ($i = 0; $i -lt 30; $i++) {
+            try {
+              $response = Invoke-WebRequest -UseBasicParsing http://127.0.0.1:18090/healthz -TimeoutSec 2
+              if ($response.StatusCode -eq 200) {
+                $ready = $true
+                break
+              }
+            } catch {
+              Start-Sleep -Seconds 1
+            }
+          }
+          if (-not $ready) {
+            Get-Content .smoke\server.log -Tail 100
+            Get-Content .smoke\server.err -Tail 100
+            Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue
+            exit 1
+          }
+          $home = Invoke-WebRequest -UseBasicParsing http://127.0.0.1:18090/ -TimeoutSec 10
+          if ($home.StatusCode -ne 200 -or $home.Content.Length -eq 0) {
+            Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue
+            exit 1
+          }
+          Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gofer-windows-amd64
+          path: dist/gofer.exe
+          if-no-files-found: error

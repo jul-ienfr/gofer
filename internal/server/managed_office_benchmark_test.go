@@ -243,7 +243,9 @@ func officeObserveBackground(ctx context.Context, layout, path string, dataset *
 			return result, err
 		}
 		directory = metadata.UserDirectory
-		central, err = sql.Open("sqlite", (&url.URL{Scheme: "file", Path: path, RawQuery: "mode=ro&_pragma=busy_timeout(1000)"}).String())
+		centralURL := storage.SQLiteFileURL(path)
+		centralURL.RawQuery = "mode=ro&_pragma=busy_timeout(1000)"
+		central, err = sql.Open("sqlite", centralURL.String())
 		if err != nil {
 			return result, err
 		}
@@ -255,7 +257,9 @@ func officeObserveBackground(ctx context.Context, layout, path string, dataset *
 		if directory != "" {
 			file = filepath.Join(directory, fmt.Sprintf("%x.db", sha256.Sum256([]byte(owner))))
 		}
-		db, err := sql.Open("sqlite", (&url.URL{Scheme: "file", Path: file, RawQuery: "mode=ro&_pragma=busy_timeout(1000)"}).String())
+		fileURL := storage.SQLiteFileURL(file)
+		fileURL.RawQuery = "mode=ro&_pragma=busy_timeout(1000)"
+		db, err := sql.Open("sqlite", fileURL.String())
 		if err != nil {
 			return result, fmt.Errorf("observe %s: %w", owner, err)
 		}

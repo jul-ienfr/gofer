@@ -26,6 +26,10 @@ templ AppIcon() {
 	<link rel="manifest" href={ assetver.URL("/assets/manifest.webmanifest") }/>
 }
 
+templ SkipToContent() {
+	<a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-foreground focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-ring">Skip to content</a>
+}
+
 templ Layout(accounts []models.Account, activeFolder string, emails []models.Email, selectedEmail *models.Email, totalCount int, scrollCount int, uiSettings map[string]string, selectedThread []models.ThreadItem, initialEmailID string, scheduledCount int, filters models.EmailFilters) {
 	<!DOCTYPE html>
 	<html lang="en" class={ themeClass(uiSettings) } data-theme={ themeStyle(uiSettings) } { themeLookAttributes(uiSettings)... }>
@@ -55,11 +59,12 @@ templ Layout(accounts []models.Account, activeFolder string, emails []models.Ema
 			<script src={ assetver.URL("/assets/js/actions.js") }></script>
 		</head>
 		<body class="bg-background text-foreground antialiased surface-desk" data-ui-settings={ uiSettingsJSON(uiSettings) } data-initial-email-id={ initialEmailID }>
+			@SkipToContent()
 			<div id="app-shell" class="app-shell flex h-screen overflow-hidden">
 				@MobileTopBar()
 				@Sidebar(accounts, activeFolder, uiSettingGet(uiSettings, "sidebar_width", "256px"), uiSettings, scheduledCount, filters)
 				@ResizeHandle("sidebar")
-				<div id="main-content" class={ mailPaneLayoutClass(uiSettingGet(uiSettings, "mail_pane_layout", "side")) } data-mail-pane-layout={ mailPaneLayout(uiSettingGet(uiSettings, "mail_pane_layout", "side")) }>
+				<main id="main-content" tabindex="-1" class={ mailPaneLayoutClass(uiSettingGet(uiSettings, "mail_pane_layout", "side")) } data-mail-pane-layout={ mailPaneLayout(uiSettingGet(uiSettings, "mail_pane_layout", "side")) }>
 					@MailList(accounts, emails, activeFolder, selectedEmail, totalCount, scrollCount, 0, uiSettingGet(uiSettings, "mail_list_width", "50%"), uiSettingGet(uiSettings, "sender_display", "name"), ListViewSetting(ctx, uiSettings, "mail_list_view"), uiSettingGet(uiSettings, "mail_list_navigation", "infinite"), filters)
 					@ResizeHandle("maillist")
 					if initialEmailID != "" && selectedEmail == nil {
@@ -67,7 +72,7 @@ templ Layout(accounts []models.Account, activeFolder string, emails []models.Ema
 					} else {
 						@MailView(selectedEmail, selectedThread)
 					}
-				</div>
+				</main>
 			</div>
 			<div id="app-pane-dialogs"></div>
 			@ComposeDialog(accounts)
@@ -115,7 +120,7 @@ templ MailSyncProgressDialog() {
 	}
 }
 
-templ SettingsLayout(accounts []models.Account, syncSettings models.SyncSettings, activeTab string, uiSettings map[string]string, signatureData []models.AccountSignatureData) {
+templ SettingsLayout(accounts []models.Account, syncSettings models.SyncSettings, activeTab string, uiSettings map[string]string, signatureData []models.AccountSignatureData, aiSettings AISettingsData) {
 	<!DOCTYPE html>
 	<html lang="en" class={ themeClass(uiSettings) } data-theme={ themeStyle(uiSettings) } { themeLookAttributes(uiSettings)... }>
 		<head>
@@ -132,13 +137,14 @@ templ SettingsLayout(accounts []models.Account, syncSettings models.SyncSettings
 			<script src={ assetver.URL("/assets/js/actions.js") }></script>
 		</head>
 		<body class="bg-background text-foreground antialiased surface-desk" data-ui-settings={ uiSettingsJSON(uiSettings) }>
+			@SkipToContent()
 			<div id="app-shell" class="app-shell flex h-screen overflow-hidden">
 				@MobileTopBar()
 				@SettingsSidebar(activeTab, uiSettingGet(uiSettings, "sidebar_width", "256px"))
 				@ResizeHandle("sidebar")
-				<div id="main-content" class="flex flex-1 min-w-0">
-					@SettingsPage(accounts, syncSettings, activeTab, uiSettings, signatureData)
-				</div>
+				<main id="main-content" tabindex="-1" class="flex flex-1 min-w-0">
+					@SettingsPage(accounts, syncSettings, activeTab, uiSettings, signatureData, aiSettings)
+				</main>
 			</div>
 			@SettingsRuntime(accounts)
 			@AppDialogs()
@@ -173,8 +179,14 @@ templ SettingsRuntime(accounts []models.Account) {
 	<script src={ assetver.URL("/assets/js/htmx.min.js") }></script>
 	<script src={ assetver.URL("/assets/js/virtual-scroll.js") }></script>
 	<script src={ assetver.URL("/assets/js/app.js") }></script>
+	<script src={ assetver.URL("/assets/js/ai-draft.js") }></script>
+	<script src={ assetver.URL("/assets/js/ai-projects.js") }></script>
+	<script src={ assetver.URL("/assets/js/ai-connectors.js") }></script>
+	<script src={ assetver.URL("/assets/js/ai-tokens.js") }></script>
+	<script src={ assetver.URL("/assets/js/ai-legitimacy.js") }></script>
 	<script src={ assetver.URL("/assets/js/settings.js") }></script>
 	<script src={ assetver.URL("/assets/js/settings-page.js") }></script>
+	<script src={ assetver.URL("/assets/js/ai-settings.js") }></script>
 	<script src={ assetver.URL("/assets/js/ui-settings.js") }></script>
 	<script src={ assetver.URL("/assets/js/resize.js") }></script>
 	<script src={ assetver.URL("/assets/js/passkey-registration.js") }></script>
@@ -186,7 +198,7 @@ templ MailShell(accounts []models.Account, activeFolder string, emails []models.
 		@MobileTopBar()
 		@Sidebar(accounts, activeFolder, uiSettingGet(uiSettings, "sidebar_width", "256px"), uiSettings, scheduledCount, filters)
 		@ResizeHandle("sidebar")
-		<div id="main-content" class={ mailPaneLayoutClass(uiSettingGet(uiSettings, "mail_pane_layout", "side")) } data-mail-pane-layout={ mailPaneLayout(uiSettingGet(uiSettings, "mail_pane_layout", "side")) }>
+		<div id="main-content" tabindex="-1" class={ mailPaneLayoutClass(uiSettingGet(uiSettings, "mail_pane_layout", "side")) } data-mail-pane-layout={ mailPaneLayout(uiSettingGet(uiSettings, "mail_pane_layout", "side")) }>
 			@MailList(accounts, emails, activeFolder, selectedEmail, totalCount, scrollCount, 0, uiSettingGet(uiSettings, "mail_list_width", "50%"), uiSettingGet(uiSettings, "sender_display", "name"), ListViewSetting(ctx, uiSettings, "mail_list_view"), uiSettingGet(uiSettings, "mail_list_navigation", "infinite"), filters)
 			@ResizeHandle("maillist")
 			if initialEmailID != "" && selectedEmail == nil {
@@ -255,6 +267,7 @@ templ ContactsLayout(accounts []models.Account, contacts []models.Contact, selec
 			<script src={ assetver.URL("/assets/js/actions.js") }></script>
 		</head>
 			<body class="bg-background text-foreground antialiased surface-desk" data-ui-settings={ uiSettingsJSON(uiSettings) }>
+				@SkipToContent()
 				@ContactsShell(accounts, contacts, selected, selectedProfile, showNew, syncQueued, filters, totalCount, uiSettings)
 				<div id="app-pane-dialogs">
 					@ContactsImportDialog(accounts)
@@ -338,9 +351,10 @@ templ AdminLayout(uiSettings map[string]string, userData AdminUsersData, avatarS
 			<script src={ assetver.URL("/assets/js/actions.js") }></script>
 		</head>
 		<body class="bg-background text-foreground antialiased surface-desk" data-ui-settings={ uiSettingsJSON(uiSettings) }>
+			@SkipToContent()
 			<div class="flex h-screen overflow-hidden bg-background">
 				@AdminSidebar(activeSection)
-				<div id="main-content" class="relative flex min-h-0 min-w-0 flex-1">
+				<main id="main-content" tabindex="-1" class="relative flex min-h-0 min-w-0 flex-1">
 					@AdminNavigationLoading()
 					if activeSection == "users" {
 						@AdminUsersPage(userData)
@@ -355,7 +369,7 @@ templ AdminLayout(uiSettings map[string]string, userData AdminUsersData, avatarS
 					} else {
 						@AdminPage(avatarStatus, activeTab)
 					}
-				</div>
+				</main>
 			</div>
 			<script src={ assetver.URL("/assets/js/ui-settings.js") }></script>
 			<script src={ assetver.URL("/assets/js/admin.js") }></script>
@@ -400,7 +414,7 @@ templ FolderPartial(accounts []models.Account, emails []models.Email, activeFold
 }
 
 templ MailContentPartial(accounts []models.Account, emails []models.Email, activeFolder string, selectedEmail *models.Email, totalCount int, scrollCount int, selectedThread []models.ThreadItem, uiSettings map[string]string, initialEmailID string, windowStart int, filters models.EmailFilters) {
-	<div id="main-content" class={ mailPaneLayoutClass(uiSettingGet(uiSettings, "mail_pane_layout", "side")) } data-mail-pane-layout={ mailPaneLayout(uiSettingGet(uiSettings, "mail_pane_layout", "side")) }>
+	<div id="main-content" tabindex="-1" class={ mailPaneLayoutClass(uiSettingGet(uiSettings, "mail_pane_layout", "side")) } data-mail-pane-layout={ mailPaneLayout(uiSettingGet(uiSettings, "mail_pane_layout", "side")) }>
 		@MailList(accounts, emails, activeFolder, selectedEmail, totalCount, scrollCount, windowStart, uiSettingGet(uiSettings, "mail_list_width", "50%"), uiSettingGet(uiSettings, "sender_display", "name"), ListViewSetting(ctx, uiSettings, "mail_list_view"), uiSettingGet(uiSettings, "mail_list_navigation", "infinite"), filters)
 		@ResizeHandle("maillist")
 		if initialEmailID != "" {
@@ -416,9 +430,9 @@ templ MailCardLayoutScript() {
 	<script src={ assetver.URL("/assets/js/mail-card-layout.js") }></script>
 }
 
-templ SettingsPartial(accounts []models.Account, syncSettings models.SyncSettings, activeTab string, uiSettings map[string]string, signatureData []models.AccountSignatureData) {
-	<div id="main-content" class="flex flex-1 min-w-0">
-		@SettingsPage(accounts, syncSettings, activeTab, uiSettings, signatureData)
+templ SettingsPartial(accounts []models.Account, syncSettings models.SyncSettings, activeTab string, uiSettings map[string]string, signatureData []models.AccountSignatureData, aiSettings AISettingsData) {
+	<div id="main-content" tabindex="-1" class="flex flex-1 min-w-0">
+		@SettingsPage(accounts, syncSettings, activeTab, uiSettings, signatureData, aiSettings)
 	</div>
 	@ChooseAccountTypeDialog()
 	@GmailAccountDialog()
@@ -428,7 +442,7 @@ templ SettingsPartial(accounts []models.Account, syncSettings models.SyncSetting
 }
 
 templ AdminPartial(userData AdminUsersData, avatarStatus models.AvatarStatus, contactStatus models.ContactAdminStatus, labelStatus models.LabelAdminStatus, securityData models.MailSecurityAdminData, operationStatus models.MailOperationsAdminStatus, activeSection string, activeTab string, verification ...AdminSecurityVerificationData) {
-	<div id="main-content" class="relative flex min-h-0 min-w-0 flex-1">
+	<div id="main-content" tabindex="-1" class="relative flex min-h-0 min-w-0 flex-1">
 		@AdminNavigationLoading()
 		if activeSection == "users" {
 			@AdminUsersPage(userData, adminSecurityVerificationValue(verification))
@@ -447,7 +461,7 @@ templ AdminPartial(userData AdminUsersData, avatarStatus models.AvatarStatus, co
 }
 
 templ AdminSecurityActivityPartial(data AdminSecurityActivityData, verification ...AdminSecurityVerificationData) {
-	<div id="main-content" class="relative flex min-h-0 min-w-0 flex-1">
+	<div id="main-content" tabindex="-1" class="relative flex min-h-0 min-w-0 flex-1">
 		@AdminNavigationLoading()
 		@AdminSecurityActivityPage(data, adminSecurityVerificationValue(verification))
 	</div>

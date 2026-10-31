@@ -4375,8 +4375,8 @@ body.mail-list-column-resizing {
   }
 
   #mail-list[data-mail-selecting] .mail-select-all-toggle {
-    width: 1.25rem;
-    height: 1.25rem;
+    width: 1.5rem;
+    height: 1.5rem;
   }
 
   #mail-list[data-mail-selecting] .mail-select-all [data-tui-popover-trigger] > button {

@@ -14,10 +14,14 @@
     
     if (input.type === 'password') {
       input.type = 'text';
+      button.setAttribute('aria-label', 'Hide password');
+      button.setAttribute('aria-pressed', 'true');
       if (iconOpen) iconOpen.classList.add('hidden');
       if (iconClosed) iconClosed.classList.remove('hidden');
     } else {
       input.type = 'password';
+      button.setAttribute('aria-label', 'Show password');
+      button.setAttribute('aria-pressed', 'false');
       if (iconOpen) iconOpen.classList.remove('hidden');
       if (iconClosed) iconClosed.classList.add('hidden');
     }

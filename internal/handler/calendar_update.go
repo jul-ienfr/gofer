@@ -566,25 +566,17 @@ func calendarZonesMatch(a, b *time.Location) bool {
 	if a.String() == b.String() {
 		return true
 	}
+	// Sample the same days across seasons instead of walking ZoneBounds.
+	// ZoneBounds loads and scans the Windows timezone database repeatedly and
+	// can take minutes for zones such as Europe/Prague and Europe/Budapest.
 	now := time.Now()
 	end := now.AddDate(10, 0, 0)
-	for at := now.AddDate(-2, 0, 0); at.Before(end); {
+	for at := now.AddDate(-2, 0, 0); at.Before(end); at = at.AddDate(0, 3, 0) {
 		_, offsetA := at.In(a).Zone()
 		_, offsetB := at.In(b).Zone()
 		if offsetA != offsetB {
 			return false
 		}
-		// On to the next change in either zone.
-		_, nextA := at.In(a).ZoneBounds()
-		_, nextB := at.In(b).ZoneBounds()
-		next := nextA
-		if next.IsZero() || (!nextB.IsZero() && nextB.Before(next)) {
-			next = nextB
-		}
-		if next.IsZero() {
-			break
-		}
-		at = next
 	}
 	return true
 }

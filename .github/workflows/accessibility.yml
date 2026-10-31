@@ -1,0 +1,90 @@
+name: Accessibility
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "internal/views/**"
+      - "components/**"
+      - "assets/css/**"
+      - "assets/js/**"
+      - "internal/a11y/**"
+      - "cmd/a11ycheck/**"
+      - "scripts/a11y-browser.cjs"
+      - "scripts/a11y-keyboard.cjs"
+      - ".github/workflows/accessibility.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  axe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.x"
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install browser audit tools
+        run: |
+          npm install --no-save --no-package-lock \
+            @tailwindcss/cli@4.3.3 \
+            playwright@1.64.1 \
+            @axe-core/playwright@4.11.0 \
+            axe-core@4.11.0
+          npx playwright install --with-deps chromium
+      - name: Generate assets
+        run: |
+          go run github.com/a-h/templ/cmd/templ@v0.3.1001 generate --ignore-pattern='(^|/)dist(/|$)'
+          ./node_modules/.bin/tailwindcss -i assets/css/input.css -o assets/css/output.css --minify
+          mapfile -t scripts < <(find assets/js -maxdepth 1 -name '*.js' ! -name '*.min.js' ! -name 'sw.js')
+          go run github.com/evanw/esbuild/cmd/esbuild@v0.28.2 "${scripts[@]}" --minify --outdir=assets/min/js --log-level=warning
+      - name: Build
+        run: go build -o gofer .
+      - name: Start Gofer
+        run: |
+          data_dir="$RUNNER_TEMP/gofer-a11y"
+          mkdir -p "$data_dir"
+          GOFER_AUTH_MODE=open \
+          GOFER_DB_PATH="$data_dir/gofer.db" \
+          GOFER_ADDR=127.0.0.1:8090 \
+            ./gofer >"$RUNNER_TEMP/gofer-a11y.log" 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8090/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/gofer-a11y.log"
+          exit 1
+      - name: Audit desktop, dark, and mobile
+        run: |
+          paths=(
+            / /contacts /calendar
+            /settings/accounts /settings/sync /settings/rules
+            /settings/operations /settings/contacts /settings/appearance
+            /settings/regional /settings/compose-display /settings/ai
+            /settings/security /settings/advanced /settings/export-import
+            /settings/about
+          )
+          args=()
+          for path in "${paths[@]}"; do
+            args+=(--path "$path")
+          done
+          node scripts/a11y-browser.cjs --base http://127.0.0.1:8090 "${args[@]}"
+          node scripts/a11y-browser.cjs --base http://127.0.0.1:8090 --color-scheme dark "${args[@]}"
+          node scripts/a11y-browser.cjs --base http://127.0.0.1:8090 --viewport 390x844 "${args[@]}"
+      - name: Keyboard and focus checks
+        run: node scripts/a11y-keyboard.cjs
+        env:
+          GOFER_BASE_URL: http://127.0.0.1:8090
+      - name: Stop Gofer
+        if: always()
+        run: pkill -f '/gofer$' || true

@@ -5,7 +5,7 @@ package handler
 import "net/http"
 
 func assetFileSystem() http.FileSystem {
-	return http.Dir("./assets")
+	return minifiedScripts{http.Dir("./assets")}
 }
 
 func serveServiceWorker(w http.ResponseWriter, r *http.Request) {

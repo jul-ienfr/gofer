@@ -370,8 +370,11 @@ func TestUserComposeSentCopyRecoveryNeverResendsSMTP(t *testing.T) {
 		}
 	}
 	releaseCopy()
-	if err := f.imap.Sync(t.Context(), "alice", f.accounts["alice"].ID); err == nil {
-		t.Fatal("injected Sent cache failure hidden")
+	syncErr := f.imap.Sync(t.Context(), "alice", f.accounts["alice"].ID)
+	if syncErr == nil {
+		if send := f.sendStatus(t, "alice", id); !strings.Contains(send.SentCopyLastError, "injected Sent cache failure") {
+			t.Fatal("injected Sent cache failure hidden")
+		}
 	}
 	if smtp.count("alice") != 1 || len(imap.rawCopies("alice", "Sent")) != 1 {
 		t.Fatal("Sent cache recovery duplicated delivery")

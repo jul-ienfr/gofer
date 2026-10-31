@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -99,6 +100,9 @@ func TestUserFileCleanupKeepsFreshDescendantsAndSymlinks(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.Symlink(outside, filepath.Join(s.basePath, "symlink-account")); err != nil {
+		if runtime.GOOS == "windows" {
+			t.Skipf("symlink creation requires Developer Mode or SeCreateSymbolicLinkPrivilege: %v", err)
+		}
 		t.Fatal(err)
 	}
 	linkedVersion, _ := s.NewMessageVersion()
@@ -108,6 +112,9 @@ func TestUserFileCleanupKeepsFreshDescendantsAndSymlinks(t *testing.T) {
 	}
 	ageCleanupTree(t, filepath.Dir(linkedRaw))
 	if err := os.Symlink(marker, filepath.Join(filepath.Dir(linkedRaw), "link")); err != nil {
+		if runtime.GOOS == "windows" {
+			t.Skipf("symlink creation requires Developer Mode or SeCreateSymbolicLinkPrivilege: %v", err)
+		}
 		t.Fatal(err)
 	}
 	old := time.Now().Add(-48 * time.Hour)

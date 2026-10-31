@@ -155,6 +155,9 @@ func TestPoolReplacesSessionsTheServerDropped(t *testing.T) {
 	}
 	client.Close()
 	server.cutAll()
+	// The idle check compares timestamps; Windows' coarse clock needs a real
+	// interval before CheckAfter=1ns is visible.
+	time.Sleep(20 * time.Millisecond)
 	client, err = pool.Get(ctx, server.cfg, "secret")
 	if err != nil {
 		t.Fatal(err)

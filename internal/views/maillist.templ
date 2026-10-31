@@ -182,6 +182,7 @@ templ MailListHeader(accounts []models.Account, activeFolder string, totalCount 
 						type="text"
 						name="q"
 						placeholder="Search, or use from: subject: body: then Enter"
+						aria-label="Search mail"
 						data-mobile-placeholder="Search mail"
 						class="h-9 w-full pl-8 pr-3 rounded-lg text-sm bg-background border border-border/50 outline-none focus:ring-2 focus:ring-ring"
 						data-mail-search-input
@@ -192,7 +193,7 @@ templ MailListHeader(accounts []models.Account, activeFolder string, totalCount 
 					@MailFiltersPopover(accounts, !filters.ByMessage)
 				</div>
 			</div>
-			<div data-mail-active-filter-pills class="mail-active-filter-strip hidden" aria-label="Active filters"></div>
+			<div data-mail-active-filter-pills class="mail-active-filter-strip hidden" role="group" aria-label="Active filters"></div>
 		</div>
 	</div>
 }
@@ -532,7 +533,7 @@ templ MailListToolbar(accounts []models.Account, activeFolder string, viewMode s
 templ MailSelectAllControl() {
 	<div class="mail-select-all inline-flex h-7 shrink-0 items-center gap-0.5 rounded-md pl-1.5 transition-colors" data-mail-select-all>
 		@checkbox.Checkbox(checkbox.Props{
-			Class:      "mail-select-all-toggle",
+			Class:      "mail-select-all-toggle size-6",
 			Attributes: templ.Attributes{"data-mail-select-all-toggle": "", "aria-label": "Select all messages"},
 		})
 		@dropdown.Dropdown() {
@@ -540,7 +541,7 @@ templ MailSelectAllControl() {
 				@button.Button(button.Props{
 					Variant:    button.VariantGhost,
 					Size:       button.SizeIcon,
-					Class:      "h-7 w-5 text-muted-foreground hover:bg-transparent dark:hover:bg-transparent",
+					Class:      "h-7 w-6 text-muted-foreground hover:bg-transparent dark:hover:bg-transparent",
 					Attributes: templ.Attributes{"aria-label": "Select messages by state"},
 				}) {
 					@icon.ChevronDown(icon.Props{Class: "size-3.5"})
@@ -577,7 +578,7 @@ templ MailSelectAllBanner() {
 			Variant:    button.VariantLink,
 			Size:       button.SizeSm,
 			Class:      "h-auto p-0 text-xs",
-			Attributes: templ.Attributes{"data-mail-select-all-banner-action": ""},
+			Attributes: templ.Attributes{"data-mail-select-all-banner-action": "", "aria-label": "Select all matching messages"},
 		})
 		@button.Button(button.Props{
 			Variant:    button.VariantLink,
@@ -606,7 +607,7 @@ templ MailFiltersPopover(accounts []models.Account, conversations bool) {
 				<div class="shrink-0 border-b border-border px-4 py-3">
 					<h2 class="text-sm font-semibold text-foreground">Filters</h2>
 					<p class="mail-filters-intro mt-0.5 text-xs text-muted-foreground">Narrow the message list with any combination of filters.</p>
-					<button type="button" class="mail-filters-applied hidden" data-mail-filters-applied data-mail-filters-applied-open>
+					<button type="button" class="mail-filters-applied hidden" aria-label="Show applied filters" data-mail-filters-applied data-mail-filters-applied-open>
 						<span data-mail-filters-applied-count></span>
 						@icon.ChevronRight(icon.Props{Class: "size-4"})
 					</button>
@@ -850,7 +851,7 @@ templ MailFilterCategoryButton(value string, label string, active bool) {
 		type="button"
 		data-mail-filter-panel-button={ value }
 		data-active={ fmt.Sprintf("%t", active) }
-		aria-selected={ fmt.Sprintf("%t", active) }
+		aria-pressed={ fmt.Sprintf("%t", active) }
 		class="shrink-0 rounded-md px-2.5 py-2 text-left text-sm font-medium text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground data-[active=true]:bg-background data-[active=true]:text-foreground data-[active=true]:shadow-sm data-[active=true]:ring-1 data-[active=true]:ring-border sm:w-full"
 	>
 		{ label }

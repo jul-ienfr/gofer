@@ -94,6 +94,7 @@ templ ComposeDialog(accounts []models.Account) {
 					Name:        "subject",
 					Placeholder: "Subject",
 					Class:       "compose-input h-8 font-semibold placeholder:font-normal",
+					Attributes:  templ.Attributes{"aria-label": "Subject"},
 				})
 			</div>
 			@ComposeToolbar()
@@ -208,7 +209,7 @@ templ ComposeToolbar() {
 	<div class="flex items-center gap-0.5 border-t border-b py-1 -mx-1" data-compose-toolbar>
 		@tooltip.Tooltip() {
 			@tooltip.Trigger() {
-				<button type="button" class="flex items-center justify-center size-7 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" data-compose-command="bold" data-on-click='["composeExec","$this","bold"]'>
+				<button type="button" class="flex items-center justify-center size-7 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" data-compose-command="bold" data-on-click='["composeExec","$this","bold"]' aria-label="Bold">
 					@icon.Bold(icon.Props{Class: "size-3.5"})
 				</button>
 			}
@@ -221,7 +222,7 @@ templ ComposeToolbar() {
 		}
 		@tooltip.Tooltip() {
 			@tooltip.Trigger() {
-				<button type="button" class="flex items-center justify-center size-7 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" data-compose-command="italic" data-on-click='["composeExec","$this","italic"]'>
+				<button type="button" class="flex items-center justify-center size-7 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" data-compose-command="italic" data-on-click='["composeExec","$this","italic"]' aria-label="Italic">
 					@icon.Italic(icon.Props{Class: "size-3.5"})
 				</button>
 			}
@@ -234,7 +235,7 @@ templ ComposeToolbar() {
 		}
 		@tooltip.Tooltip() {
 			@tooltip.Trigger() {
-				<button type="button" class="flex items-center justify-center size-7 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" data-compose-command="underline" data-on-click='["composeExec","$this","underline"]'>
+				<button type="button" class="flex items-center justify-center size-7 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" data-compose-command="underline" data-on-click='["composeExec","$this","underline"]' aria-label="Underline">
 					@icon.Underline(icon.Props{Class: "size-3.5"})
 				</button>
 			}
@@ -247,7 +248,7 @@ templ ComposeToolbar() {
 		}
 		@tooltip.Tooltip() {
 			@tooltip.Trigger() {
-				<button type="button" class="flex items-center justify-center size-7 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" data-compose-command="strikeThrough" data-on-click='["composeExec","$this","strikeThrough"]'>
+				<button type="button" class="flex items-center justify-center size-7 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" data-compose-command="strikeThrough" data-on-click='["composeExec","$this","strikeThrough"]' aria-label="Strikethrough">
 					@icon.Strikethrough(icon.Props{Class: "size-3.5"})
 				</button>
 			}
@@ -261,7 +262,7 @@ templ ComposeToolbar() {
 		<div class="w-px h-4 bg-border mx-0.5"></div>
 		@tooltip.Tooltip() {
 			@tooltip.Trigger() {
-				<button type="button" class="flex items-center justify-center size-7 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" data-compose-command="insertUnorderedList" data-on-click='["composeExec","$this","insertUnorderedList"]'>
+				<button type="button" class="flex items-center justify-center size-7 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" data-compose-command="insertUnorderedList" data-on-click='["composeExec","$this","insertUnorderedList"]' aria-label="Bullet list">
 					@icon.List(icon.Props{Class: "size-3.5"})
 				</button>
 			}
@@ -274,7 +275,7 @@ templ ComposeToolbar() {
 		}
 		@tooltip.Tooltip() {
 			@tooltip.Trigger() {
-				<button type="button" class="flex items-center justify-center size-7 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" data-compose-command="insertOrderedList" data-on-click='["composeExec","$this","insertOrderedList"]'>
+				<button type="button" class="flex items-center justify-center size-7 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" data-compose-command="insertOrderedList" data-on-click='["composeExec","$this","insertOrderedList"]' aria-label="Numbered list">
 					@icon.ListOrdered(icon.Props{Class: "size-3.5"})
 				</button>
 			}
@@ -288,7 +289,7 @@ templ ComposeToolbar() {
 		<div class="w-px h-4 bg-border mx-0.5"></div>
 		@tooltip.Tooltip() {
 			@tooltip.Trigger() {
-				<button type="button" class="flex items-center justify-center size-7 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" data-on-click='["triggerComposeAttachmentUpload","$this"]' data-compose-toolbar-attach>
+				<button type="button" class="flex items-center justify-center size-7 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" data-on-click='["triggerComposeAttachmentUpload","$this"]' data-compose-toolbar-attach aria-label="Attach file">
 					@icon.Paperclip(icon.Props{Class: "size-3.5"})
 				</button>
 			}
@@ -301,7 +302,7 @@ templ ComposeToolbar() {
 		}
 		@tooltip.Tooltip() {
 			@tooltip.Trigger() {
-				<button type="button" class="flex items-center justify-center size-7 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" data-on-click='["triggerComposeInlineImageUpload","$this"]'>
+				<button type="button" class="flex items-center justify-center size-7 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" data-on-click='["triggerComposeInlineImageUpload","$this"]' aria-label="Insert image">
 					@icon.Image(icon.Props{Class: "size-3.5"})
 				</button>
 			}
@@ -314,7 +315,7 @@ templ ComposeToolbar() {
 		}
 		@tooltip.Tooltip() {
 			@tooltip.Trigger() {
-				<button type="button" class="flex items-center justify-center size-7 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" data-on-click='["composeCreateLink","$this"]'>
+				<button type="button" class="flex items-center justify-center size-7 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" data-on-click='["composeCreateLink","$this"]' aria-label="Insert link">
 					@icon.Link(icon.Props{Class: "size-3.5"})
 				</button>
 			}
@@ -327,7 +328,7 @@ templ ComposeToolbar() {
 		}
 		@tooltip.Tooltip() {
 			@tooltip.Trigger() {
-				<button type="button" class="flex items-center justify-center size-7 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" data-on-click='["showComposeSignaturePicker","$this"]'>
+				<button type="button" class="flex items-center justify-center size-7 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" data-on-click='["showComposeSignaturePicker","$this"]' aria-label="Insert signature">
 					@icon.Signature(icon.Props{Class: "size-3.5"})
 				</button>
 			}
@@ -482,7 +483,7 @@ templ ComposeField(label string, name string, placeholder string) {
 		<label class="text-xs text-muted-foreground font-medium w-8 shrink-0">{ label }</label>
 		<input type="hidden" name={ name } data-compose-recipient-value/>
 		<div class="compose-recipient-field relative min-h-9 flex flex-1 items-center gap-1.5 rounded-md border px-2 py-1.5 text-sm" data-compose-recipient-field data-recipient-name={ name } data-on-click='["focusComposeRecipientField","$this"]'>
-			<span class="min-w-24 flex-1 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground" contenteditable="true" role="textbox" data-compose-recipient-input data-placeholder={ placeholder } data-on-keydown='["handleComposeRecipientKeydown","$event"]' data-on-input='["handleComposeRecipientInput","$this"]' data-on-blur='["finalizeComposeRecipientInput","$this"]'></span>
+			<span class="min-w-24 flex-1 outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground" contenteditable="true" role="textbox" aria-label={ label + " recipients" } data-compose-recipient-input data-placeholder={ placeholder } data-on-keydown='["handleComposeRecipientKeydown","$event"]' data-on-input='["handleComposeRecipientInput","$this"]' data-on-blur='["finalizeComposeRecipientInput","$this"]'></span>
 		</div>
 	</div>
 }

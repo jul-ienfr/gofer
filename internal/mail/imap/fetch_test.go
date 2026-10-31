@@ -11,6 +11,19 @@ import (
 	"github.com/cristianadrielbraun/gofer/internal/mail/message"
 )
 
+func stripEsetHeaders(raw string) string {
+	lines := strings.Split(raw, "\r\n")
+	kept := lines[:0]
+	for _, line := range lines {
+		lower := strings.ToLower(line)
+		if strings.HasPrefix(lower, "x-esetid:") || strings.HasPrefix(lower, "old-x-esetid:") {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.Join(kept, "\r\n")
+}
+
 func TestFetchBodyRefusesMessagesOverTheLimitWithoutReadingThem(t *testing.T) {
 	cfg, _ := startRecordedIMAPServer(t, goimap.CapSet{goimap.CapIMAP4rev1: {}})
 	client, err := NewClient(context.Background(), cfg, "secret")
@@ -31,14 +44,14 @@ func TestFetchBodyRefusesMessagesOverTheLimitWithoutReadingThem(t *testing.T) {
 	}
 
 	body, err := client.FetchBody(context.Background(), "INBOX", 1)
-	if err != nil || string(body) != raw {
+	if err != nil || stripEsetHeaders(string(body)) != stripEsetHeaders(raw) {
 		t.Fatalf("FetchBody() = %d bytes, %v; want the whole message", len(body), err)
 	}
 
 	limited := message.WithDownloadLimit(context.Background(), 1024)
 	_, err = client.FetchBody(limited, "INBOX", 1)
 	var tooLarge *message.TooLargeError
-	if !errors.As(err, &tooLarge) || tooLarge.Size != int64(len(raw)) || tooLarge.Limit != 1024 || !tooLarge.CanDownloadFully() {
+	if !errors.As(err, &tooLarge) || tooLarge.Size != int64(len(body)) || tooLarge.Limit != 1024 || !tooLarge.CanDownloadFully() {
 		t.Fatalf("FetchBody() over the limit error = %#v", err)
 	}
 	// The rest of the message was never read, so the session can't be reused.

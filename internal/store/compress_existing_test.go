@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -86,8 +87,11 @@ func TestCompressMessageFilesConvertsOlderFiles(t *testing.T) {
 			t.Fatalf("%s reads back differently (err %v)", name, err)
 		}
 		info, err := os.Stat(filepath.Join(f.root, filepath.FromSlash(name)))
-		if err != nil || info.Mode().Perm() != 0o640 {
-			t.Fatalf("%s permissions changed: %v %v", name, info.Mode(), err)
+		if err != nil {
+			t.Fatalf("%s stat: %v", name, err)
+		}
+		if runtime.GOOS != "windows" && info.Mode().Perm() != 0o640 {
+			t.Fatalf("%s permissions changed: %v", name, info.Mode())
 		}
 	}
 	for _, name := range []string{"acc/messages/2/v1/body.txt", "acc/messages/3/v1/body.txt", "acc/messages/4/v1/body.html", "acc/messages/1/v1/attachments/1-notes.txt"} {

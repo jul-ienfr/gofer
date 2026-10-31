@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -286,6 +287,9 @@ func TestUserStoreLifecycleRejectsWrongIdentityAndSidecar(t *testing.T) {
 					t.Fatal(err)
 				}
 			case "symlink":
+				if runtime.GOOS == "windows" {
+					t.Skip("symlink creation requires Developer Mode or SeCreateSymbolicLinkPrivilege")
+				}
 				if err := os.Remove(path); err != nil {
 					t.Fatal(err)
 				}

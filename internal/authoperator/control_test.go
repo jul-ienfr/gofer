@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -47,7 +48,7 @@ func TestInvitationRunsThroughRunningServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm() != 0700 {
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0700 {
 		t.Fatalf("control directory mode = %v, want 0700", info.Mode().Perm())
 	}
 
@@ -95,7 +96,9 @@ func TestStaleControlSocketFallsBackToLocalCommand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	listener.(*net.UnixListener).SetUnlinkOnClose(false)
+	if unix, ok := listener.(*net.UnixListener); ok {
+		unix.SetUnlinkOnClose(false)
+	}
 	if err := listener.Close(); err != nil {
 		t.Fatal(err)
 	}

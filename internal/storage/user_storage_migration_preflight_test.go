@@ -286,6 +286,9 @@ func TestUserStorageMigrationPreflightAcceptsMainSchemaAndKeepsHistoricalClaimsU
 		t.Run(mode, func(t *testing.T) {
 			db := sharedMigrationFixture(t)
 			version := 132
+			if mode == "shared-132" {
+				migrationFixtureSQL(t, db, `DELETE FROM schema_version; INSERT INTO schema_version(version) VALUES(132)`)
+			}
 			if mode != "shared-132" {
 				// Before mail rules.
 				migrationFixtureSQL(t, db, `DROP TABLE mail_rule_runs; DROP TABLE mail_rule_pending; DROP TABLE mail_rules; ALTER TABLE messages DROP COLUMN list_id; DELETE FROM schema_version; INSERT INTO schema_version(version) VALUES(131)`)
@@ -489,7 +492,7 @@ DELETE FROM schema_version; INSERT INTO schema_version(version) VALUES(107)`)
 func TestUserStorageMigrationPreflightRejectsUnknownVersionsAndFalseUpgradeMarkers(t *testing.T) {
 	for _, query := range []string{
 		`DELETE FROM schema_version; INSERT INTO schema_version(version) VALUES(104)`,
-		`DELETE FROM schema_version; INSERT INTO schema_version(version) VALUES(133)`,
+		`DELETE FROM schema_version; INSERT INTO schema_version(version) VALUES(143)`,
 		`DROP TABLE folder_thread_dirty`,
 		`ALTER TABLE calendar_response_requests DROP COLUMN claim_id`,
 		`DELETE FROM schema_version; INSERT INTO schema_version(version) VALUES(106); ALTER TABLE web_push_subscriptions DROP COLUMN revision`,

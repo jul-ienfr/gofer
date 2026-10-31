@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cristianadrielbraun/gofer/internal/aievents"
 	"github.com/cristianadrielbraun/gofer/internal/auth"
 	"github.com/cristianadrielbraun/gofer/internal/config"
 	"github.com/cristianadrielbraun/gofer/internal/handler"
@@ -139,7 +140,22 @@ func newManagedApplication(parent context.Context, path string, maxOpen int) (re
 		return nil, err
 	}
 	app.mailbox = handler.New(s.central, centralAccounts, syncer, blobs, app.auth, publicKey, app.flows)
+	aiBus := aievents.NewBus()
+	app.mailbox.SetAIEvents(aiBus)
 	app.mailbox.SetTestPushSender(app.notifications.SendTestPush)
+	aiReady, err := startManagedAIWorker(ctx, s.central, s.routing, aiBus, centralAccounts)
+	if err != nil {
+		return nil, fmt.Errorf("start managed AI worker: %w", err)
+	}
+	app.mailbox.SetAIWorkerReady(aiReady)
+	if llmClient, endpoint, err := configuredLLMClient(); err != nil {
+		return nil, fmt.Errorf("configure LLM drafting: %w", err)
+	} else if llmClient != nil {
+		app.mailbox.SetAIDraftingClient(llmClient)
+		log.Printf("boot: LLM drafting enabled (endpoint %s)", endpoint)
+	} else {
+		log.Printf("boot: LLM drafting disabled; set GOFER_LLM_BASE_URL and GOFER_LLM_MODEL to enable it")
+	}
 	mux := http.NewServeMux()
 	if err := app.mailbox.RegisterUserStorageRoutes(ctx, mux, s.routing, handler.UserStorageOptions{
 		Accounts: accounts, IMAP: app.imap, Credentials: app.credentials,

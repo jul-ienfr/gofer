@@ -131,6 +131,7 @@ templ Calendar(props ...Props) {
 				<button
 					type="button"
 					data-tui-calendar-prev
+					aria-label="Previous month"
 					class="inline-flex items-center justify-center rounded-md text-sm font-medium h-7 w-7 hover:bg-accent hover:text-accent-foreground focus:outline-none disabled:opacity-50 shrink-0"
 				>
 					@icon.ChevronLeft()
@@ -160,6 +161,7 @@ templ Calendar(props ...Props) {
 				<button
 					type="button"
 					data-tui-calendar-next
+					aria-label="Next month"
 					class="inline-flex items-center justify-center rounded-md text-sm font-medium h-7 w-7 hover:bg-accent hover:text-accent-foreground focus:outline-none disabled:opacity-50 shrink-0"
 				>
 					@icon.ChevronRight()

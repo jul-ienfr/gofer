@@ -1,6 +1,6 @@
 module github.com/cristianadrielbraun/gofer
 
-go 1.27.1
+go 1.27.3
 
 require (
 	github.com/Oudwins/tailwind-merge-go v0.2.0
@@ -22,11 +22,11 @@ require (
 	github.com/klauspost/compress v1.20.1
 	github.com/pquerna/otp v1.5.0
 	github.com/teambition/rrule-go v1.8.2
-	golang.org/x/crypto v0.52.0
-	golang.org/x/net v0.54.0
+	golang.org/x/crypto v0.58.0
+	golang.org/x/net v0.62.0
 	golang.org/x/oauth2 v0.36.0
-	golang.org/x/sys v0.48.0
-	golang.org/x/text v0.37.0
+	golang.org/x/sys v0.49.0
+	golang.org/x/text v0.43.0
 	modernc.org/sqlite v1.60.1
 )
 

@@ -190,6 +190,14 @@ func TestMiddlewareRequestBoundary(t *testing.T) {
 			wantStatus: http.StatusMisdirectedRequest,
 		},
 		{
+			name:       "bearer API request without origin",
+			method:     http.MethodPost,
+			path:       "/api/v1/messages/1/reanalyze",
+			host:       "local.localhost:8090",
+			wantStatus: http.StatusNoContent,
+			wantCalled: true,
+		},
+		{
 			name:       "explicit automation request",
 			method:     http.MethodPost,
 			path:       "/api/mail/sync",

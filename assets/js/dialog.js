@@ -81,6 +81,18 @@
       dialog.removeAttribute("data-tui-dialog-closing");
       root?.removeAttribute("data-tui-dialog-closing");
       updateState(getRoot(dialog), false);
+
+      const returnTo = dialog._tuiDialogReturnFocus;
+      delete dialog._tuiDialogReturnFocus;
+      if (returnTo?.isConnected && typeof returnTo.focus === "function") {
+        // The browser restores focus to the body after the close event, so
+        // restore the trigger on the next task instead.
+        window.setTimeout(() => {
+          if (!dialog.open && returnTo.isConnected) {
+            returnTo.focus({ preventScroll: true });
+          }
+        }, 0);
+      }
     });
 
     dialog.addEventListener("click", (event) => {
@@ -125,6 +137,9 @@
     root?.removeAttribute("data-tui-dialog-closing");
 
     if (!dialog.open) {
+      const focused = document.activeElement;
+      dialog._tuiDialogReturnFocus =
+        focused && focused !== document.body && typeof focused.focus === "function" ? focused : null;
       try {
         if (dialog.getAttribute("data-tui-dialog-show-modal") === "true") {
           dialog.showModal();
@@ -132,6 +147,7 @@
           dialog.show();
         }
       } catch {
+        delete dialog._tuiDialogReturnFocus;
         return;
       }
     }

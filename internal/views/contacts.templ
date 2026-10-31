@@ -1311,11 +1311,11 @@ func contactInsightSeverityClass(severity string) string {
 }
 
 templ ContactsPage(contacts []models.Contact, selected *models.Contact, selectedProfile *models.ContactProfile, showNew bool, syncQueued bool, filters models.ContactFilters, totalCount int, uiSettings map[string]string, accounts []models.Account) {
-	<div id="main-content" class={ mailPaneLayoutClass(PaneLayout(uiSettings, "contacts")) + " bg-background" } data-mail-pane-layout={ PaneLayout(uiSettings, "contacts") }>
+	<main id="main-content" class={ mailPaneLayoutClass(PaneLayout(uiSettings, "contacts")) + " bg-background" } data-mail-pane-layout={ PaneLayout(uiSettings, "contacts") }>
 		@ContactsListPane(contacts, selected, filters, totalCount, PanelSetting(uiSettings, "contacts", "mail_list_width", "50%"), accounts)
 		@ResizeHandle("maillist")
 		@ContactsViewPane(selected, selectedProfile, showNew, syncQueued, accounts)
-	</div>
+	</main>
 }
 
 templ ContactsListPane(contacts []models.Contact, selected *models.Contact, filters models.ContactFilters, totalCount int, width string, accounts []models.Account) {
@@ -1370,6 +1370,7 @@ templ ContactsListPane(contacts []models.Contact, selected *models.Contact, filt
 						name="q"
 						value={ filters.Query }
 						placeholder="Search contacts"
+						aria-label="Search contacts"
 						data-contact-search-input
 						class="h-9 w-full rounded-lg border border-border/50 bg-background pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
 					/>
@@ -1638,7 +1639,7 @@ templ ContactsListPane(contacts []models.Contact, selected *models.Contact, filt
 templ ContactsSelectAllControl() {
 	<div class="mail-select-all inline-flex h-7 shrink-0 items-center gap-0.5 rounded-md pl-1.5 transition-colors" data-contact-select-all>
 		@checkbox.Checkbox(checkbox.Props{
-			Class:      "mail-select-all-toggle",
+			Class:      "mail-select-all-toggle size-6",
 			Attributes: templ.Attributes{"data-contact-select-all-toggle": "", "aria-label": "Select all contacts"},
 		})
 		@dropdown.Dropdown() {
@@ -1646,7 +1647,7 @@ templ ContactsSelectAllControl() {
 				@button.Button(button.Props{
 					Variant:    button.VariantGhost,
 					Size:       button.SizeIcon,
-					Class:      "h-7 w-5 text-muted-foreground hover:bg-transparent dark:hover:bg-transparent",
+					Class:      "h-7 w-6 text-muted-foreground hover:bg-transparent dark:hover:bg-transparent",
 					Attributes: templ.Attributes{"aria-label": "Select contacts"},
 				}) {
 					@icon.ChevronDown(icon.Props{Class: "size-3.5"})
@@ -1725,7 +1726,7 @@ templ ContactsSelectAllBanner() {
 			Variant:    button.VariantLink,
 			Size:       button.SizeSm,
 			Class:      "h-auto p-0 text-xs",
-			Attributes: templ.Attributes{"data-contact-select-all-banner-action": ""},
+			Attributes: templ.Attributes{"data-contact-select-all-banner-action": "", "aria-label": "Select all matching contacts"},
 		})
 		@button.Button(button.Props{
 			Variant:    button.VariantLink,

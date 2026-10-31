@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.x"
+          cache: true
+      - name: Vet
+        run: go vet ./...
+      - name: Test core packages
+        shell: bash
+        run: |
+          go test -count=1 -timeout 30m \
+            ./internal/storage \
+            ./internal/backup \
+            ./internal/a11y \
+            ./internal/handler \
+            ./internal/server \
+            ./internal/views \
+            ./internal/jev \
+            ./internal/aipipeline \
+            ./internal/airouting \
+            ./internal/unsubscribe \
+            ./internal/drafting \
+            ./internal/policy \
+            ./internal/legitimacy \
+            ./internal/projects \
+            ./internal/routing \
+            ./internal/llm \
+            ./internal/aiworker \
+            ./internal/aisettings \
+            ./internal/aiaudit \
+            ./internal/aievents
+      - name: Build
+        run: go build ./...

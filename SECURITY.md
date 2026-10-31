@@ -35,6 +35,6 @@ Gofer is pre-1.0. Security fixes go into the latest release only, so please upgr
 
 ## disclosure
 
-Gofer hasn't had an independent security audit. It has a large test suite, and I use it every day for my own mail, but it's pre-1.0 software built by one person with a lot of help from AI coding tools. I review and test what goes in, but that isn't the same as an expert security review. Keep that in mind before you expose it to the internet, and keep backups.
+Gofer hasn't had an independent security audit or penetration test. It has a large test suite, and I use it every day for my own mail, but it's pre-1.0 software built by one person with a lot of help from AI coding tools. I review and test what goes in, but that isn't the same as an expert security review. CI also runs `govulncheck`; that finds known reachable vulnerabilities, not design or logic flaws. Keep that in mind before you expose it to the internet, and keep backups.
 
-Deployment advice (reverse proxy, trusted proxies, allowed networks) is in [docs/setup.md](./docs/setup.md#deployment-precautions).
+The internal threat model, ASVS mapping, and the list of checks that have not been performed are in [docs/threat-model.md](./docs/threat-model.md). Backup, restore, and recovery guidance is in [docs/backup-restore.md](./docs/backup-restore.md). Deployment advice (reverse proxy, trusted proxies, allowed networks) is in [docs/setup.md](./docs/setup.md#deployment-precautions).

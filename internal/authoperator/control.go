@@ -4,6 +4,9 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,7 +16,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"syscall"
+	"runtime"
 	"time"
 
 	"github.com/cristianadrielbraun/gofer/internal/storage"
@@ -36,9 +39,23 @@ type controlResponse struct {
 	Stderr   string `json:"stderr"`
 }
 
+// controlEndpoint is stored at ControlSocketPath on Windows, where Unix
+// sockets are not available. It points at a loopback TCP listener and carries
+// a bearer token so another local process cannot drive auth commands.
+type controlEndpoint struct {
+	Network string `json:"network"`
+	Address string `json:"address"`
+	Token   string `json:"token"`
+}
+
+type controlListener struct {
+	net.Listener
+	token string
+}
+
 // ControlSocketPath is where a running Gofer listens for auth commands that
-// change the database. Its directory is private to the user Gofer runs as,
-// which is what keeps other local users out.
+// change the database. On Unix it is a Unix socket; on Windows it is a small
+// endpoint file for a loopback listener.
 func ControlSocketPath(databasePath string) string {
 	return filepath.Join(databasePath+".control", "socket")
 }
@@ -67,6 +84,28 @@ func ListenControl(databasePath string) (net.Listener, error) {
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("remove stale control socket: %w", err)
 	}
+	if runtime.GOOS == "windows" {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			return nil, fmt.Errorf("listen on control socket: %w", err)
+		}
+		token, err := newControlToken()
+		if err != nil {
+			listener.Close()
+			return nil, fmt.Errorf("generate control token: %w", err)
+		}
+		endpoint := controlEndpoint{Network: "tcp", Address: listener.Addr().String(), Token: token}
+		data, err := json.Marshal(endpoint)
+		if err != nil {
+			listener.Close()
+			return nil, fmt.Errorf("encode control endpoint: %w", err)
+		}
+		if err := os.WriteFile(path, data, 0600); err != nil {
+			listener.Close()
+			return nil, fmt.Errorf("write control endpoint: %w", err)
+		}
+		return &controlListener{Listener: listener, token: token}, nil
+	}
 	listener, err := net.Listen("unix", path)
 	if err != nil {
 		return nil, fmt.Errorf("listen on control socket: %w", err)
@@ -74,12 +113,31 @@ func ListenControl(databasePath string) (net.Listener, error) {
 	return listener, nil
 }
 
+func newControlToken() (string, error) {
+	var raw [32]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(raw[:]), nil
+}
+
 // ServeControl runs mutating auth commands sent to listener against db, the
 // database this server has locked. The returned stop waits for a running
 // command to finish and removes the socket.
 func ServeControl(listener net.Listener, db *storage.DB) (stop func(context.Context) error) {
+	token := ""
+	if control, ok := listener.(*controlListener); ok {
+		token = control.token
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST "+controlCommandPath, func(w http.ResponseWriter, r *http.Request) {
+		if token != "" {
+			expected := "Bearer " + token
+			if subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte(expected)) != 1 {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+		}
 		var request controlRequest
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, controlRequestLimit)).Decode(&request); err != nil {
 			http.Error(w, "invalid control request", http.StatusBadRequest)
@@ -117,14 +175,34 @@ func runControlCommand(ctx context.Context, args []string, db *storage.DB, stdou
 // runOnServer sends args to a running Gofer. It reports handled=false only
 // when no Gofer is listening, so the caller can safely run the command
 // itself; once a request is sent it is never retried locally.
+func readControlEndpoint(path string) (controlEndpoint, bool) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return controlEndpoint{}, false
+	}
+	var endpoint controlEndpoint
+	if err := json.Unmarshal(data, &endpoint); err != nil || endpoint.Address == "" {
+		return controlEndpoint{}, false
+	}
+	return endpoint, true
+}
+
 func runOnServer(ctx context.Context, socketPath string, args []string, stdout, stderr io.Writer) (handled bool, exitCode int) {
 	if _, err := os.Stat(socketPath); err != nil {
 		return false, 0
 	}
+	network, address, token := "unix", socketPath, ""
+	if runtime.GOOS == "windows" {
+		endpoint, ok := readControlEndpoint(socketPath)
+		if !ok {
+			return false, 0
+		}
+		network, address, token = endpoint.Network, endpoint.Address, endpoint.Token
+	}
 	dialCtx, cancel := context.WithTimeout(ctx, controlDialTimeout)
-	conn, err := (&net.Dialer{}).DialContext(dialCtx, "unix", socketPath)
+	conn, err := (&net.Dialer{}).DialContext(dialCtx, network, address)
 	cancel()
-	if errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, os.ErrNotExist) {
+	if isControlConnectionRefused(err) || errors.Is(err, os.ErrNotExist) {
 		return false, 0 // a socket left behind by a Gofer that is no longer running
 	}
 	if err != nil {
@@ -145,6 +223,9 @@ func runOnServer(ctx context.Context, socketPath string, args []string, stdout, 
 		return true, 1
 	}
 	request.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		request.Header.Set("Authorization", "Bearer "+token)
+	}
 	if err := request.Write(conn); err != nil {
 		_, _ = fmt.Fprintf(stderr, "auth: send command to the running Gofer: %v\n", err)
 		return true, 1

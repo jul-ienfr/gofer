@@ -305,11 +305,11 @@ func AppDialogs() templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = label.Label(label.Props{For: "app-prompt-input", Attributes: templ.Attributes{"data-app-prompt-label": ""}}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = label.Label(label.Props{ID: "app-prompt-label", For: "app-prompt-input", Attributes: templ.Attributes{"data-app-prompt-label": ""}}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = input.Input(input.Props{ID: "app-prompt-input", Attributes: templ.Attributes{"autocomplete": "off", "data-app-prompt-input": ""}}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = input.Input(input.Props{ID: "app-prompt-input", Attributes: templ.Attributes{"autocomplete": "off", "aria-labelledby": "app-prompt-label", "data-app-prompt-input": ""}}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

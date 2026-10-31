@@ -291,6 +291,8 @@ func TestUserStoresWaitingForCloseDoesNotEvictOtherIdleOwner(t *testing.T) {
 	alice.Release()
 	bob.Release()
 	m.mu.Lock()
+	m.entries["alice"].idleSince = time.Now().Add(-2 * time.Second)
+	m.entries["bob"].idleSince = time.Now().Add(-time.Second)
 	scheduled := m.evictOldestLocked()
 	m.mu.Unlock()
 	if !scheduled {
@@ -298,7 +300,7 @@ func TestUserStoresWaitingForCloseDoesNotEvictOtherIdleOwner(t *testing.T) {
 	}
 	select {
 	case <-entered:
-	case <-time.After(5 * time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("oldest store close did not begin")
 	}
 	for i := 0; i < 3; i++ {

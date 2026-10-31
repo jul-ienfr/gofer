@@ -45,8 +45,8 @@ templ AppDialogs() {
 					@dialog.Description(dialog.DescriptionProps{Attributes: templ.Attributes{"data-app-prompt-message": "", "hidden": ""}})
 				}
 				<div class="grid gap-2">
-					@label.Label(label.Props{For: "app-prompt-input", Attributes: templ.Attributes{"data-app-prompt-label": ""}})
-					@input.Input(input.Props{ID: "app-prompt-input", Attributes: templ.Attributes{"autocomplete": "off", "data-app-prompt-input": ""}})
+					@label.Label(label.Props{ID: "app-prompt-label", For: "app-prompt-input", Attributes: templ.Attributes{"data-app-prompt-label": ""}})
+					@input.Input(input.Props{ID: "app-prompt-input", Attributes: templ.Attributes{"autocomplete": "off", "aria-labelledby": "app-prompt-label", "data-app-prompt-input": ""}})
 				</div>
 				@dialog.Footer() {
 					@dialog.Close() {
