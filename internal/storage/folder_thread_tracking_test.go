@@ -249,7 +249,7 @@ func TestSchemaFileHasFolderThreadTracking(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(schema), strings.TrimSpace(folderThreadTrackingSchema)) {
+	if !strings.Contains(strings.ReplaceAll(string(schema), "\r\n", "\n"), strings.TrimSpace(folderThreadTrackingSchema)) {
 		t.Fatal("schema.sql and folderThreadTrackingSchema differ; new databases and upgraded ones must match")
 	}
 }

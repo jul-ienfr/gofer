@@ -26,7 +26,7 @@ templ AISettingsTab(data AISettingsData) {
 						<h4 class="text-sm font-medium text-foreground">Analyze new mail</h4>
 						<p class="text-xs text-muted-foreground mt-1">Queue arrived messages for Jev. Drafts, Sent and Trash are excluded.</p>
 						if !data.WorkerReady {
-							<p class="text-xs text-amber-700 dark:text-amber-300 mt-1">The Jev worker is not configured on this server. Set GOFER_JEV_API_KEY, restart Gofer, then enable analysis.</p>
+							<p class="text-xs text-amber-800 dark:text-amber-300 mt-1">The Jev worker is not configured on this server. Set GOFER_JEV_API_KEY, restart Gofer, then enable analysis.</p>
 						}
 					</div>
 					<div class="w-full sm:w-44 shrink-0">
@@ -46,7 +46,7 @@ templ AISettingsTab(data AISettingsData) {
 						<h4 class="text-sm font-medium text-foreground">Draft replies</h4>
 						<p class="text-xs text-muted-foreground mt-1">Allow a compatible LLM to prepare a draft in your voice. Drafts always wait for human review.</p>
 						if !data.DraftingReady {
-							<p class="text-xs text-amber-700 dark:text-amber-300 mt-1">No LLM endpoint is configured. Set GOFER_LLM_BASE_URL and GOFER_LLM_MODEL, restart Gofer, then enable drafting.</p>
+							<p class="text-xs text-amber-800 dark:text-amber-300 mt-1">No LLM endpoint is configured. Set GOFER_LLM_BASE_URL and GOFER_LLM_MODEL, restart Gofer, then enable drafting.</p>
 						}
 					</div>
 					<div class="w-full sm:w-44 shrink-0">

@@ -159,6 +159,36 @@ Test rollback before a production release, on a copy of the data directory:
 
 An untested rollback is not a rollback. Store the test date and the archive name with the release record.
 
+### Recorded local drill — 2026-10-25
+
+A disposable Windows drill used two binaries from the same source tree. Version
+N reported schema 142; version N+1 was built with schema 143 and a trivial
+forward migration that created a marker table.
+
+1. Version N started on a fresh data directory. The synthetic fixture created
+   100 messages, 20 contacts, and 10 events.
+2. `gofer storage backup` produced a verified 1.77 MB archive containing six
+   files at schema 142.
+3. Version N+1 started against the same directory, migrated it to schema 143,
+   returned 200 from `/healthz` and `/readyz`, and retained all 100 messages,
+   20 contacts, and 10 events.
+4. Version N was then started against the migrated directory **without a
+   restore**. Before the fix below it started and served; that is the unsafe
+   downgrade this drill was meant to catch.
+5. After the guard was added, version N exited with:
+   `database schema version 143 was written by a newer Gofer release; this release supports 142`.
+6. The pre-upgrade archive was restored to a new directory in 36 ms. Version N
+   started, `/healthz` and `/readyz` returned 200, `PRAGMA integrity_check`
+   passed, and all 100 messages, 20 contacts, and 10 events were present.
+
+The drill found a real defect: `storage.New` treated any schema version greater
+than or equal to the supported version as "no migration needed". It now rejects
+a newer schema before writing, and `TestNewRejectsNewerSchema` covers it. The
+same message is used by the read-only and operator paths.
+
+This is a local same-host migration rollback drill, not a production upgrade
+or a Helm/Docker rollback. The production RTO is still unverified.
+
 ## Post-release checks
 
 - [ ] `gofer -version` reports the expected version.

@@ -47,7 +47,7 @@ func AISettingsTab(data AISettingsData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if !data.WorkerReady {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<p class=\"text-xs text-amber-700 dark:text-amber-300 mt-1\">The Jev worker is not configured on this server. Set GOFER_JEV_API_KEY, restart Gofer, then enable analysis.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<p class=\"text-xs text-amber-800 dark:text-amber-300 mt-1\">The Jev worker is not configured on this server. Set GOFER_JEV_API_KEY, restart Gofer, then enable analysis.</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -89,7 +89,7 @@ func AISettingsTab(data AISettingsData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if !data.DraftingReady {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<p class=\"text-xs text-amber-700 dark:text-amber-300 mt-1\">No LLM endpoint is configured. Set GOFER_LLM_BASE_URL and GOFER_LLM_MODEL, restart Gofer, then enable drafting.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<p class=\"text-xs text-amber-800 dark:text-amber-300 mt-1\">No LLM endpoint is configured. Set GOFER_LLM_BASE_URL and GOFER_LLM_MODEL, restart Gofer, then enable drafting.</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

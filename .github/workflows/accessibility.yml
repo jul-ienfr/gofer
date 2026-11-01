@@ -13,6 +13,9 @@ on:
       - "cmd/a11ycheck/**"
       - "scripts/a11y-browser.cjs"
       - "scripts/a11y-keyboard.cjs"
+      - "scripts/a11y-reflow.cjs"
+      - "scripts/a11y-motion.cjs"
+      - "scripts/a11y-themes.cjs"
       - ".github/workflows/accessibility.yml"
   workflow_dispatch:
 
@@ -56,7 +59,7 @@ jobs:
           GOFER_DB_PATH="$data_dir/gofer.db" \
           GOFER_ADDR=127.0.0.1:8090 \
             ./gofer >"$RUNNER_TEMP/gofer-a11y.log" 2>&1 &
-          for attempt in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8090/ >/dev/null; then
               exit 0
             fi
@@ -83,6 +86,20 @@ jobs:
           node scripts/a11y-browser.cjs --base http://127.0.0.1:8090 --viewport 390x844 "${args[@]}"
       - name: Keyboard and focus checks
         run: node scripts/a11y-keyboard.cjs
+        env:
+          GOFER_BASE_URL: http://127.0.0.1:8090
+      - name: Reflow and text spacing at 320 CSS pixels
+        run: |
+          node scripts/a11y-reflow.cjs
+          node scripts/a11y-reflow.cjs --text-spacing
+        env:
+          GOFER_BASE_URL: http://127.0.0.1:8090
+      - name: Reduced motion
+        run: node scripts/a11y-motion.cjs
+        env:
+          GOFER_BASE_URL: http://127.0.0.1:8090
+      - name: Theme contrast
+        run: node scripts/a11y-themes.cjs
         env:
           GOFER_BASE_URL: http://127.0.0.1:8090
       - name: Stop Gofer

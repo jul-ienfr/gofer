@@ -37,7 +37,7 @@
   --muted-foreground: #555555;
   --accent: #c8d5ec;
   --accent-foreground: #000000;
-  --destructive: #c00000;
+  --destructive: #a00000;
   --success: #2d7d2d;
   --border: #a0a0a0;
   --input: #808080;
@@ -668,6 +668,25 @@ html:root[data-theme="express"] :is(.account-wizard-card-footer, .account-wizard
   border-radius: 0;
   background: var(--card);
   box-shadow: inset 1px 1px 0 var(--xp-dark), inset -1px -1px 0 var(--xp-face);
+}
+
+[data-theme="express"].dark .text-primary {
+  color: #6b9bd1;
+}
+
+[data-theme="express"] input[type="checkbox"].size-6:not(.hidden, .sr-only, [role="switch"]) {
+  width: 1.5rem;
+  min-width: 1.5rem;
+  height: 1.5rem;
+}
+
+[data-theme="express"] input[type="checkbox"].size-6:not(.hidden, .sr-only, [role="switch"])::after {
+  top: 3px;
+  left: 3px;
+  width: 1rem;
+  height: 1rem;
+  -webkit-mask-size: 1rem 1rem;
+  mask-size: 1rem 1rem;
 }
 
 [data-theme="express"] input[type="checkbox"]:not(.hidden, .sr-only, [role="switch"]):is(:checked, :indeterminate) {

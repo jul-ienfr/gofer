@@ -119,6 +119,26 @@ func TestDraftClassifiesRetryableAPIErrors(t *testing.T) {
 	}
 }
 
+func TestDraftPropagatesProviderTimeout(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(150 * time.Millisecond)
+		_, _ = io.WriteString(w, `{"choices":[{"message":{"content":"`+validDraft+`"}}]}`)
+	}))
+	defer server.Close()
+	client, err := NewClient(Config{BaseURL: server.URL, Model: "test-model", Timeout: 25 * time.Millisecond})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = client.Draft(context.Background(), DraftInput{Instruction: "Reply", Thread: []ThreadMessage{{Body: "Hello"}}})
+	if err == nil {
+		t.Fatal("provider timeout was accepted")
+	}
+	var api *APIError
+	if errors.As(err, &api) {
+		t.Fatalf("timeout classified as provider API error: %v", err)
+	}
+}
+
 func TestNewClientRejectsUnsafeOrIncompleteConfiguration(t *testing.T) {
 	cases := []Config{
 		{BaseURL: "http://example.com/v1", Model: "m"},

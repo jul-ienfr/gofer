@@ -71,12 +71,57 @@ It sets `GOFER_BASE_URL` (default `http://127.0.0.1:8090`) and verifies:
 
 The accessibility workflow runs this after the axe passes.
 
-Last automated checks in this repository on 2026-10-25 used an open-mode, empty data set for settings and a seeded 10,000-message fixture for mail, contacts, and Calendar:
+### Reflow audit
+
+`scripts/a11y-reflow.cjs` loads the primary pages at a 320 CSS-pixel viewport and
+checks that the document does not require horizontal scrolling:
+
+```sh
+GOFER_BASE_URL=http://127.0.0.1:8090 node scripts/a11y-reflow.cjs
+```
+
+It covers `/`, `/contacts`, `/calendar`, `/settings`, and all 13 settings pages.
+Pass `--text-spacing` to inject the WCAG 1.4.12 spacing overrides (1.5 line
+height, 0.12em letter spacing, 0.16em word spacing, and 2em paragraph spacing)
+before checking for horizontal scrolling. The accessibility workflow runs both
+modes after the keyboard checks.
+
+### Reduced-motion audit
+
+`scripts/a11y-motion.cjs` loads the primary pages with
+`prefers-reduced-motion: reduce` and fails if a non-essential CSS animation is
+still running:
+
+```sh
+GOFER_BASE_URL=http://127.0.0.1:8090 node scripts/a11y-motion.cjs
+```
+
+Essential loading spinners are exempt. The audit found that the fade-in and
+pulse utilities ignored the preference; the stylesheet now disables them along
+with the slide utilities.
+
+### Theme audit
+
+`scripts/a11y-themes.cjs` runs axe on all 17 primary and settings pages in every
+shipped look (`classic`, `minimal`, `express`, `wolf`) and both color modes:
+
+```sh
+GOFER_BASE_URL=http://127.0.0.1:8090 node scripts/a11y-themes.cjs
+```
+
+The audit found and we fixed an undersized Express select-all checkbox, an
+Express dark link that used the button blue as text, and the Calendar "Today"
+badge that used the accent color as text on its own tint.
+
+The latest automated checks on 2026-11-01 used an open-mode, empty data set; an earlier seeded 10,000-message fixture covered mail, contacts, and Calendar:
 
 - Structural checker: zero violations for `/`, `/contacts`, `/calendar`, `/settings`, `/login`, and `/setup`.
 - Browser audit: zero violations for `/`, `/contacts`, `/calendar`, all 13 settings pages, and `/setup` at 1280×900 and 390×844, with light and dark color schemes.
 - Seeded browser audit: zero violations for `/`, `/contacts`, and `/calendar` at desktop and mobile after fixing month-event target size.
 - Keyboard audit: 10 checks pass on both the empty and seeded databases.
+- Reflow audit: 17 pages pass at 320 CSS pixels with no horizontal document scroll, including with WCAG 1.4.12 text-spacing overrides.
+- Reduced-motion audit: 7 pages pass with no non-essential animation running; fade-in, slide, and pulse utilities are disabled under the preference.
+- Theme audit: 136 checks pass (4 looks × 2 modes × 17 pages) with zero axe violations.
 - Opened dialogs: zero violations in Compose, Filters, New event, Add Account, the IMAP/SMTP account wizard, and Contact actions.
 - Password reveal controls expose `Show password` / `Hide password` and `aria-pressed`; verified in the IMAP account wizard.
 

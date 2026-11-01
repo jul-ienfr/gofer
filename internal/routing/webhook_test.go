@@ -99,6 +99,21 @@ func TestWebhookAllowsPrivateOnlyWithExplicitPermission(t *testing.T) {
 	}
 }
 
+func TestSendWebhookHonorsContextDeadline(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(150 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+	restore := netguard.UseTransportForTests(http.DefaultTransport)
+	defer restore()
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+	defer cancel()
+	if _, err := SendWebhook(ctx, WebhookRequest{URL: server.URL, Secret: "secret", Payload: []byte(`{}`), AllowPrivate: true}); err == nil {
+		t.Fatal("webhook deadline was ignored")
+	}
+}
+
 func TestVerifyWebhookSignatureRejectsTampering(t *testing.T) {
 	payload := []byte(`{"a":1}`)
 	timestamp := "2026-10-29T12:00:00Z"
