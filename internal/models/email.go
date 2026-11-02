@@ -15,6 +15,9 @@ type Account struct {
 	Initials            string
 	IsActive            bool
 	IsDeleting          bool
+	// Hidden is set when the user hid the account, which so far only Local
+	// folders can be: it leaves the sidebar and the places mail can go.
+	Hidden              bool
 	EmailSyncEnabled    bool
 	EmailSyncError      string
 	EmailSyncErrorAt    string
@@ -52,6 +55,9 @@ type Account struct {
 	// CalendarFullAccess is set for a Google account that allowed Gofer to
 	// manage all its calendars, not only the ones Gofer created.
 	CalendarFullAccess bool
+	// CalendarCreateNeedsReconnect is set for a Google or Microsoft account
+	// whose sign-in is from before Gofer asked to make calendars.
+	CalendarCreateNeedsReconnect bool
 }
 
 // AccountCalendarSource is sidebar metadata, not account sync configuration.
@@ -77,13 +83,19 @@ type AccountCalendarSource struct {
 }
 
 type Folder struct {
-	ID       string
-	Name     string
-	Icon     string
-	Role     string
-	Unread   int
-	IsSystem bool
-	Children []Folder
+	ID           string
+	Name         string
+	Icon         string
+	IconOverride string
+	IconStyle    string
+	Color        string
+	Role         string
+	Unread       int
+	IsSystem     bool
+	IsVirtual    bool
+	IsTag        bool
+	IsUnifiedTag bool
+	Children     []Folder
 }
 
 type Email struct {
@@ -285,6 +297,10 @@ type Label struct {
 	Color        string
 	ProviderID   string
 	ProviderType string
+	// Personal icon appearance is separate from the provider's badge classes in Color.
+	AppearanceColor string
+	IconStyle       string
+	IsUnified       bool
 }
 
 type Attachment struct {

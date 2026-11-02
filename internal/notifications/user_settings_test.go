@@ -118,7 +118,9 @@ func TestUserSettingsSecurityKeepsCentralAuthentication(t *testing.T) {
 		}
 		response := f.request(owner, "GET", "/settings/security", "")
 		body := response.Body.String()
-		if response.Code != 200 || !strings.Contains(body, `data-theme="minimal"`) || strings.Contains(body, `data-theme="classic"`) || response.Header().Get("Cache-Control") != "no-store" {
+		htmlStart := strings.Index(body, "<html")
+		htmlTag := body[htmlStart : htmlStart+strings.Index(body[htmlStart:], ">")+1]
+		if response.Code != 200 || !strings.Contains(htmlTag, `data-theme="minimal"`) || strings.Contains(htmlTag, `data-theme="classic"`) || response.Header().Get("Cache-Control") != "no-store" {
 			t.Fatal("security preferences not owned", owner, response.Code)
 		}
 		if strings.Contains(body, `action="/settings/security/password"`) != (owner == "alice") {

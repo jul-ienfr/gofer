@@ -5,9 +5,9 @@ import (
 	"database/sql"
 )
 
-// migrateV143ToV144 records which calendars were created from Gofer: Google
+// migrateV132ToV133 records which calendars were created from Gofer: Google
 // lets Gofer rename and delete those without full calendar access.
-func migrateV143ToV144(db *sql.DB) error {
+func migrateV132ToV133(db *sql.DB) error {
 	tx, err := db.Begin()
 	if err != nil {
 		return err
@@ -17,7 +17,7 @@ func migrateV143ToV144(db *sql.DB) error {
 	if err := tx.QueryRow(`SELECT COALESCE(MAX(version),0) FROM schema_version`).Scan(&version); err != nil {
 		return err
 	}
-	if version >= 144 {
+	if version >= 133 {
 		return nil
 	}
 	exists, err := tableExistsTx(tx, "calendar_sources")
@@ -35,7 +35,7 @@ func migrateV143ToV144(db *sql.DB) error {
 			}
 		}
 	}
-	if err := markSchemaVersion(tx, 144); err != nil {
+	if err := markSchemaVersion(tx, 133); err != nil {
 		return err
 	}
 	return tx.Commit()

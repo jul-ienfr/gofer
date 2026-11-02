@@ -44,6 +44,7 @@ templ SettingsPage(accounts []models.Account, syncSettings models.SyncSettings, 
 					@SettingsContactsTab(accounts, uiSettings)
 				} else if activeTab == "appearance" {
 					@SettingsAppearanceTab(uiSettings)
+					@TagAppearanceSettings(accounts, uiSettings)
 				} else if activeTab == "regional" {
 					@SettingsRegionalTab(uiSettings)
 				} else if activeTab == "compose-display" {
@@ -585,15 +586,34 @@ templ SettingsAppearanceTab(uiSettings map[string]string) {
 					<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">Pane layout</h3>
 					<p class="text-xs text-muted-foreground">Choose whether each list and its detail pane sit beside each other or stack vertically. Small screens always show one pane at a time.</p>
 				</div>
-				@paneLayoutSettingRow("mail_pane_layout", "Email", "The message list and the reading pane.", PaneLayout(uiSettings, "mail"))
+				@paneLayoutSettingRow("mail_pane_layout", "Email", "The message list and the reading pane.", PaneLayout(uiSettings, "mail")) {
+					@mailSingleClickOpenSetting(uiSettings)
+				}
 				@paneLayoutSettingRow("contacts_pane_layout", "Contacts", "The contact list and the contact details.", PaneLayout(uiSettings, "contacts"))
 				@paneLayoutSettingRow("calendar_pane_layout", "Calendar", "The calendar grid and the agenda.", PaneLayout(uiSettings, "calendar"))
 			</div>
 		</div>
 }
 
+templ mailSingleClickOpenSetting(uiSettings map[string]string) {
+	<div class="mt-4 flex items-start justify-between gap-6 data-[disabled]:opacity-50" data-mail-single-click-open-row data-disabled?={ PaneLayout(uiSettings, "mail") != "list" }>
+		<div class="min-w-0">
+			<span id="mail-single-click-open-label" class="text-sm font-medium text-foreground">Open email with a single click</span>
+			<p class="text-xs text-muted-foreground mt-1 leading-relaxed">Single click instead of double. Ctrl, Shift and long press still select.<br/>Only available with No reading pane.</p>
+		</div>
+		@switchcomp.Switch(switchcomp.Props{
+			ID:         "mail-single-click-open",
+			Name:       "mail_single_click_open",
+			Checked:    uiSettingGet(uiSettings, "mail_single_click_open", "false") == "true",
+			Disabled:   PaneLayout(uiSettings, "mail") != "list",
+			Attributes: templ.Attributes{"aria-labelledby": "mail-single-click-open-label", "data-ui-setting-switch": "mail_single_click_open"},
+		})
+	</div>
+}
+
 templ paneLayoutSettingRow(name string, title string, description string, layout string) {
-	<div class="settings-row border-t border-border/60 pt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+	<div class="settings-row border-t border-border/60 pt-5">
+	<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 		<div class="min-w-0">
 			<h4 class="text-sm font-medium text-foreground">{ title }</h4>
 			<p class="text-xs text-muted-foreground mt-1">{ description }</p>
@@ -614,6 +634,8 @@ templ paneLayoutSettingRow(name string, title string, description string, layout
 				}
 			}
 		</div>
+	</div>
+	{ children... }
 	</div>
 }
 
@@ -683,9 +705,9 @@ templ SettingsAdvancedTab(uiSettings map[string]string) {
 							Attributes: templ.Attributes{"aria-labelledby": "desktop-notifications-label", "data-ui-setting-switch": "desktop_notifications", "data-desktop-notifications-switch": ""},
 						})
 					}
-					<div data-setting-depends-on="desktop-notifications" class={ "transition-opacity", templ.KV("opacity-50", uiSettingGet(uiSettings, "desktop_notifications", "false") != "true") }>
+					<div>
 						@selectbox.SelectBox(selectbox.Props{Class: "settings-select"}) {
-							@selectbox.Trigger(selectbox.TriggerProps{Name: "notification_mode", Class: "bg-background", DisableClear: true, Disabled: uiSettingGet(uiSettings, "desktop_notifications", "false") != "true"}) {
+							@selectbox.Trigger(selectbox.TriggerProps{Name: "notification_mode", Class: "bg-background", DisableClear: true}) {
 								@selectbox.Value(selectbox.ValueProps{Placeholder: "Auto"}) {
 									{ notificationModeSettingLabel(uiSettingGet(uiSettings, "notification_mode", "auto")) }
 								}
@@ -702,6 +724,75 @@ templ SettingsAdvancedTab(uiSettings map[string]string) {
 						@icon.BellRing(icon.Props{Class: "size-3.5"})
 						Send test
 					</button>
+				</div>
+			</div>
+
+			<div class="settings-row border-t border-border/60 pt-5 space-y-4" data-notification-appearance>
+				<div>
+					<h4 class="text-sm font-medium text-foreground">Mail notification appearance</h4>
+					<p class="text-xs text-muted-foreground mt-1 leading-relaxed">Choose what new-mail notifications show. Your desktop controls their final appearance.</p>
+				</div>
+				<div class="grid gap-4 sm:grid-cols-3">
+					<div class="min-w-0 space-y-2">
+						<span id="notification_title-label" class="text-xs font-medium text-foreground">Title</span>
+						@selectbox.SelectBox(selectbox.Props{Class: "settings-select"}) {
+							@selectbox.Trigger(selectbox.TriggerProps{Name: "notification_title", Class: "bg-background", DisableClear: true, Required: true, Attributes: templ.Attributes{"aria-labelledby": "notification_title-label"}}) {
+								@selectbox.Value(selectbox.ValueProps{}) {
+									{ notificationAppearanceLabel("title", uiSettingGet(uiSettings, "notification_title", "auto")) }
+								}
+							}
+							@selectbox.Content(selectbox.ContentProps{NoSearch: true, Class: "mobile-sheet"}) {
+								@selectbox.Item(selectbox.ItemProps{Value: "auto", Selected: uiSettingGet(uiSettings, "notification_title", "auto") == "auto"}) { Sender or message count }
+								@selectbox.Item(selectbox.ItemProps{Value: "sender", Selected: uiSettingGet(uiSettings, "notification_title", "auto") == "sender"}) { Sender }
+								@selectbox.Item(selectbox.ItemProps{Value: "gofer", Selected: uiSettingGet(uiSettings, "notification_title", "auto") == "gofer"}) { Gofer }
+								@selectbox.Item(selectbox.ItemProps{Value: "count", Selected: uiSettingGet(uiSettings, "notification_title", "auto") == "count"}) { Message count }
+							}
+						}
+					</div>
+					<div class="min-w-0 space-y-2">
+						<span id="notification_content-label" class="text-xs font-medium text-foreground">Content</span>
+						@selectbox.SelectBox(selectbox.Props{Class: "settings-select"}) {
+							@selectbox.Trigger(selectbox.TriggerProps{Name: "notification_content", Class: "bg-background", DisableClear: true, Required: true, Attributes: templ.Attributes{"aria-labelledby": "notification_content-label"}}) {
+								@selectbox.Value(selectbox.ValueProps{}) {
+									{ notificationAppearanceLabel("content", uiSettingGet(uiSettings, "notification_content", "subject")) }
+								}
+							}
+							@selectbox.Content(selectbox.ContentProps{NoSearch: true, Class: "mobile-sheet"}) {
+								@selectbox.Item(selectbox.ItemProps{Value: "subject", Selected: uiSettingGet(uiSettings, "notification_content", "subject") == "subject"}) { Subject }
+								@selectbox.Item(selectbox.ItemProps{Value: "preview", Selected: uiSettingGet(uiSettings, "notification_content", "subject") == "preview"}) { Subject and preview }
+								@selectbox.Item(selectbox.ItemProps{Value: "hidden", Selected: uiSettingGet(uiSettings, "notification_content", "subject") == "hidden"}) { Hidden }
+							}
+						}
+					</div>
+					<div class="min-w-0 space-y-2">
+						<span id="notification_icon-label" class="text-xs font-medium text-foreground">Icon</span>
+						@selectbox.SelectBox(selectbox.Props{Class: "settings-select"}) {
+							@selectbox.Trigger(selectbox.TriggerProps{Name: "notification_icon", Class: "bg-background", DisableClear: true, Required: true, Attributes: templ.Attributes{"aria-labelledby": "notification_icon-label"}}) {
+								@selectbox.Value(selectbox.ValueProps{}) {
+									{ notificationAppearanceLabel("icon", uiSettingGet(uiSettings, "notification_icon", "avatar")) }
+								}
+							}
+							@selectbox.Content(selectbox.ContentProps{NoSearch: true, Class: "mobile-sheet"}) {
+								@selectbox.Item(selectbox.ItemProps{Value: "avatar", Selected: uiSettingGet(uiSettings, "notification_icon", "avatar") == "avatar"}) { Sender avatar }
+								@selectbox.Item(selectbox.ItemProps{Value: "gofer", Selected: uiSettingGet(uiSettings, "notification_icon", "avatar") == "gofer"}) { Gofer logo }
+							}
+						}
+					</div>
+
+				</div>
+				<div>
+					<p class="text-xs text-muted-foreground mb-2">Example notification</p>
+					<div class="flex items-start gap-3 rounded-md border border-border bg-background p-4" aria-live="polite">
+						<img src="/assets/logo.png" alt="" class="size-10 shrink-0 rounded-md" data-notification-preview-logo/>
+						<div class="shrink-0" data-notification-preview-avatar hidden>
+							@ContactAvatar(models.Contact{Name: "Alex Smith", Initials: "AS", AvatarURL: "/assets/notification-avatar.png"}, "size-10 rounded-full bg-white ring-1 ring-ink/10 shadow-[0_2px_6px_rgba(0,0,0,0.2)] [&_img]:object-top [&_img]:translate-y-1 [&_img]:scale-[0.85]", "bg-muted text-foreground")
+						</div>
+						<div class="min-w-0">
+							<p class="text-sm font-medium text-foreground" data-notification-preview-title>Alex Smith</p>
+							<p class="text-xs text-muted-foreground whitespace-pre-line break-words mt-1" data-notification-preview-body>Tomorrow's meeting</p>
+						</div>
+					</div>
+					<p class="text-xs text-muted-foreground mt-2">Sample avatar: <a href="https://github.com/golang-samples/gopher-vector" target="_blank" rel="noopener noreferrer" class="underline underline-offset-2">Go gopher by Takuya Ueda, based on Renee French’s design</a> · <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener noreferrer" class="underline underline-offset-2">CC BY 3.0</a>.</p>
 				</div>
 			</div>
 			<div class="settings-row border-t border-border/60 pt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
@@ -1048,12 +1139,19 @@ templ SettingsAccountsTab(accounts []models.Account) {
 			</div>
 			@SettingsAddAccountButton()
 		</div>
-		if len(accounts) == 0 {
+		if len(connectedAccounts(accounts)) == 0 {
 			@SettingsNoAccounts()
-		} else {
+		}
+		if len(accounts) > 0 {
 			<div class="space-y-3" data-account-order-list>
 				for _, a := range accounts {
-					@SettingsAccountCard(a)
+					if accountIsLocalFolders(a) {
+						if !a.IsDeleting {
+							@SettingsLocalFoldersCard(a)
+						}
+					} else {
+						@SettingsAccountCard(a)
+					}
 				}
 			</div>
 		}
@@ -1198,7 +1296,7 @@ templ SettingsSyncTab(settings models.SyncSettings, uiSettings map[string]string
 				}
 				</form>
 		}
-		@tabs.Content(tabs.ContentProps{Value: "unified"}) {
+		@tabs.Content(tabs.ContentProps{Value: "unified", Class: "space-y-5"}) {
 			<div class="settings-card bg-card rounded-lg border p-6 space-y-5">
 				<div>
 					<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">Unified folders</h3>
@@ -1224,10 +1322,11 @@ templ SettingsSyncTab(settings models.SyncSettings, uiSettings map[string]string
 				</div>
 				<div class="settings-item overflow-hidden rounded-lg border border-border/60 bg-background/40" data-unified-folder-list>
 					for _, folder := range unifiedFolderOptions() {
-						@UnifiedFolderSettingRow(folder, settings.Accounts, uiSettings)
+						@UnifiedFolderSettingRow(folder, settings.UnifiedAccounts, uiSettings)
 					}
 				</div>
 			</div>
+			@ScheduledViewAppearanceSetting(uiSettings)
 		}
 	}
 	<style>
@@ -1257,13 +1356,14 @@ templ UnifiedFolderSettingRow(folder unifiedFolderOption, accounts []models.Acco
 	>
 		<div class="flex min-w-0 items-center gap-3">
 			<span class="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground">
-				@SidebarFolderIcon(folder.Icon)
+				@FolderAppearanceIcon(virtualFolderAppearance(folder.ID, uiSettings))
 			</span>
 			<div class="min-w-0">
 				<span id={ "unified-folder-" + folder.ID + "-label" } class="text-sm font-medium text-foreground">{ folder.Name }</span>
 			</div>
 		</div>
 		<div class="flex shrink-0 items-center gap-2">
+			@VirtualFolderAppearanceButton(folder.ID, folder.Name)
 			@UnifiedFolderAccountPopover(folder, accounts, uiSettings, masterEnabled)
 			@switchcomp.Switch(switchcomp.Props{
 				ID:       "unified-folder-" + folder.ID,
@@ -6133,4 +6233,26 @@ templ SettingsOperationsContent(status models.MailOperationsStatus) {
 			</div>
 		}
 	</div>
+}
+
+func notificationAppearanceLabel(field, value string) string {
+	switch field {
+	case "title":
+		switch value {
+		case "sender": return "Sender"
+		case "gofer": return "Gofer"
+		case "count": return "Message count"
+		default: return "Sender or message count"
+		}
+	case "content":
+		switch value {
+		case "preview": return "Subject and preview"
+		case "hidden": return "Hidden"
+		default: return "Subject"
+		}
+	case "icon":
+		if value == "gofer" { return "Gofer logo" }
+		return "Sender avatar"
+	}
+	return ""
 }

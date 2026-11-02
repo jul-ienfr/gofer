@@ -82,6 +82,7 @@
   --shadow-emboss: none;
   --shadow-inset: none;
   --shadow-paper: none;
+  --mail-header-shade: none;
   --shadow-button: none;
   --shadow-button-pressed: none;
 }
@@ -1121,6 +1122,31 @@ html:root[data-theme="express"] :is(.account-wizard-card-footer, .account-wizard
 
 [data-theme="express"] :is([data-mail-advanced-filter-clear], [data-mail-filters-close]):active {
   box-shadow: var(--xp-bevel-pressed);
+}
+
+/* The reader's back-to-the-top button is a raised face like the other
+   buttons, with the Tango arrow. */
+[data-theme="express"] .mail-view-scroll-top-button {
+  border: none;
+  border-radius: 0;
+  background: var(--xp-face);
+  color: var(--foreground);
+  box-shadow: var(--xp-bevel-out);
+  transition: opacity 150ms ease-out, transform 150ms ease-out;
+}
+
+[data-theme="express"] .mail-view-scroll-top-button:hover {
+  background: color-mix(in srgb, var(--xp-face) 92%, var(--xp-light));
+  color: var(--foreground);
+}
+
+[data-theme="express"] .mail-view-scroll-top-button:active {
+  box-shadow: var(--xp-bevel-pressed);
+}
+
+[data-theme="express"] .mail-view-scroll-top-button svg[data-lucide="arrow-up"] {
+  --xp-icon: image-set(url("/assets/icons/express/go-up-16.png") 1x, url("/assets/icons/express/go-up-32.png") 2x);
+  --xp-icon-paths: hidden;
 }
 
 /* === ICONS === */
@@ -2714,4 +2740,39 @@ html:root[data-theme="express"] :is([data-calendar-month-event], [data-calendar-
 
 [data-theme="express"] [data-mail-label-option] {
   border-radius: 0;
+}
+
+/* Folder appearance is unavailable until it can preserve Express artwork. */
+[data-theme="express"] [data-sidebar-context-action="folder-appearance"],
+[data-theme="express"] [data-folder-action="folder-appearance"] {
+  display: none !important;
+}
+
+[data-theme="express"] [data-folder-appearance-icon] {
+  color: inherit !important;
+}
+
+[data-theme="express"] [data-folder-custom-icon] {
+  display: none;
+}
+
+[data-theme="express"] [data-folder-customized] > [data-folder-default-icon] {
+  display: inline-flex;
+}
+
+/* Express keeps the original artwork when another theme selected Filled. */
+[data-theme="express"] [data-folder-appearance-icon][data-folder-icon-style] [data-folder-symbol-outline] {
+  display: inline-flex;
+}
+
+[data-theme="express"] [data-folder-appearance-icon][data-folder-icon-style] [data-folder-symbol-filled] {
+  display: none;
+}
+
+[data-theme="express"] [data-virtual-view-appearance-setting] {
+  display: none;
+}
+
+[data-theme="express"] [data-tag-appearance-settings] {
+  display: none;
 }

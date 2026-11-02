@@ -187,6 +187,7 @@ func (db *DB) unifiedFolderAccountFilter(ctx context.Context, userID, folderID, 
 	rows, err := db.Read().QueryContext(ctx,
 		`SELECT id FROM accounts
 		 WHERE user_id = ? AND COALESCE(is_deleting, 0) = 0 AND COALESCE(email_sync_enabled, 1) = 1
+		   AND COALESCE(hidden, 0) = 0
 		 ORDER BY id`, userID)
 	if err != nil {
 		return "", nil, err
@@ -4326,7 +4327,7 @@ func (db *DB) IsAccountOwnedByPendingUserDeletion(ctx context.Context, accountID
 }
 
 func (db *DB) GetEmailSyncAccountIDs(ctx context.Context, userID string) ([]string, error) {
-	rows, err := db.Read().QueryContext(ctx, `SELECT id FROM accounts WHERE user_id = ? AND COALESCE(is_deleting, 0) = 0 AND COALESCE(email_sync_enabled, 1) = 1 ORDER BY id`, userID)
+	rows, err := db.Read().QueryContext(ctx, `SELECT id FROM accounts WHERE user_id = ? AND COALESCE(is_deleting, 0) = 0 AND COALESCE(email_sync_enabled, 1) = 1 AND provider != 'local' ORDER BY id`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -4367,7 +4368,7 @@ func (db *DB) GetAllEmailSyncAccountIDs(ctx context.Context) ([]string, error) {
 	rows, err := db.Read().QueryContext(ctx, `
 		SELECT a.id FROM accounts a JOIN users u ON u.id = a.user_id
 		WHERE COALESCE(a.is_deleting, 0) = 0 AND COALESCE(a.email_sync_enabled, 1) = 1
-		  AND u.status = 'active' ORDER BY a.id`)
+		  AND a.provider != 'local' AND u.status = 'active' ORDER BY a.id`)
 	if err != nil {
 		return nil, err
 	}
@@ -4389,7 +4390,7 @@ func (db *DB) IsEmailSyncEnabled(ctx context.Context, accountID string) bool {
 	err := db.Read().QueryRowContext(ctx, `
 		SELECT COALESCE(a.email_sync_enabled, 1)
 		FROM accounts a JOIN users u ON u.id = a.user_id
-		WHERE a.id = ? AND COALESCE(a.is_deleting, 0) = 0 AND u.status = 'active'`, accountID).Scan(&enabled)
+		WHERE a.id = ? AND COALESCE(a.is_deleting, 0) = 0 AND a.provider != 'local' AND u.status = 'active'`, accountID).Scan(&enabled)
 	return err == nil && enabled == 1
 }
 
@@ -4876,7 +4877,7 @@ const DAVAccountColumns = `CASE WHEN a.provider != 'dav' THEN ''
 func (db *DB) GetAccounts(ctx context.Context, userID string) ([]models.Account, error) {
 	rows, err := db.Read().QueryContext(ctx,
 		`SELECT a.id, a.provider, a.email_address, a.display_name, a.color, a.initials, COALESCE(a.is_deleting, 0), COALESCE(a.email_sync_enabled, 1),
-		        COALESCE(a.email_sync_error, ''), COALESCE(a.email_sync_error_at, ''),
+		        COALESCE(a.email_sync_error, ''), COALESCE(a.email_sync_error_at, ''), COALESCE(a.hidden, 0),
 		        CASE WHEN a.provider IN ('gmail', 'outlook') THEN COALESCE(acc.enabled, 1) ELSE COALESCE(acc.enabled, 0) END AS contact_sync_enabled,
 		        CASE WHEN a.provider IN ('gmail', 'outlook') THEN a.provider ELSE COALESCE(acc.provider, '') END AS contact_sync_provider,
 		        CASE WHEN EXISTS (
@@ -4900,7 +4901,7 @@ func (db *DB) GetAccounts(ctx context.Context, userID string) ([]models.Account,
 		var a models.Account
 		var isDeleting, emailSyncEnabled, contactSyncEnabled, calendarSyncEnabled int
 		var imapHost, authMethod, smtpHost string
-		if err := rows.Scan(&a.ID, &a.Provider, &a.Email, &a.Name, &a.Color, &a.Initials, &isDeleting, &emailSyncEnabled, &a.EmailSyncError, &a.EmailSyncErrorAt, &contactSyncEnabled, &a.ContactSyncProvider, &calendarSyncEnabled, &imapHost, &authMethod, &smtpHost, &a.DAVService, &a.DAVLogin, &a.DAVServer); err != nil {
+		if err := rows.Scan(&a.ID, &a.Provider, &a.Email, &a.Name, &a.Color, &a.Initials, &isDeleting, &emailSyncEnabled, &a.EmailSyncError, &a.EmailSyncErrorAt, &a.Hidden, &contactSyncEnabled, &a.ContactSyncProvider, &calendarSyncEnabled, &imapHost, &authMethod, &smtpHost, &a.DAVService, &a.DAVLogin, &a.DAVServer); err != nil {
 			return nil, fmt.Errorf("scan account: %w", err)
 		}
 		if providers.IsICloudAccount(a.Provider, authMethod, imapHost) {
@@ -4950,7 +4951,7 @@ func (db *DB) GetAccounts(ctx context.Context, userID string) ([]models.Account,
 func (db *DB) GetAccountsIncludingDeleting(ctx context.Context, userID string) ([]models.Account, error) {
 	rows, err := db.Read().QueryContext(ctx,
 		`SELECT a.id, a.provider, a.email_address, a.display_name, a.color, a.initials, COALESCE(a.is_deleting, 0), COALESCE(a.email_sync_enabled, 1),
-		        COALESCE(a.email_sync_error, ''), COALESCE(a.email_sync_error_at, ''),
+		        COALESCE(a.email_sync_error, ''), COALESCE(a.email_sync_error_at, ''), COALESCE(a.hidden, 0),
 		        CASE WHEN a.provider IN ('gmail', 'outlook') THEN COALESCE(acc.enabled, 1) ELSE COALESCE(acc.enabled, 0) END AS contact_sync_enabled,
 		        CASE WHEN a.provider IN ('gmail', 'outlook') THEN a.provider ELSE COALESCE(acc.provider, '') END AS contact_sync_provider,
 		        CASE WHEN EXISTS (
@@ -4974,7 +4975,7 @@ func (db *DB) GetAccountsIncludingDeleting(ctx context.Context, userID string) (
 		var a models.Account
 		var isDeleting, emailSyncEnabled, contactSyncEnabled, calendarSyncEnabled int
 		var imapHost, authMethod string
-		if err := rows.Scan(&a.ID, &a.Provider, &a.Email, &a.Name, &a.Color, &a.Initials, &isDeleting, &emailSyncEnabled, &a.EmailSyncError, &a.EmailSyncErrorAt, &contactSyncEnabled, &a.ContactSyncProvider, &calendarSyncEnabled, &imapHost, &authMethod, &a.DAVService, &a.DAVLogin, &a.DAVServer); err != nil {
+		if err := rows.Scan(&a.ID, &a.Provider, &a.Email, &a.Name, &a.Color, &a.Initials, &isDeleting, &emailSyncEnabled, &a.EmailSyncError, &a.EmailSyncErrorAt, &a.Hidden, &contactSyncEnabled, &a.ContactSyncProvider, &calendarSyncEnabled, &imapHost, &authMethod, &a.DAVService, &a.DAVLogin, &a.DAVServer); err != nil {
 			return nil, fmt.Errorf("scan account: %w", err)
 		}
 		if providers.IsICloudAccount(a.Provider, authMethod, imapHost) {
@@ -5017,20 +5018,13 @@ func (db *DB) attachAccountLabels(ctx context.Context, userID string, accounts [
 		return nil
 	}
 	rows, err := db.Read().QueryContext(ctx, `
-		SELECT l.id, l.account_id, l.name, l.color, l.provider_id, l.provider_type
+		SELECT l.id, l.account_id, l.name, l.color, l.provider_id, l.provider_type, COALESCE(tag_color.value, ''), COALESCE(tag_style.value, '')
 		FROM labels l
 		JOIN accounts a ON a.id = l.account_id
+		LEFT JOIN app_settings tag_color ON tag_color.user_id=a.user_id AND tag_color.key='tag_color:' || l.id
+		LEFT JOIN app_settings tag_style ON tag_style.user_id=a.user_id AND tag_style.key='tag_style:' || l.id
 		WHERE a.user_id = ?
-		  AND COALESCE(a.is_deleting, 0) = 0
-		  AND COALESCE(l.is_system, 0) = 0
-		  AND trim(l.name) != ''
-		  AND NOT (
-		    l.provider_type = 'imap_keyword'
-		    AND (
-		      lower(trim(l.name)) IN ('junk', 'notjunk', 'nonjunk', 'non-junk', '$junk', '$notjunk', '$nonjunk')
-		      OR lower(trim(l.provider_id)) IN ('junk', 'notjunk', 'nonjunk', 'non-junk', '$junk', '$notjunk', '$nonjunk')
-		    )
-		  )
+		  AND `+tagVisibilitySQL+`
 		ORDER BY l.account_id, l.name COLLATE NOCASE`, userID)
 	if err != nil {
 		return fmt.Errorf("query account labels: %w", err)
@@ -5041,7 +5035,7 @@ func (db *DB) attachAccountLabels(ctx context.Context, userID string, accounts [
 	seen := make(map[string]bool)
 	for rows.Next() {
 		var label models.Label
-		if err := rows.Scan(&label.ID, &label.AccountID, &label.Name, &label.Color, &label.ProviderID, &label.ProviderType); err != nil {
+		if err := rows.Scan(&label.ID, &label.AccountID, &label.Name, &label.Color, &label.ProviderID, &label.ProviderType, &label.AppearanceColor, &label.IconStyle); err != nil {
 			return fmt.Errorf("scan account label: %w", err)
 		}
 		key := label.AccountID + "\x00" + strings.ToLower(strings.TrimSpace(label.Name))
@@ -5116,9 +5110,12 @@ func calendarTimestamp(at *time.Time) string {
 
 func (db *DB) getFolders(ctx context.Context, accountID string) ([]models.Folder, error) {
 	rows, err := db.Read().QueryContext(ctx,
-		`SELECT f.id, f.name, f.icon, f.role, f.unread_count, f.parent_id
+		`SELECT f.id, f.name, f.icon, f.role, f.unread_count, f.parent_id, COALESCE(appearance.value, ''), COALESCE(icon_appearance.value, ''), COALESCE(style_appearance.value, '')
 		 FROM folders f
 		 JOIN accounts a ON a.id = f.account_id
+		 LEFT JOIN app_settings appearance ON appearance.user_id = a.user_id AND appearance.key = 'folder_color:' || f.id
+		 LEFT JOIN app_settings icon_appearance ON icon_appearance.user_id = a.user_id AND icon_appearance.key = 'folder_icon:' || f.id
+		 LEFT JOIN app_settings style_appearance ON style_appearance.user_id = a.user_id AND style_appearance.key = 'folder_icon_style:' || f.id
 		 WHERE f.account_id = ?
 		   AND COALESCE(f.discovery_state, 'active') = 'active'
 		   AND COALESCE(f.selectable, 1) = 1
@@ -5137,7 +5134,7 @@ func (db *DB) getFolders(ctx context.Context, accountID string) ([]models.Folder
 	for rows.Next() {
 		var fr folderRow
 		var role string
-		if err := rows.Scan(&fr.folder.ID, &fr.folder.Name, &fr.folder.Icon, &role, &fr.folder.Unread, &fr.parentID); err != nil {
+		if err := rows.Scan(&fr.folder.ID, &fr.folder.Name, &fr.folder.Icon, &role, &fr.folder.Unread, &fr.parentID, &fr.folder.Color, &fr.folder.IconOverride, &fr.folder.IconStyle); err != nil {
 			return nil, fmt.Errorf("scan folder: %w", err)
 		}
 		fr.folder.Role = role
@@ -8359,6 +8356,13 @@ func normalizeIdleFolderEntriesAll(perAccount map[string][]string) map[string][]
 }
 
 func (db *DB) GetUISettings(ctx context.Context, userID string) map[string]string {
+	settings := db.getStoredUISettings(ctx, userID)
+	db.addVirtualFolderAppearances(ctx, userID, settings)
+	db.addUnifiedTagAppearances(ctx, userID, settings)
+	return settings
+}
+
+func (db *DB) getStoredUISettings(ctx context.Context, userID string) map[string]string {
 	val, err := db.GetSetting(ctx, userID, "ui_settings")
 	if err != nil || val == "" {
 		return defaultUISettings()
@@ -8754,6 +8758,7 @@ func defaultUISettings() map[string]string {
 		"mail_pane_layout":                  "side",
 		"contacts_pane_layout":              "side",
 		"calendar_pane_layout":              "side",
+		"mail_single_click_open":            "false",
 		"calendar_view":                     "month",
 		"mail_list_width":                   "50%",
 		"mail_list_height":                  "360",
@@ -8779,6 +8784,9 @@ func defaultUISettings() map[string]string {
 		"translation_target_language":       "en",
 		"desktop_notifications":             "false",
 		"notification_mode":                 "auto",
+		"notification_title":                "auto",
+		"notification_content":              "subject",
+		"notification_icon":                 "avatar",
 		"mail_card_fields":                  "avatar,thread,from,account,to,attachment,date,subject,preview,labels,starred",
 		"mail_card_layout":                  "railTop:avatar|header:account,from,date|meta:attachment|railMiddle:|body:to|bodyBottom:subject|status:|railBottom:thread|footer:preview,labels|corner:starred|hidden:accountMarker,unread,cc",
 		"mail_card_date_time":               "false",

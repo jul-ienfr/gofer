@@ -57,7 +57,7 @@ type ThreadingState struct {
 	Total      int  `json:"total"`
 }
 
-const CurrentSchemaVersion = 144
+const CurrentSchemaVersion = 145
 
 func New(dbPath string) (*DB, error) {
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
@@ -322,11 +322,8 @@ func (db *DB) migrate() error {
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("commit migration: %w", err)
 		}
-		if err := applyAIMigrations(db.write, 132); err != nil {
+		if err := applyAIMigrations(db.write, 135); err != nil {
 			return fmt.Errorf("apply AI migrations: %w", err)
-		}
-		if err := migrateV143ToV144(db.write); err != nil {
-			return fmt.Errorf("migrate v143 to v144: %w", err)
 		}
 		log.Printf("schema initialized at version %d", targetSchemaVersion)
 		return nil
@@ -1127,13 +1124,23 @@ func (db *DB) migrate() error {
 			return fmt.Errorf("migrate v131 to v132: %w", err)
 		}
 	}
+	if currentVersion <= 132 {
+		if err := migrateV132ToV133(db.write); err != nil {
+			return fmt.Errorf("migrate v132 to v133: %w", err)
+		}
+	}
+	if currentVersion <= 133 {
+		if err := migrateV133ToV134(db.write); err != nil {
+			return fmt.Errorf("migrate v133 to v134: %w", err)
+		}
+	}
+	if currentVersion <= 134 {
+		if err := migrateV134ToV135(db.write); err != nil {
+			return fmt.Errorf("migrate v134 to v135: %w", err)
+		}
+	}
 	if err := applyAIMigrations(db.write, currentVersion); err != nil {
 		return fmt.Errorf("apply AI migrations: %w", err)
-	}
-	if currentVersion <= 143 {
-		if err := migrateV143ToV144(db.write); err != nil {
-			return fmt.Errorf("migrate v143 to v144: %w", err)
-		}
 	}
 
 	if _, err := db.write.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {

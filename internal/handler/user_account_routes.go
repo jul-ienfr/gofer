@@ -92,6 +92,9 @@ func (h *Handler) handleUserSyncSettingsView(w http.ResponseWriter, r *http.Requ
 		signatures := local.buildAccountSignatureData(ctx, accounts)
 		aiSettings := local.aiSettingsData(ctx, userID)
 		if r.Header.Get("HX-Request") == "true" {
+			if r.Header.Get("HX-Target") == "settings-content" {
+				return views.SettingsPage(display, syncSettings, tab, settings, signatures, aiSettings), nil
+			}
 			return views.SettingsPartial(display, syncSettings, tab, settings, signatures, aiSettings), nil
 		}
 		return views.SettingsLayout(display, syncSettings, tab, settings, signatures, aiSettings), nil
@@ -287,6 +290,23 @@ func (h *Handler) handleUserDeleteAccount(w http.ResponseWriter, r *http.Request
 	if state == storage.AccountDeleted {
 		accepted()
 		return
+	}
+	// An account already being deleted is not Local folders, so a retried
+	// deletion skips the check.
+	if state == storage.AccountActive {
+		var provider string
+		if err := h.userAccounts.WithAccountForUser(r.Context(), owner, id, func(_ *config.AccountStore, db *storage.DB) error {
+			var err error
+			provider, err = db.GetAccountProvider(r.Context(), id)
+			return err
+		}); err != nil {
+			userAccountError(w, r, err)
+			return
+		}
+		if provider == providers.ProviderLocal {
+			http.Error(w, localFoldersNoDelete, http.StatusConflict)
+			return
+		}
 	}
 	h.accountDeleteMu.Lock()
 	if running := h.userDeletions[id]; running != nil {

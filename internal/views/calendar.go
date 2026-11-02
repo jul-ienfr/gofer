@@ -574,3 +574,79 @@ func calendarMoveAttributes(event CalendarEvent) templ.Attributes {
 		"data-calendar-move-end":        calendarEventTimestamp(event.EndAt),
 	}
 }
+
+// calendarTransferProvider says whether Gofer can import into and export a
+// calendar of the provider.
+func calendarTransferProvider(provider string) bool {
+	switch provider {
+	case "caldav", "jmap", "gmail", "outlook":
+		return true
+	}
+	return false
+}
+
+// calendarTransferCalendars are the synced calendars of the accounts that
+// Gofer can import into (writable only) and export.
+func calendarTransferCalendars(accounts []models.Account, writable bool) []calendarTransferChoice {
+	var choices []calendarTransferChoice
+	for _, account := range calendarConfiguredAccounts(accounts) {
+		for _, source := range account.CalendarSources {
+			if !calendarTransferProvider(source.Provider) {
+				continue
+			}
+			if writable && !calendarTransferWritable(source) {
+				continue
+			}
+			choices = append(choices, calendarTransferChoice{Value: "source:" + source.ID, Label: calendarAccountDisplayName(account) + " / " + calendarSourceDisplayName(source), SourceID: source.ID})
+		}
+	}
+	return choices
+}
+
+// calendarTransferWritable says whether Gofer can import into a calendar:
+// one the account owns or can write to, or whose role it doesn't know.
+func calendarTransferWritable(source models.AccountCalendarSource) bool {
+	role := strings.ToLower(strings.TrimSpace(source.AccessRole))
+	return role == "" || role == "unknown" || role == "owner" || role == "writer"
+}
+
+// calendarTransferNewTargets are the accounts that sync calendars, where an
+// import can make a new calendar.
+func calendarTransferNewTargets(accounts []models.Account) []calendarTransferChoice {
+	var choices []calendarTransferChoice
+	for _, account := range calendarConfiguredAccounts(accounts) {
+		syncs := false
+		for _, list := range [][]models.AccountCalendarSource{account.CalendarSources, account.OtherCalendarSources} {
+			for _, source := range list {
+				syncs = syncs || calendarTransferProvider(source.Provider)
+			}
+		}
+		if syncs {
+			choice := calendarTransferChoice{Value: "account:" + account.ID, Label: "New calendar in " + calendarAccountDisplayName(account)}
+			if account.CalendarCreateNeedsReconnect {
+				// Its sign-in can't make calendars until it is reconnected.
+				choice.Label += " (reconnect the account first)"
+				choice.Disabled = true
+			}
+			choices = append(choices, choice)
+		}
+	}
+	return choices
+}
+
+// calendarTransferChoice is one option in the import or export dialog.
+type calendarTransferChoice struct {
+	Value, Label, SourceID string
+	Disabled               bool
+}
+
+// calendarTransferFirstTarget is the first new calendar the import can
+// make, -1 when there is none.
+func calendarTransferFirstTarget(targets []calendarTransferChoice) int {
+	for i, target := range targets {
+		if !target.Disabled {
+			return i
+		}
+	}
+	return -1
+}

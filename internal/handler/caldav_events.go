@@ -119,6 +119,7 @@ func listCalDAVCalendarEvents(ctx context.Context, source storage.CalendarSource
 	}
 	page := calendar.EventPage{}
 	seen := make(map[string]bool)
+	var resources []calDAVResourceEvents
 	for _, response := range multi.Responses {
 		if err := ctx.Err(); err != nil {
 			return calendar.EventPage{}, err
@@ -149,7 +150,15 @@ func listCalDAVCalendarEvents(ctx context.Context, source storage.CalendarSource
 		if err != nil {
 			return calendar.EventPage{}, fmt.Errorf("read CalDAV event: %w", err)
 		}
-		for _, event := range events {
+		resources = append(resources, calDAVResourceEvents{href: href, etag: etag, events: events})
+	}
+	// The server's expansion of a series with dates changed on their own
+	// isn't trusted; Gofer expands those from the stored event.
+	if err := expandCalDAVChangedSeries(ctx, source, username, password, resources, query.WindowStart, query.WindowEnd, location); err != nil {
+		return calendar.EventPage{}, err
+	}
+	for _, resource := range resources {
+		for _, event := range resource.events {
 			if seen[event.RemoteID] {
 				return calendar.EventPage{}, fmt.Errorf("CalDAV returned a duplicate event instance")
 			}
@@ -296,6 +305,11 @@ func normalizeCalDAVEvent(component ical.Event, href, etag string, location *tim
 		return calendar.RemoteEvent{}, fmt.Errorf("CalDAV event start and end use different date types")
 	}
 	if event.AllDay {
+		// Some clients write an all-day event's end as the same day it starts,
+		// treating DTEND as inclusive. Other clients show those as one day.
+		if !end.After(start) {
+			end = start.AddDate(0, 0, 1)
+		}
 		event.StartDate, event.EndDate = start.Format("2006-01-02"), end.Format("2006-01-02")
 		if event.EndDate <= event.StartDate {
 			return calendar.RemoteEvent{}, fmt.Errorf("CalDAV all-day event has an invalid date range")

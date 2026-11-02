@@ -181,19 +181,26 @@ templ MailListHeader(accounts []models.Account, activeFolder string, totalCount 
 				</button>
 				<div class="mail-list-search-input-wrap groove flex min-w-0 items-stretch rounded-lg border border-border/50 bg-background focus-within:ring-2 focus-within:ring-ring">
 					@MailSearchScopeMenu(accounts, activeFolder, filters)
-					<div class="mail-list-search-field relative min-w-0 flex-1">
-						@icon.Search(icon.Props{Class: "absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground"})
-						<input
-							type="text"
-							name="q"
-							placeholder="Search mail"
-							aria-label="Search mail"
-							data-mobile-placeholder="Search mail"
-							class="h-9 w-full pl-8 pr-2 text-sm bg-transparent outline-none"
-							data-mail-search-input
-							autocomplete="off"
-						/>
-					</div>
+					@popover.Root(popover.RootProps{ID: "mail-search-suggest"}) {
+						@popover.Trigger(popover.TriggerProps{TriggerType: popover.TriggerTypeManual, Class: "mail-list-search-field relative block min-w-0 flex-1"}) {
+							@icon.Search(icon.Props{Class: "absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground"})
+							<input
+								type="text"
+								name="q"
+								placeholder="Search mail"
+								aria-label="Search mail"
+								data-mobile-placeholder="Search mail"
+								class="h-9 w-full pl-8 pr-2 text-sm bg-transparent outline-none"
+								data-mail-search-input
+								autocomplete="off"
+								role="combobox"
+								aria-autocomplete="list"
+								aria-controls="mail-search-suggestions"
+								aria-expanded="false"
+							/>
+						}
+						@MailSearchSuggestions(!filters.ByMessage)
+					}
 					@MailSearchHelp(!filters.ByMessage)
 				</div>
 				<div class="mail-list-search-actions">
@@ -580,22 +587,26 @@ templ mailSelectMenuItem(value string, label string) {
 // extend the selection to every message the folder and filters match or to
 // clear it. app.js fills and shows it.
 templ MailSelectAllBanner() {
-	<div data-mail-select-all-banner class="mail-select-all-banner hidden items-center justify-center gap-x-3 gap-y-0.5 flex-wrap border-t border-border/60 bg-accent/60 px-4 py-1.5 text-center text-xs text-muted-foreground">
-		<span data-mail-select-all-banner-text></span>
-		@button.Button(button.Props{
-			Variant:    button.VariantLink,
-			Size:       button.SizeSm,
-			Class:      "h-auto p-0 text-xs",
-			Attributes: templ.Attributes{"data-mail-select-all-banner-action": "", "aria-label": "Select all matching messages"},
-		})
-		@button.Button(button.Props{
-			Variant:    button.VariantLink,
-			Size:       button.SizeSm,
-			Class:      "h-auto p-0 text-xs text-muted-foreground hover:text-foreground",
-			Attributes: templ.Attributes{"data-mail-select-all-banner-clear": ""},
-		}) {
-			Clear
-		}
+	<div data-mail-select-all-banner class="mail-selection-banner" aria-hidden="true">
+		<div class="mail-selection-banner-inner">
+			<div class="flex items-center justify-center gap-x-3 gap-y-0.5 flex-wrap border-t border-border/60 bg-accent/60 px-4 py-1.5 text-center text-xs text-muted-foreground">
+				<span data-mail-select-all-banner-text></span>
+				@button.Button(button.Props{
+					Variant:    button.VariantLink,
+					Size:       button.SizeSm,
+					Class:      "h-auto p-0 text-xs",
+					Attributes: templ.Attributes{"data-mail-select-all-banner-action": ""},
+				})
+				@button.Button(button.Props{
+					Variant:    button.VariantLink,
+					Size:       button.SizeSm,
+					Class:      "h-auto p-0 text-xs text-muted-foreground hover:text-foreground",
+					Attributes: templ.Attributes{"data-mail-select-all-banner-clear": ""},
+				}) {
+					Clear
+				}
+			</div>
+		</div>
 	</div>
 }
 
@@ -686,7 +697,7 @@ templ MailFiltersPopover(accounts []models.Account, conversations bool) {
 												@selectbox.Content(selectbox.ContentProps{NoSearch: true, DisableExclusive: true}) {
 													for _, account := range accounts {
 														@selectbox.Item(selectbox.ItemProps{Value: account.ID}) {
-															{ account.Email }
+															{ accountTitle(account) }
 														}
 													}
 												}
@@ -1167,12 +1178,13 @@ templ MailCardLayoutDialog() {
 }
 
 templ MailListCardItem(accounts []models.Account, email models.Email, position int, selectedEmail *models.Email, senderDisplayMode string) {
-	<div class="mail-list-item" data-email-id={ email.ID } data-account-id={ email.AccountID } data-folder-id={ email.FolderID } data-position={ fmt.Sprintf("%d", position) } data-thread-id={ email.ThreadID } data-has-thread={ fmt.Sprintf("%t", email.ThreadCount > 1) } data-is-read={ fmt.Sprintf("%t", email.IsRead) } data-starred={ fmt.Sprintf("%t", email.IsStarred) } data-is-draft={ fmt.Sprintf("%t", email.IsDraft) }
+	<div class="mail-list-item" data-email-id={ email.ID } data-account-id={ email.AccountID } data-folder-id={ email.FolderID } data-position={ fmt.Sprintf("%d", position) } data-thread-id={ email.ThreadID } data-has-thread={ fmt.Sprintf("%t", email.ThreadCount > 1) } data-thread-count={ fmt.Sprintf("%d", email.ThreadCount) } data-is-read={ fmt.Sprintf("%t", email.IsRead) } data-starred={ fmt.Sprintf("%t", email.IsStarred) } data-is-draft={ fmt.Sprintf("%t", email.IsDraft) }
 		if email.SearchLocation != "" {
 			data-search-location={ email.SearchLocation }
 		}
 		data-search-group?={ email.SearchLocation != "" }
 	>
+		@mailRowCheck()
 		<a
 			href={ templ.URL(fmt.Sprintf("/?email=%s", email.ID)) }
 			hx-get={ mailViewPartialURL(email.ID, email.FolderID, false) }
@@ -1320,12 +1332,13 @@ templ MailListCardItem(accounts []models.Account, email models.Email, position i
 }
 
 templ MailListTableItem(email models.Email, position int, selectedEmail *models.Email, senderDisplayMode string) {
-	<div class="mail-list-item mail-list-table-row" data-email-id={ email.ID } data-account-id={ email.AccountID } data-folder-id={ email.FolderID } data-position={ fmt.Sprintf("%d", position) } data-thread-id={ email.ThreadID } data-has-thread={ fmt.Sprintf("%t", email.ThreadCount > 1) } data-is-read={ fmt.Sprintf("%t", email.IsRead) } data-starred={ fmt.Sprintf("%t", email.IsStarred) } data-is-draft={ fmt.Sprintf("%t", email.IsDraft) }
+	<div class="mail-list-item mail-list-table-row" data-email-id={ email.ID } data-account-id={ email.AccountID } data-folder-id={ email.FolderID } data-position={ fmt.Sprintf("%d", position) } data-thread-id={ email.ThreadID } data-has-thread={ fmt.Sprintf("%t", email.ThreadCount > 1) } data-thread-count={ fmt.Sprintf("%d", email.ThreadCount) } data-is-read={ fmt.Sprintf("%t", email.IsRead) } data-starred={ fmt.Sprintf("%t", email.IsStarred) } data-is-draft={ fmt.Sprintf("%t", email.IsDraft) }
 		if email.SearchLocation != "" {
 			data-search-location={ email.SearchLocation }
 		}
 		data-search-group?={ email.SearchGroupStart }
 	>
+		@mailRowCheck()
 		<a
 			href={ templ.URL(fmt.Sprintf("/?email=%s", email.ID)) }
 			hx-get={ mailViewPartialURL(email.ID, email.FolderID, false) }
@@ -1410,7 +1423,10 @@ templ MailListTableItem(email models.Email, position int, selectedEmail *models.
 					}
 				}
 			</div>
-			<div class="flex items-center justify-end shrink-0 text-muted-foreground tabular-nums" data-mail-table-cell="date">
+			<div class="flex items-center justify-end gap-1.5 shrink-0 text-muted-foreground tabular-nums" data-mail-table-cell="date">
+				if !email.IsRead {
+					<span class="size-2 shrink-0 rounded-full bg-primary shadow-[0_0_6px_rgba(199,123,48,0.4)]" aria-label="Unread"></span>
+				}
 				<span class={ templ.Classes("min-w-12 text-right", templ.KV("text-primary font-medium", !email.IsRead)) }>
 					@mailListDate(email.Date, email.DateWithTime)
 				</span>
@@ -1450,6 +1466,7 @@ templ MailListThreadSubItems(items []models.ThreadItem, senderDisplayMode string
 	<div>
 		for _, item := range items {
 			<div class="thread-sub-item" data-sub-email-id={ item.ID }>
+				@mailRowCheck()
 				<a
 					href={ templ.URL(fmt.Sprintf("/?email=%s", item.ID)) }
 					hx-get={ mailViewPartialURL(item.ID, item.FolderID, true) }
@@ -1581,4 +1598,15 @@ func mailSpamLabel(spamFolder bool) string {
 		return "Mark selected messages as not spam"
 	}
 	return "Report selected messages as spam"
+}
+
+// mailRowCheck is a row's checkbox, shown left of the row while the list is
+// selecting. app.js keeps it checked and toggles the row when it is clicked.
+templ mailRowCheck() {
+	<div class="mail-row-check" data-mail-row-check>
+		@checkbox.Checkbox(checkbox.Props{
+			Class:      "mail-row-check-input",
+			Attributes: templ.Attributes{"tabindex": "-1", "aria-label": "Select message"},
+		})
+	</div>
 }

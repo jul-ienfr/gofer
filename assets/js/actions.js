@@ -28,6 +28,7 @@
     "checkComposeOneTimeFrom",
     "chooseContactProtocol",
     "chooseCalendarProtocol",
+    "chooseMessagesToAccountMode",
     "closeComposeSchedulePopover",
     "closeMobileContactView",
     "closeMobileMailView",
@@ -237,6 +238,7 @@
   }
   function setupContent(entry) {
     document.querySelectorAll(entry.selector).forEach(function (element) {
+      if (element.closest("[data-navigation-pending]")) return
       if (element[entry.key]) return
       element[entry.key] = true
       entry.setup(element)
@@ -581,4 +583,139 @@
     if (field) field.classList.remove("hidden")
     if (button) button.classList.add("hidden")
   }
+})()
+
+// Folder appearance uses the same dialog from both the sidebar and Settings.
+;(function () {
+  var request = 0
+  var saving = false
+
+  function applyFolderSymbol(icon, symbol) {
+    var previous = icon.querySelector("[data-folder-custom-icon]")
+    if (previous) previous.remove()
+    icon.toggleAttribute("data-folder-customized", !!symbol)
+    if (symbol) {
+      var custom = document.createElement("span")
+      custom.className = "inline-flex"
+      custom.setAttribute("data-folder-custom-icon", "")
+      custom.appendChild(symbol.cloneNode(true))
+      icon.appendChild(custom)
+    }
+  }
+
+  function selectedFolderSymbol(choice) {
+    if (!choice || !choice.value) return null
+    var label = choice.closest("label")
+    return (label.querySelector("[data-folder-icon-symbol]") || label.querySelector("svg")).cloneNode(true)
+  }
+
+  function preview(form) {
+    var icon = form.querySelector("[data-folder-appearance-icon]")
+    if (!icon) return
+    var color = form.querySelector('input[name="color"]:checked')
+    icon.style.color = color ? color.value : ""
+    icon.toggleAttribute("data-folder-color", !!(color && color.value))
+    var choice = form.querySelector('input[name="icon"]:checked')
+    if (choice) applyFolderSymbol(icon, selectedFolderSymbol(choice))
+    var style = form.querySelector('input[name="style"]:checked')
+    if (style) {
+      icon.setAttribute("data-folder-icon-style", style.value)
+      var options = form.querySelector("[data-folder-icon-options]")
+      if (options) options.setAttribute("data-folder-icon-style", style.value)
+    }
+  }
+
+  function appearanceURL(id, virtual, tag, unifiedTag) {
+    var prefix = tag ? (unifiedTag ? "/api/unified-tags/" : "/api/tags/") : (virtual ? "/api/virtual-folders/" : "/api/folders/")
+    return prefix + encodeURIComponent(id) + "/appearance"
+  }
+
+  window.goferOpenFolderAppearance = function (target) {
+    if (document.documentElement.getAttribute("data-theme") === "express") return
+    var root = document.getElementById("folder-appearance-dialog")
+    if (!root || !target.folderID || saving || !window.tui || !window.tui.dialog) return
+    var token = ++request
+    var body = root.querySelector("[data-folder-appearance-body]")
+    var title = root.querySelector("[data-folder-appearance-title]")
+    var description = root.querySelector("[data-folder-appearance-description]")
+    if (title) title.textContent = target.tag ? "Tag appearance" : (target.virtual ? "View appearance" : "Folder appearance")
+    if (description) description.textContent = target.tag ? "Customize this tag’s appearance in Gofer." : (target.virtual ? "Customize this view’s appearance in Gofer." : "Customize this folder’s appearance in Gofer.")
+    body.textContent = "Loading appearance…"
+    window.tui.dialog.open("folder-appearance-dialog")
+    fetch(appearanceURL(target.folderID, target.virtual, target.tag, target.unifiedTag), { headers: { Accept: "text/html" } })
+      .then(function (response) {
+        if (!response.ok) throw new Error(response.status === 404 ? "This item is no longer available." : "Couldn't load appearance. Try again.")
+        return response.text()
+      })
+      .then(function (html) { if (token === request) body.innerHTML = html })
+      .catch(function (err) { if (token === request) body.textContent = err.message })
+  }
+
+  document.addEventListener("change", function (event) {
+    var form = event.target.closest("[data-folder-appearance-form]")
+    if (form && (event.target.name === "color" || event.target.name === "icon" || event.target.name === "style")) preview(form)
+  })
+
+  document.addEventListener("click", function (event) {
+    var reset = event.target.closest("[data-folder-appearance-reset]")
+    if (!reset) return
+    var form = reset.closest("form")
+    form.querySelector('input[name="color"][value=""]').checked = true
+    var defaultIcon = form.querySelector('input[name="icon"][value=""]')
+    if (defaultIcon) defaultIcon.checked = true
+    var defaultStyle = form.querySelector('input[name="style"][value="outlined"]')
+    if (defaultStyle) defaultStyle.checked = true
+    preview(form)
+  })
+
+  document.addEventListener("submit", function (event) {
+    var form = event.target.closest("[data-folder-appearance-form]")
+    if (!form) return
+    event.preventDefault()
+    if (saving) return
+    var chosen = form.querySelector('input[name="color"]:checked')
+    if (!chosen) return
+    var error = form.querySelector("[data-folder-appearance-error]")
+    var save = form.querySelector("[data-folder-appearance-save]")
+    var color = chosen.value
+    var chosenIcon = form.querySelector('input[name="icon"]:checked')
+    var symbol = selectedFolderSymbol(chosenIcon)
+    var chosenStyle = form.querySelector('input[name="style"]:checked')
+    var style = chosenStyle ? chosenStyle.value : null
+    var token = request
+    error.hidden = true
+    saving = true
+    save.disabled = true
+    save.textContent = "Saving…"
+    var fields = new URLSearchParams({ color: color })
+    if (chosenIcon) fields.set("icon", chosenIcon.value)
+    if (style) fields.set("style", style)
+    fetch(appearanceURL(form.dataset.folderId, form.hasAttribute("data-folder-appearance-virtual"), form.hasAttribute("data-tag-appearance"), form.hasAttribute("data-tag-appearance-unified")), {
+      method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" }, body: fields.toString(),
+    }).then(function (response) {
+      if (!response.ok) throw new Error(response.status === 404 ? "This item is no longer available." : "Couldn't save appearance. Try again.")
+      return response.json()
+    }).then(function (data) {
+      document.querySelectorAll("[data-folder-appearance-icon]").forEach(function (icon) {
+        if (icon.getAttribute("data-folder-appearance-icon") !== data.id || icon.hasAttribute("data-folder-appearance-virtual") !== !!data.virtual) return
+        if (icon.hasAttribute("data-tag-appearance") !== !!data.tag || icon.hasAttribute("data-tag-appearance-unified") !== !!data.unified_tag) return
+        icon.style.color = data.color
+        icon.toggleAttribute("data-folder-color", !!data.color)
+        if (chosenIcon) applyFolderSymbol(icon, symbol)
+        if (data.style) icon.setAttribute("data-folder-icon-style", data.style)
+      })
+      if (token === request) window.tui.dialog.close("folder-appearance-dialog")
+      if (!data.virtual && !data.tag) {
+        if (window.goferRefreshSidebarAccount) window.goferRefreshSidebarAccount(data.account_id)
+        document.dispatchEvent(new CustomEvent("gofer:folders-changed", { detail: { accountID: data.account_id } }))
+      }
+    }).catch(function (err) {
+      error.textContent = err.message
+      error.hidden = false
+    }).finally(function () {
+      saving = false
+      save.disabled = false
+      save.textContent = "Save"
+    })
+  })
 })()

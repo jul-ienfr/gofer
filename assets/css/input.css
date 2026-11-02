@@ -1365,6 +1365,9 @@ input[role="switch"] + .gofer-switch-track::after {
   gap: 0.25rem;
   flex: 1 1 auto;
   min-width: 0;
+  /* Room for the pills' bottom border and shadow, which the clip below
+     would otherwise cut, at some zoom levels by a whole pixel. */
+  padding-block: 2px;
   overflow: hidden;
 }
 
@@ -1566,6 +1569,17 @@ html[data-theme="classic"] .mail-list-search-input-wrap {
   --accent: color-mix(in oklab, var(--popover-foreground) 14%, var(--popover));
 }
 
+/* The Move dialog's folder list sits on the muted background, where the same
+   weak accent hid the hovered folder, so it gets the menus' stronger one. */
+:root:not([data-theme="express"], [data-theme="custom"]) [data-mail-move-list] {
+  --accent: color-mix(in oklab, var(--foreground) 14%, var(--muted));
+}
+
+/* Settings' folder and label rows need the same contrast on their background. */
+:root:not([data-theme="express"], [data-theme="custom"]) [data-folders-list] {
+  --accent: color-mix(in oklab, var(--foreground) 14%, var(--background));
+}
+
 /* A small gap between menu items, so a hovered item's highlight never touches
    the selected item's. */
 [data-tui-popover-content] :is(.select-item, [data-tui-dropdown-item], [data-tui-dropdown-submenu-trigger]):not(:first-child) {
@@ -1722,9 +1736,9 @@ html[data-theme="classic"] .mail-list-search-input-wrap {
 }
 
 .mail-list-item {
-  height: 6.5rem;
-  min-height: 6.5rem;
-  max-height: 6.5rem;
+  height: 7.0625rem;
+  min-height: 7.0625rem;
+  max-height: 7.0625rem;
   padding: 3px 0;
 }
 
@@ -1767,6 +1781,15 @@ html[data-theme="classic"] .mail-list-search-input-wrap {
   background: var(--color-accent);
 }
 
+/* Unread table rows: every text column in bold, in the accent color, like
+   unread cards. No tint or left bar; those belong to the selected row. */
+[data-view-mode="table"] .mail-list-table-row[data-is-read="false"] :is([data-mail-table-cell="from"], [data-mail-table-cell="to"], [data-mail-table-cell="subject"], [data-mail-table-cell="date"]) > span,
+[data-view-mode="table"] .mail-list-table-row[data-is-read="false"] [data-mail-table-cell="subject"] > div > span,
+[data-view-mode="table"] .mail-list-table-row[data-is-read="false"] [data-mail-table-cell="thread"] [data-thread-toggle] {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
 [data-contact-list-shell][data-view-mode="cards"] .mail-list-item > a.envelope-active {
   background: color-mix(in srgb, var(--color-primary) 12%, var(--color-card));
   border-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
@@ -1783,6 +1806,121 @@ html[data-theme="classic"] .mail-list-search-input-wrap {
 .mail-list-item > a[data-mail-selected] {
   background: color-mix(in srgb, var(--color-primary) 6%, transparent);
   box-shadow: inset 3px 0 0 var(--color-primary), inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 35%, transparent);
+}
+
+/* While selecting, each row shows a checkbox on its left. Table rows move
+   over to make room for it; cards move less, and the box sits on their edge. */
+.mail-list-item:has(> .mail-row-check),
+.thread-sub-item:has(> .mail-row-check) {
+  position: relative;
+}
+
+.mail-row-check {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  z-index: 1;
+  display: flex;
+  width: 2rem;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(0.6);
+  pointer-events: none;
+  transition: opacity 180ms ease, transform 200ms cubic-bezier(0.2, 0.9, 0.3, 1.2), visibility 0s linear 200ms;
+}
+
+#mail-list[data-mail-selecting] .mail-row-check {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  pointer-events: auto;
+  transition-delay: 40ms, 40ms, 0s;
+}
+
+/* Rows slide over as their checkbox comes in. Table rows keep their own short
+   property list (see below the table row styles), with margin-left added. */
+#mail-list :is(.mail-list-item, .thread-sub-item) > .mail-row-check ~ a {
+  transition-duration: 200ms;
+  transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+#mail-list[data-mail-selecting] :is(.mail-list-item, .thread-sub-item) > .mail-row-check ~ a {
+  margin-left: 2rem;
+}
+
+/* A thread's messages slide with it. Table rows only animate a few
+   properties; their own rules list margin-left with them. */
+html #mail-list .thread-sub-item > .mail-row-check ~ a {
+  transition-property: background-color, color, margin-left;
+}
+
+#mail-list [data-view-mode="cards"] .thread-sub-items {
+  transition: opacity 0.14s ease-out, margin-left 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+#mail-list[data-mail-selecting] [data-view-mode="cards"] .thread-sub-items {
+  margin-left: 2.125rem;
+}
+
+#mail-list[data-mail-selecting] [data-view-mode="cards"] .thread-sub-item > .mail-row-check ~ a {
+  margin-left: 1.75rem;
+}
+
+/* Expanded messages picked one by one get the selected row's tint. */
+.thread-sub-item > a[data-mail-selected] {
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+}
+
+.mail-list-item:not(.mail-list-table-row) > .mail-row-check {
+  width: 1.75rem;
+}
+
+#mail-list[data-mail-selecting] .mail-list-item:not(.mail-list-table-row) > .mail-row-check ~ a {
+  margin-left: 1.25rem;
+}
+
+/* The selection banner folds open above the list, so the list slides down
+   with it instead of jumping. */
+.mail-selection-banner {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 160ms ease;
+}
+
+.mail-selection-banner[data-open] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.mail-selection-banner-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.mail-selection-banner:not([data-open]) .mail-selection-banner-inner > div {
+  border-top-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mail-row-check,
+  html #mail-list :is(.mail-list-item, .thread-sub-item) > .mail-row-check ~ a,
+  #mail-list [data-view-mode="cards"] .thread-sub-items,
+  .mail-selection-banner {
+    transition: none;
+  }
+}
+
+.mail-row-check-input {
+  cursor: pointer;
+}
+
+/* Unchecked, the box covers the card edge it sits on; checked, it keeps the
+   checkbox's own fill. */
+.mail-row-check-input:not(:checked, :indeterminate) {
+  background: var(--color-card);
 }
 
 /* The select-all checkbox and its menu arrow read as one control: hovering the
@@ -1841,6 +1979,35 @@ html[data-theme="classic"] .mail-list-search-input-wrap {
   background: color-mix(in srgb, var(--color-primary) 6%, transparent);
 }
 
+/* Selected table rows get a real border, crisper than an inset shadow at
+   fractional scaling: 1px on top, right and bottom, a 3px bar on the left.
+   The padding shrinks by the same amounts so the text doesn't move, and the
+   row above drops its divider so the top edge isn't doubled. Express has its
+   own selected rows. */
+html:not([data-theme="express"]) [data-view-mode="table"] .mail-list-item:has(> a.envelope-active),
+html:not([data-theme="express"]) [data-view-mode="table"] .mail-list-item[data-mail-selected],
+html:not([data-theme="express"]) [data-view-mode="table"] .mail-list-item:has(+ .mail-list-item > a.envelope-active),
+html:not([data-theme="express"]) [data-view-mode="table"] .mail-list-item:has(+ .mail-list-item[data-mail-selected]) {
+  border-bottom-color: transparent;
+}
+
+html:not([data-theme="express"]) [data-view-mode="table"] .mail-list-item > a.envelope-active,
+html:not([data-theme="express"]) [data-view-mode="table"] .mail-list-item[data-mail-selected] > a,
+html:not([data-theme="express"]) [data-view-mode="table"] .mail-list-item > a[data-mail-selected] {
+  border: 1px solid var(--table-pick-edge, color-mix(in srgb, var(--color-foreground) 25%, var(--color-accent)));
+  border-left: 3px solid var(--table-pick-bar, var(--color-primary));
+  padding: calc(0.375rem - 1px) calc(0.75rem - 1px) calc(0.375rem - 1px) calc(0.75rem - 3px);
+  box-shadow: none;
+}
+
+/* Only the background and text color animate on table rows, so the border
+   and padding swap in one step instead of sliding the text. The border color
+   doesn't animate either: unselected rows have none, so it would fade in from
+   the text color and flash white in dark themes. */
+html:not([data-theme="express"]) [data-view-mode="table"] .mail-list-item > a {
+  transition-property: background-color, color, margin-left;
+}
+
 .mail-list-item[data-mail-read-optimistic] .font-semibold,
 .mail-list-item > a[data-mail-read-optimistic] .font-semibold {
   font-weight: 500;
@@ -1890,9 +2057,9 @@ html[data-theme="classic"] .mail-list-search-input-wrap {
     "railMiddle bodyBottom status"
     "railBottom footer corner";
   column-gap: 0.75rem;
-  row-gap: 0.0625rem;
+  row-gap: 0.25rem;
   align-items: stretch;
-  min-height: 6.125rem;
+  min-height: 6.6875rem;
   min-width: 0;
   padding-block: 0.5rem;
 }
@@ -1939,7 +2106,7 @@ html[data-theme="classic"] .mail-list-search-input-wrap {
 
 .mail-list-card-zone-header {
   grid-area: header;
-  align-items: baseline;
+  align-items: center;
 }
 
 .mail-list-card:not(.mail-card-layout-preview-card, .contact-card):not(:has(> .mail-list-card-zone-meta > :not(.mail-list-card-empty-icon-slot))) .mail-list-card-zone-header,
@@ -2678,9 +2845,9 @@ body.mail-list-column-resizing {
 }
 
 .mail-list-thread-main {
-  height: 6.5rem;
-  min-height: 6.5rem;
-  max-height: 6.5rem;
+  height: 7.0625rem;
+  min-height: 7.0625rem;
+  max-height: 7.0625rem;
   overflow: hidden;
 }
 
@@ -2691,9 +2858,9 @@ body.mail-list-column-resizing {
    which getHeight in virtual-scroll.js matches. Table rows get the same band
    above their columns, once per run of rows from one place; see below. */
 #mail-list[data-mail-search-results]:not([data-mail-list-view="table"]) :is(.mail-list-item, .mail-list-thread-main)[data-search-group] {
-  height: 8rem;
-  min-height: 8rem;
-  max-height: 8rem;
+  height: 8.5625rem;
+  min-height: 8.5625rem;
+  max-height: 8.5625rem;
 }
 
 #mail-list[data-mail-search-results] .mail-list-item[data-search-group] > a.mail-list-card {
@@ -2941,10 +3108,10 @@ body.mail-list-column-resizing {
   display: grid;
   align-items: start;
   column-gap: 0.75rem;
-  row-gap: 0.125rem;
-  height: 6.5rem;
-  min-height: 6.5rem;
-  max-height: 6.5rem;
+  row-gap: 0.25rem;
+  height: 7.0625rem;
+  min-height: 7.0625rem;
+  max-height: 7.0625rem;
   padding-block: 0.5rem;
 }
 
@@ -3374,6 +3541,53 @@ body.mail-list-column-resizing {
   background: var(--paper);
 }
 
+/* Newly inserted message content settles in without moving the reader's chrome.
+   This covers both the loading preview and the single-message/thread response. */
+@media (prefers-reduced-motion: no-preference) {
+  #mail-view[data-mail-reader] .mail-view-content {
+    animation: mail-reader-content-in 160ms ease-out;
+  }
+}
+
+@keyframes mail-reader-content-in {
+  from { opacity: 0.65; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* A single message's toolbar, sender and subject stay put above its scrolling
+   body, dropping the paper shadow a thread's toolbar sheet casts over its
+   messages. Themes without that shadow still get the line underneath, and so
+   does the thread's toolbar sheet. */
+.mail-view-message-header {
+  position: relative;
+  z-index: 1;
+}
+
+/* A thread's toolbar shadow only shows across the frame's gap, where it fades
+   out before the next sheet starts, so it reads short and strong. Draw that
+   same fade under this header. Themes without a paper shadow drop it. */
+.mail-view-message-header::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: var(--mail-frame-pad);
+  pointer-events: none;
+  background: var(--mail-header-shade, linear-gradient(to bottom, rgba(26,22,18,0.16), rgba(26,22,18,0.05) 50%, transparent));
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.mail-view-message-header[data-scrolled]::after {
+  opacity: 1;
+}
+
+.mail-view-message-header,
+.mail-view-thread-toolbar {
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
 .mail-view-thread-scroll {
   margin: 0 calc(-1 * var(--mail-frame-pad)) calc(-1 * var(--mail-frame-pad));
   padding: var(--mail-frame-pad);
@@ -3381,6 +3595,67 @@ body.mail-list-column-resizing {
      than running into its rounded corners with a hard cut. */
   -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--mail-frame-pad));
   mask-image: linear-gradient(to bottom, transparent 0, #000 var(--mail-frame-pad));
+}
+
+/* Back to the top: a zero-height strip stuck to the bottom of the reader's
+   scrolling pane, so the button floats in the padding beside the message
+   without taking any room from it. */
+.mail-view-scroll-top {
+  position: sticky;
+  bottom: 0;
+  height: 0;
+  flex: none;
+  pointer-events: none;
+}
+
+.mail-view-thread-scroll > .mail-view-scroll-top {
+  margin-top: -0.5rem;
+}
+
+.mail-view-scroll-top-button {
+  position: absolute;
+  /* In the 2rem padding beside the message, clear of the scrollbar. Where the
+     padding is narrower it overlaps the message a little. */
+  right: 0.125rem;
+  bottom: 0.75rem;
+  display: inline-flex;
+  width: 1.75rem;
+  height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--ink) 12%, transparent);
+  background: var(--background);
+  color: var(--muted-foreground);
+  box-shadow: var(--shadow-button);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 150ms ease-out, transform 150ms ease-out, color 150ms, background-color 150ms;
+  cursor: pointer;
+  pointer-events: none;
+}
+
+.mail-view-scroll-top-button:active {
+  box-shadow: var(--shadow-button-pressed);
+}
+
+[data-depth="flat"] .mail-view-scroll-top-button {
+  box-shadow: none;
+}
+
+[data-corners="square"] .mail-view-scroll-top-button {
+  border-radius: 0;
+}
+
+.mail-view-scroll-top[data-visible] .mail-view-scroll-top-button {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.mail-view-scroll-top-button:hover {
+  color: var(--foreground);
+  background: var(--accent);
 }
 
 /* Thread sheets slide when a message opens or closes. A sheet under a running
@@ -3392,6 +3667,10 @@ body.mail-list-column-resizing {
 }
 
 @container (max-width: 560px) {
+  .mail-view-scroll-top-button {
+    right: 0;
+  }
+
   .mail-view-frame {
     --mail-frame-pad: 0.375rem;
   }
@@ -3442,6 +3721,10 @@ body.mail-list-column-resizing {
 }
 
 @container (max-width: 380px) {
+  .mail-view-scroll-top {
+    display: none;
+  }
+
   .mail-view-toolbar {
     flex-direction: column;
   }
@@ -4151,11 +4434,6 @@ body.mail-list-column-resizing {
     border-radius: 0;
   }
 
-  /* Without the frame's gap and shadows, a line keeps the thread toolbar apart from the messages. */
-  #mail-view[data-mail-reader] .mail-view-thread-toolbar {
-    border-bottom: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
-  }
-
   #mail-view[data-mail-reader] .mail-view-toolbar {
     flex-direction: row;
     flex-wrap: nowrap;
@@ -4195,6 +4473,10 @@ body.mail-list-column-resizing {
   #mail-view[data-mail-reader] .mail-view-toolbar button svg {
     width: 1.25rem;
     height: 1.25rem;
+  }
+
+  #mail-view[data-mail-reader] .mail-view-scroll-top {
+    display: none;
   }
 
   #mail-view[data-mail-reader] .mail-view-content {
@@ -7305,4 +7587,22 @@ aside a[data-mail-drop-active] {
   .mail-search-scope-label {
     display: none;
   }
+}
+
+/* Keep the provider symbol available for Reset and themes with fixed artwork. */
+[data-folder-customized] > [data-folder-default-icon] {
+  display: none;
+}
+
+/* Filled folder artwork has transparent cutouts rather than painted details. */
+[data-folder-symbol-filled] {
+  display: none;
+}
+
+:is([data-folder-appearance-icon], [data-folder-icon-options])[data-folder-icon-style="filled"] [data-folder-symbol-outline] {
+  display: none;
+}
+
+:is([data-folder-appearance-icon], [data-folder-icon-options])[data-folder-icon-style="filled"] [data-folder-symbol-filled] {
+  display: inline-flex;
 }

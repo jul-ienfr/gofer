@@ -24,7 +24,7 @@ function setupPageRequestOwnership() {
     var trigger = detail.elt
     var pageTarget = detail.target && /^(main-content|settings-content|app-shell)$/.test(detail.target.id)
     var navigation = trigger && trigger.hasAttribute && (
-      trigger.hasAttribute("data-sidebar-app-button") ||
+      trigger.hasAttribute("data-sidebar-app-button") || trigger.hasAttribute("data-client-page-request") ||
       (pageTarget && detail.requestConfig && detail.requestConfig.verb === "get" &&
         (trigger.hasAttribute("href") || detail.boosted)))
     if (navigation) generation++
@@ -46,6 +46,14 @@ function setupPageRequestOwnership() {
 }
 
 setupPageRequestOwnership()
+
+// Android browsers offer "Install app" only when the site has a service
+// worker. Registering it asks for nothing: push stays behind its own opt-in.
+function registerAppServiceWorker() {
+  if (!window.isSecureContext || !("serviceWorker" in navigator)) return
+  navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).catch(function () {})
+}
+registerAppServiceWorker()
 
 // Guard rejections happen before route handlers and HTMX keeps their error
 // bodies out of the page. Explain the failure without discarding form input.
@@ -119,6 +127,7 @@ document.addEventListener("DOMContentLoaded", function () {
   var autoMarkReadEmailId = null
   var suppressEmailUrlPushFor = null
   var preserveMailListSelectionFor = null
+  var initialMailReaderLoader = null
   var selectedMailIds = new Set()
   // The contacts list's selection, kept by setupContactsSelection.
   var selectedContactIds = new Set()
@@ -143,6 +152,10 @@ document.addEventListener("DOMContentLoaded", function () {
   // rows not loaded in the list. A message's account never changes, so it's
   // kept until the next such selection.
   var selectedMailAccounts = new Map()
+  // The messages shown under each expanded thread row, by the row's id. Once
+  // one of them is picked on its own, the thread row stands for its own
+  // message only, and these say which of the others are picked too.
+  var mailThreadSubIds = new Map()
   // On a phone, deselecting everything from the checkbox or its menu stays in
   // selection mode; only the bar's close button, or leaving the list, ends it.
   var keepMailSelectionModeWhenEmpty = false
@@ -155,6 +168,65 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Register app/request ownership before Mail can start its initial fetch.
   setupSidebarAppNavToggle()
+  // Settings shares this document with the three apps. Keep the existing
+  // controllers and section-specific transitions when its client router mounts
+  // a new screen, without installing a second SSE connection or listeners.
+  window.GoferAppNavigation = {
+    cancel: function () {
+      cancelCalendarPageRequests()
+      var initial = document.getElementById("mail-list-scroll")
+      if (initial && parseInt(initial.dataset.totalCount, 10) < 0 && window.htmx) htmx.trigger(document.body, "htmx:abort")
+      if (initialMailReaderLoader) document.body.removeEventListener("htmx:afterSettle", initialMailReaderLoader)
+      initialMailReaderLoader = null
+    },
+    prepare: function (mode) {
+      virtualMailList = null
+      virtualContactsList = null
+      if (mode !== "settings") {
+        setSidebarAppNavMode(mode)
+        showAppSwitchPending(mode)
+      }
+    },
+    remember: function () {
+      var sidebar = document.getElementById("sidebar-app-body")
+      if (sidebar) rememberSectionLocation(sidebar.dataset.sidebarAppBody)
+    },
+    requestURL: sectionRequestURL,
+    bindSidebar: setupFolderClickInterception,
+    loaded: function (mode, address) {
+      var locations = sectionLocations()
+      ;["mail", "contacts"].forEach(function (section) { pointSectionButton(section, locations[section]) })
+      var sidebar = document.getElementById("sidebar-app-body")
+      if (sidebar) rememberSectionLocation(mode)
+      document.documentElement.removeAttribute("data-app-switching")
+      if (mode === "mail") {
+        var url = new URL(address, location.href)
+        var path = /^\/folder\/[^/]+\/([^/]+)$/.exec(url.pathname)
+        var id = url.searchParams.get("email") || (path && decodeURIComponent(path[1]))
+        if (id && window.htmx) {
+          preserveMailListSelectionFor = id
+          htmx.ajax("GET", mailViewRequestURL(id), "#mail-view")
+        }
+      }
+    },
+    restored: function () {
+      var mail = document.getElementById("mail-list-scroll")
+      var contacts = document.getElementById("contacts-list-scroll")
+      virtualMailList = mail && mail._virtualMailList
+      virtualContactsList = contacts && contacts._virtualContactsList
+      if (mail && !virtualMailList) {
+        if (parseInt(mail.dataset.totalCount, 10) < 0) {
+          mail.setAttribute("data-load-folder", "")
+          var selectedPath = /^\/folder\/[^/]+\/([^/]+)$/.exec(location.pathname)
+          var selected = new URLSearchParams(location.search).get("email") || (selectedPath && decodeURIComponent(selectedPath[1]))
+          if (selected) document.body.setAttribute("data-initial-email-id", selected)
+        }
+        initVirtualScroll()
+      }
+      initializeCalendarDaySelection()
+      document.documentElement.removeAttribute("data-app-switching")
+    },
+  }
   initVirtualScroll()
   setupFolderClickInterception()
   setupEmailSelectionTracking()
@@ -199,7 +271,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function init(root) {
       var scroll = root && root.id === "contacts-list-scroll" ? root : document.getElementById("contacts-list-scroll")
-      if (!scroll || scroll._virtualContactsList || typeof VirtualContactsList === "undefined") return
+      if (!scroll || scroll._virtualContactsList || scroll.closest("[data-navigation-pending]") || typeof VirtualContactsList === "undefined") return
       var selected = scroll.querySelector(".mail-list-item[data-contact-id] .envelope-active")
       var selectedRow = selected && selected.closest("[data-contact-id]")
       virtualContactsList = new VirtualContactsList(scroll, {
@@ -233,15 +305,120 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     }
 
+    // Set while the sidebar fills the filter form, which applies them itself.
+    var settingContactFilters = false
+
     function syncFilterUI(filters) {
       var count = (filters.source ? 1 : 0) + (filters.saveTarget ? 1 : 0) + (filters.activity ? 1 : 0)
+      syncActiveFilterChips(filters)
       var button = document.querySelector('[aria-label="Filter contacts"]')
-      if (button) {
-        button.dataset.active = count > 0 ? "true" : "false"
-        var badge = button.querySelector("span")
-        if (badge) badge.textContent = String(count)
+      if (!button) return
+      button.dataset.active = count > 0 ? "true" : "false"
+      // The count is the pill after the icon; the first span is the "Filters" label.
+      var badge = button.querySelector("span.rounded-full")
+      if (count === 0) {
+        if (badge) badge.remove()
+        return
       }
+      if (!badge) {
+        badge = document.createElement("span")
+        badge.className = "min-w-4 rounded-full bg-primary px-1 text-center text-[10px] leading-4 text-primary-foreground"
+        button.appendChild(badge)
+      }
+      badge.textContent = String(count)
     }
+
+    // The strip under the search with a pill for each active filter, the mail
+    // list's own (styles and open/close transition included). A pill's text is
+    // the label of the matching entry in the filter form, which the server
+    // draws with the same names.
+    var contactPillClearTimer = null
+
+    function activeFilterPills(filters) {
+      var pills = []
+      function label(name, value) {
+        var input = document.querySelector('[data-contact-filter-form] input[name="' + name + '"]')
+        var container = input && input.closest(".select-container")
+        var items = container ? container.querySelectorAll("[data-tui-selectbox-value]") : []
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].getAttribute("data-tui-selectbox-value") !== value) continue
+          var text = items[i].querySelector(".select-item-text")
+          if (text) return text.textContent.trim()
+        }
+        return value
+      }
+      if (filters.source) pills.push({ name: "source", text: "Origin: " + label("source", filters.source) })
+      if (filters.saveTarget) pills.push({ name: "save_target", text: label("save_target", filters.saveTarget) })
+      if (filters.activity) pills.push({ name: "activity", text: filters.activity === "seen" ? "Seen in mail" : "No messages" })
+      return pills
+    }
+
+    function syncActiveFilterChips(filters) {
+      var strip = document.querySelector("[data-contact-active-filter-pills]")
+      if (!strip) return
+      if (contactPillClearTimer) { clearTimeout(contactPillClearTimer); contactPillClearTimer = null }
+      var pills = activeFilterPills(filters)
+      if (pills.length === 0) {
+        // The pills stay while the strip closes, then go.
+        strip.classList.add("hidden")
+        contactPillClearTimer = setTimeout(function () {
+          contactPillClearTimer = null
+          if (strip.classList.contains("hidden")) strip.innerHTML = ""
+        }, 190)
+        return
+      }
+      var existing = Object.create(null)
+      strip.querySelectorAll("[data-contact-active-filter-key]").forEach(function (pill) {
+        existing[pill.getAttribute("data-contact-active-filter-key")] = true
+      })
+      var html = '<div class="mail-active-filter-visible">'
+      pills.forEach(function (pill) {
+        var key = pill.name + ":" + pill.text
+        var text = escapeHTML(pill.text)
+        html += '<button type="button" data-contact-active-filter-remove="' + pill.name + '" data-contact-active-filter-key="' + escapeHTML(key) + '" title="' + text + '" aria-label="Remove filter: ' + text + '" class="mail-active-filter-pill' + (existing[key] ? " mail-active-filter-pill-stable" : "") + '">' +
+          '<span class="mail-active-filter-pill-label">' + text + '</span><span class="mail-active-filter-pill-remove">x</span></button>'
+      })
+      strip.innerHTML = html + "</div>"
+      strip.classList.remove("hidden")
+    }
+
+    // The sidebar item that stands for the filters, as the server picks it.
+    function sidebarTargetFor(filters) {
+      if (filters.trash) return "trash"
+      if (!filters.source) return filters.saveTarget
+      if (filters.saveTarget) return "-"
+      return /^(synced:|book:)/.test(filters.source) ? "source:" + filters.source : "-"
+    }
+
+    // Choosing a pill drops that filter, after the pill's exit.
+    document.addEventListener("click", function (e) {
+      var remove = e.target.closest && e.target.closest("[data-contact-active-filter-remove]")
+      var list = remove && currentList()
+      if (!list) return
+      e.preventDefault()
+      var field = { source: "source", save_target: "saveTarget", activity: "activity" }[remove.getAttribute("data-contact-active-filter-remove")]
+      if (!field) return
+      var motion = !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      if (motion) remove.classList.add("mail-active-filter-pill-exiting")
+      setTimeout(function () {
+        var filters = Object.assign({}, list.filters)
+        filters[field] = ""
+        var form = document.querySelector("[data-contact-filter-form]")
+        var input = form && form.querySelector('input[name="' + remove.getAttribute("data-contact-active-filter-remove") + '"]')
+        if (input) {
+          settingContactFilters = true
+          try {
+            input.value = ""
+            input.dispatchEvent(new Event("input", { bubbles: true }))
+          } finally {
+            settingContactFilters = false
+          }
+        }
+        syncFilterUI(filters)
+        setContactsSidebarActive(sidebarTargetFor(filters))
+        list.applyFilters(filters).catch(function () {})
+      }, motion ? 145 : 0)
+    })
 
     function contactSidebarTargetFromURL(url) {
       try {
@@ -309,6 +486,50 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     init(document)
+
+    // Choosing another address book in the sidebar changes the list in place,
+    // like a folder in the mail list: the old cards drop out as the new ones
+    // drop in. The Trash has its own header and actions, so moving into or out
+    // of it still loads the page.
+    document.addEventListener("click", function (e) {
+      var link = e.target.closest && e.target.closest("[data-contact-sidebar-link]")
+      if (!link || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+      var list = currentList()
+      var scroll = document.getElementById("contacts-list-scroll")
+      if (!list || !list.itemsContainer || !scroll || scroll.closest("[data-navigation-pending]")) return
+      var target = link.getAttribute("data-contact-sidebar-target") || ""
+      if ((target === "trash") !== (scroll.dataset.trash === "1")) return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      var source = target.indexOf("source:") === 0 ? target.slice(7) : ""
+      var values = { source: source, save_target: target === "trash" || source ? "" : target, activity: "" }
+      var form = document.querySelector("[data-contact-filter-form]")
+      if (form) {
+        // Setting a select's value also moves its selection and the text shown.
+        settingContactFilters = true
+        try {
+          Object.keys(values).forEach(function (name) {
+            var input = form.querySelector('input[name="' + name + '"]')
+            if (!input) return
+            input.value = values[name]
+            input.dispatchEvent(new Event("input", { bubbles: true }))
+          })
+        } finally {
+          settingContactFilters = false
+        }
+      }
+      // The filters come from the chosen item, not read back from the form: a
+      // select without a matching entry would drop its value and the pill and
+      // list would disagree with the sidebar.
+      var filters = readFilters()
+      filters.source = values.source
+      filters.saveTarget = values.save_target
+      filters.activity = ""
+      filters.trash = false
+      syncFilterUI(filters)
+      setContactsSidebarActive(target)
+      list.applyFilters(filters).catch(function () {})
+    }, true)
 
     // Escape clears the selection and deselects the open contact, like the
     // mail list.
@@ -946,7 +1167,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
         return
       }
-      if (!e.target || !e.target.closest("[data-contact-filter-form]")) return
+      if (!e.target || !e.target.closest("[data-contact-filter-form]") || settingContactFilters) return
       applyFilters()
     })
 
@@ -1420,16 +1641,21 @@ document.addEventListener("DOMContentLoaded", function () {
     setupMailSwipeActions()
 
     // With no reading pane, a click selects a message, and a double click
-    // opens it in the list's place. Opening it by script (Enter, or the double
-    // click below) goes through as usual. This runs before htmx sees the click.
+    // opens it in the list's place (a single click does, with that setting on).
+    // Opening it by script (Enter, or the double click below) goes through as
+    // usual. This runs before htmx sees the click.
     document.addEventListener("click", function (e) {
       if (!e.isTrusted || !mailListOnlyLayout() || mailSelectionModeActive()) return
+      if (Date.now() < suppressMailRowClickUntil) return
       if (e.button !== 0 || e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return
       var link = e.target.closest && e.target.closest("#mail-list-scroll :is(.mail-list-item[data-email-id], .thread-sub-item) > a")
       if (!link || e.target.closest(".star-btn, [data-thread-toggle]")) return
       e.preventDefault()
       e.stopPropagation()
-      if (e.detail >= 2) {
+      var singleClickOpen = window.GoferSettings && GoferSettings.get("mail_single_click_open") === "true"
+      if (e.detail >= 2 || singleClickOpen) {
+        // A second click of a double click lands on the opened message, not here.
+        if (singleClickOpen && e.detail >= 2) return
         link.click()
         return
       }
@@ -1450,9 +1676,10 @@ document.addEventListener("DOMContentLoaded", function () {
         return
       }
       var threadToggle = e.target.closest && e.target.closest("#mail-list-scroll [data-thread-toggle]")
-      if (threadToggle && mobileMailList.matches && !mailSelectionModeActive()) {
-        // On a phone, opening the message would replace the list, so the toggle only
-        // expands the thread. Stopping here also keeps htmx on the row from firing.
+      if (threadToggle) {
+        // The toggle only expands or collapses the thread: it leaves the open
+        // message, and which row is current, as they are. Stopping here also
+        // keeps htmx on the row from firing.
         e.preventDefault()
         e.stopPropagation()
         var toggleScroll = document.getElementById("mail-list-scroll")
@@ -1460,6 +1687,16 @@ document.addEventListener("DOMContentLoaded", function () {
         if (toggleList) toggleList.toggleThreadExpand(threadToggle.dataset.threadToggle, { select: false })
         return
       }
+      // While selecting, or with Ctrl/Cmd, a thread's message picks itself
+      // instead of opening.
+      var subLink = e.target.closest && e.target.closest("#mail-list-scroll .thread-sub-item[data-sub-email-id] > a")
+      if (subLink && (e.metaKey || e.ctrlKey || mailSelectionModeActive()) && !e.target.closest(".star-btn")) {
+        e.preventDefault()
+        e.stopPropagation()
+        toggleMailThreadSubSelected(subLink.parentElement)
+        return
+      }
+
       var rowClickIgnored = e.target.closest && (e.target.closest(".star-btn") || e.target.closest("[data-thread-toggle]"))
       if (rowLink && !rowClickIgnored) {
         var linkRow = rowLink.closest(".mail-list-item[data-email-id]")
@@ -1467,9 +1704,10 @@ document.addEventListener("DOMContentLoaded", function () {
           if (e.shiftKey || e.metaKey || e.ctrlKey || mailSelectionModeActive()) {
             e.preventDefault()
             e.stopPropagation()
-            var linkNext = e.shiftKey && lastSelectedMailId ? true : !selectedMailIds.has(linkRow.dataset.emailId)
-            if (e.shiftKey && lastSelectedMailId) selectMailRange(lastSelectedMailId, linkRow.dataset.emailId, linkNext)
-            else setMailSelected(linkRow.dataset.emailId, linkNext)
+            if (e.shiftKey && lastSelectedMailId) selectMailRange(lastSelectedMailId, linkRow.dataset.emailId, true)
+            else toggleMailRowSelected(linkRow.dataset.emailId)
+            // Picking messages one by one is selecting: the rows show their checkboxes.
+            if (selectedMailIds.size > 0) setMailSelectionMode(true)
           } else {
             selectedMailIds.clear()
             setMailSelected(linkRow.dataset.emailId, true)
@@ -1512,8 +1750,29 @@ document.addEventListener("DOMContentLoaded", function () {
 
       if (e.target.closest && e.target.closest("[data-mail-select-all-toggle]")) {
         // Not prevented: a cancelled click would put the box back after the sync below.
-        if (mailSelectionCounts()) clearMailSelection({ keepMode: true })
+        if (mailSelectionCounts()) clearMailSelection({ keepMode: mobileMailList.matches })
         else applyMailSelectChoice("all")
+        return
+      }
+
+      // A row's own checkbox, shown while selecting, toggles just that row;
+      // Shift extends from the last one, as Shift+click on a row does.
+      var rowCheck = e.target.closest && e.target.closest("[data-mail-row-check]")
+      var subCheck = rowCheck && rowCheck.closest(".thread-sub-item[data-sub-email-id]")
+      if (subCheck) {
+        toggleMailThreadSubSelected(subCheck)
+        return
+      }
+      if (rowCheck) {
+        var checkRow = rowCheck.closest(".mail-list-item[data-email-id]")
+        if (checkRow) {
+          var checkId = checkRow.dataset.emailId
+          if (e.shiftKey && lastSelectedMailId) selectMailRange(lastSelectedMailId, checkId, true)
+          else toggleMailRowSelected(checkId)
+          lastSelectedMailId = checkId
+          keepMailSelectionModeWhenEmpty = mobileMailList.matches
+          syncMailSelectionControls()
+        }
         return
       }
 
@@ -1531,7 +1790,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
       if (e.target.closest && e.target.closest("[data-mail-select-all-banner-clear]")) {
         e.preventDefault()
-        clearMailSelection({ keepMode: true })
+        clearMailSelection({ keepMode: mobileMailList.matches })
         return
       }
 
@@ -1643,6 +1902,91 @@ document.addEventListener("DOMContentLoaded", function () {
       if (selected) keepMailSelectionModeWhenEmpty = false
       if (selected) selectedMailIds.add(emailId)
       else selectedMailIds.delete(emailId)
+      // A row picked or dropped as a whole stands for its whole thread again.
+      if (mailThreadSubIds.has(emailId)) selectedMailThreads.delete(emailId)
+    }
+
+    // "all" when a row is picked with its whole thread, "some" when only some
+    // of a thread's messages are, "none" otherwise.
+    function mailThreadSelectionState(rowId) {
+      if (selectedMailIds.has(rowId) && selectedMailThreads.get(rowId) !== false) return "all"
+      if (selectedMailIds.has(rowId)) return "some"
+      var subs = mailThreadSubIds.get(rowId) || []
+      for (var i = 0; i < subs.length; i++) if (selectedMailIds.has(subs[i])) return "some"
+      return "none"
+    }
+
+    function dropMailThreadSubs(rowId) {
+      var subs = mailThreadSubIds.get(rowId) || []
+      for (var i = 0; i < subs.length; i++) {
+        selectedMailIds.delete(subs[i])
+        selectedMailThreads.delete(subs[i])
+      }
+    }
+
+    // A row's checkbox, a long press or a click while selecting: a thread
+    // picked whole, or in part, is dropped; otherwise the whole thread is picked.
+    function toggleMailRowSelected(rowId) {
+      var state = mailThreadSelectionState(rowId)
+      dropMailThreadSubs(rowId)
+      setMailSelected(rowId, state === "none")
+    }
+
+    function mailThreadSubRowId(sub) {
+      var slot = sub.closest(".mail-list-thread-slot")
+      var row = slot && slot.querySelector(".mail-list-item[data-email-id]")
+      return row ? row.dataset.emailId : ""
+    }
+
+    function rememberMailThreadSubs(slot) {
+      var row = slot.querySelector(".mail-list-item[data-email-id]")
+      if (!row) return
+      var ids = []
+      var subs = slot.querySelectorAll(".thread-sub-item[data-sub-email-id]")
+      for (var i = 0; i < subs.length; i++) ids.push(subs[i].dataset.subEmailId)
+      mailThreadSubIds.set(row.dataset.emailId, ids)
+    }
+
+    // Picking one message of an expanded thread splits the thread's selection
+    // into its messages: the row then stands for its own message alone. With
+    // every message picked again, the row takes the whole thread back.
+    function toggleMailThreadSubSelected(sub) {
+      var subId = sub.dataset.subEmailId
+      var rowId = mailThreadSubRowId(sub)
+      if (!subId || !rowId) return
+      rememberMailThreadSubs(sub.closest(".mail-list-thread-slot"))
+      var subs = mailThreadSubIds.get(rowId) || []
+      var row = document.querySelector('#mail-list-scroll .mail-list-item[data-email-id="' + cssEscape(rowId) + '"]')
+      var account = row ? row.dataset.accountId : ""
+      mailSelectAllMatching = null
+      keepMailSelectionModeWhenEmpty = mobileMailList.matches
+      if (mailThreadSelectionState(rowId) === "all") {
+        selectedMailThreads.set(rowId, false)
+        for (var i = 0; i < subs.length; i++) {
+          selectedMailIds.add(subs[i])
+          selectedMailThreads.set(subs[i], false)
+          if (account) selectedMailAccounts.set(subs[i], account)
+        }
+      }
+      if (selectedMailIds.has(subId)) {
+        selectedMailIds.delete(subId)
+        selectedMailThreads.delete(subId)
+      } else {
+        selectedMailIds.add(subId)
+        selectedMailThreads.set(subId, false)
+        if (account) selectedMailAccounts.set(subId, account)
+      }
+      var allSubs = subs.every(function (id) { return selectedMailIds.has(id) })
+      if (selectedMailIds.has(rowId) && allSubs) {
+        dropMailThreadSubs(rowId)
+        selectedMailThreads.delete(rowId)
+      } else if (!selectedMailIds.has(rowId) && allSubs && subs.length) {
+        // Every other message is picked: the row's own message joins them.
+        selectedMailIds.add(rowId)
+        selectedMailThreads.set(rowId, false)
+      }
+      if (selectedMailIds.size > 0) setMailSelectionMode(true)
+      syncMailSelectionControls()
     }
 
     function seedMailSelectionFromActive() {
@@ -2008,7 +2352,7 @@ document.addEventListener("DOMContentLoaded", function () {
             selectedMailIds.clear()
             setMailSelectionMode(true)
           }
-          setMailSelected(row.dataset.emailId, !selectedMailIds.has(row.dataset.emailId))
+          toggleMailRowSelected(row.dataset.emailId)
           lastSelectedMailId = row.dataset.emailId
           suppressMailRowClickUntil = Date.now() + 700
           if (navigator.vibrate) navigator.vibrate(12)
@@ -2028,6 +2372,56 @@ document.addEventListener("DOMContentLoaded", function () {
       document.addEventListener("contextmenu", function (e) {
         if (mobile.matches && e.target.closest && e.target.closest("#mail-list-scroll .mail-list-item[data-email-id] > a")) e.preventDefault()
       })
+
+      // With a mouse, holding the button down on a row without moving does the
+      // same. Rows drag to folders, so moving or starting a drag cancels it.
+      var mouseTimer = 0
+      var mouseStart = null
+      var mouseFired = false
+
+      function cancelMouse() {
+        clearTimeout(mouseTimer)
+        mouseTimer = 0
+        mouseStart = null
+      }
+
+      document.addEventListener("mousedown", function (e) {
+        cancelMouse()
+        mouseFired = false
+        if (mobile.matches || e.button !== 0 || e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return
+        var link = e.target.closest && e.target.closest("#mail-list-scroll .mail-list-item[data-email-id] > a")
+        if (!link || e.target.closest(".star-btn, [data-thread-toggle]")) return
+        mouseStart = { x: e.clientX, y: e.clientY }
+        mouseTimer = setTimeout(function () {
+          mouseTimer = 0
+          var row = link.closest(".mail-list-item[data-email-id]")
+          if (!row || !row.isConnected) return
+          if (!mailSelectionModeActive()) {
+            selectedMailIds.clear()
+            setMailSelectionMode(true)
+          }
+          toggleMailRowSelected(row.dataset.emailId)
+          lastSelectedMailId = row.dataset.emailId
+          mouseFired = true
+          // The click comes when the button is let go, however long that takes.
+          suppressMailRowClickUntil = Date.now() + 60000
+          syncMailSelectionControls()
+        }, 500)
+      })
+
+      document.addEventListener("mousemove", function (e) {
+        if (!mouseStart) return
+        if (Math.abs(e.clientX - mouseStart.x) > 5 || Math.abs(e.clientY - mouseStart.y) > 5) cancelMouse()
+      })
+      document.addEventListener("dragstart", cancelMouse, true)
+      function endMouse() {
+        cancelMouse()
+        if (mouseFired) suppressMailRowClickUntil = Date.now() + 300
+        mouseFired = false
+      }
+      // A drag that starts after the press fired ends without a mouseup.
+      document.addEventListener("mouseup", endMouse)
+      document.addEventListener("dragend", endMouse)
     }
 
     // Right-clicking a message opens its menu. A message outside the selection
@@ -2927,27 +3321,26 @@ document.addEventListener("DOMContentLoaded", function () {
       link.click()
     }
 
-    // What a right-click in the mail sidebar landed on: a folder (not
-    // Scheduled), an account's tag or an account's heading.
+    // What a right-click in the mail sidebar landed on: a folder or view,
+    // an account's tag, or an account's heading.
     function sidebarContextTarget(el) {
       var body = el.closest('[data-sidebar-app-body="mail"]')
       if (!body) return null
       var link = el.closest('a[hx-get^="/folder/"]')
       if (link && body.contains(link) && link.hasAttribute("data-sidebar-tag-filter")) {
-        // Only a tag of one account, a Gmail label, has a menu.
+        // Appearance is available for account tags and the combined tag filter.
         var tagAccount = link.getAttribute("data-sidebar-tag-account") || ""
         var labelID = link.getAttribute("data-sidebar-tag-id") || ""
-        if (!tagAccount || !labelID) return null
-        return { kind: "tag", labelID: labelID, accountID: tagAccount, provider: sidebarAccountProvider(tagAccount), name: link.getAttribute("data-sidebar-tag-label") || "this label" }
+        if (!labelID) return null
+        return { kind: "tag", tag: true, unifiedTag: link.hasAttribute("data-tag-appearance-unified"), folderID: labelID, labelID: labelID, accountID: tagAccount, provider: sidebarAccountProvider(tagAccount), name: link.getAttribute("data-sidebar-tag-label") || "this label" }
       }
       if (link && body.contains(link)) {
         var role = String(link.dataset.folderRole || "").toLowerCase()
-        if (role === "scheduled") return null
         var path = (link.getAttribute("hx-get") || "").split("?")[0].replace(/^\/folder\//, "")
         var name = link.querySelector(".flex-1")
         var folderAccount = link.dataset.mailDropAccount || ""
         // Unified folders belong to no single account.
-        return { kind: "folder", folderID: decodeURIComponent(path), accountID: folderAccount, provider: sidebarAccountProvider(folderAccount), role: role, inTrash: sidebarFolderInTrash(link), name: name ? name.textContent.trim() : "this folder" }
+        return { kind: "folder", folderID: decodeURIComponent(path), accountID: folderAccount, provider: sidebarAccountProvider(folderAccount), role: role, virtual: link.hasAttribute("data-folder-appearance-virtual"), inTrash: sidebarFolderInTrash(link), name: name ? name.textContent.trim() : "this folder" }
       }
       var toggle = el.closest("[data-sidebar-account-toggle]")
       var accountID = toggle && toggle.getAttribute("data-sidebar-account-toggle")
@@ -2980,7 +3373,7 @@ document.addEventListener("DOMContentLoaded", function () {
     function fillSidebarContextMenu(root, target) {
       var shown = {
         // Starred is a view across folders, not a folder the server can mark.
-        "mark-read": target.kind === "folder" && target.role !== "starred" && !/^starred(-|$)/.test(target.folderID),
+        "mark-read": target.kind === "folder" && target.role !== "starred" && target.role !== "scheduled" && !/^starred(-|$)/.test(target.folderID),
         "empty-trash": target.kind === "folder" && target.role === "trash",
         "spam-to-trash": target.kind === "folder" && target.role === "spam",
         // A paused account has no sync button to press.
@@ -2990,6 +3383,7 @@ document.addEventListener("DOMContentLoaded", function () {
         "new-folder": target.kind === "account" && target.provider !== "gmail",
         "new-label": target.kind === "account" && target.provider === "gmail",
         "new-subfolder": target.kind === "folder" && !!target.accountID && target.provider !== "gmail" && target.role !== "starred",
+        "folder-appearance": document.documentElement.getAttribute("data-theme") !== "express" && ((target.kind === "tag" && !!target.labelID) || (target.kind === "folder" && (target.virtual || (!!target.accountID && target.role !== "starred" && !/^starred(-|$)/.test(target.folderID))))),
         "rename-folder": target.kind === "folder" && !!target.accountID && target.provider !== "gmail" && target.role === "custom",
         "delete-folder": target.kind === "folder" && !!target.accountID && target.provider !== "gmail" && target.role === "custom",
         "restore-folder": target.kind === "folder" && !!target.accountID && target.provider !== "gmail" && target.role === "custom" && target.inTrash,
@@ -3025,6 +3419,7 @@ document.addEventListener("DOMContentLoaded", function () {
       } else if (action === "mailbox-size") window.goferOpenMailboxSize(target.accountID, target.kind === "folder" ? target.folderID : "")
       else if (action === "new-folder") createMailFolder(target.accountID, "", "")
       else if (action === "new-subfolder") createMailFolder(target.accountID, target.folderID, target.name)
+      else if (action === "folder-appearance") window.goferOpenFolderAppearance(target)
       else if (action === "rename-folder") renameMailFolder(target)
       else if (action === "delete-folder") deleteMailFolder(target)
       else if (action === "restore-folder") restoreMailFolder(target)
@@ -3088,6 +3483,7 @@ document.addEventListener("DOMContentLoaded", function () {
     window.goferFolderActions = {
       "new-folder": function (t) { createMailFolder(t.accountID, "", "") },
       "new-subfolder": function (t) { createMailFolder(t.accountID, t.folderID, t.name) },
+      "folder-appearance": function (t) { window.goferOpenFolderAppearance(t) },
       "rename-folder": renameMailFolder,
       "delete-folder": deleteMailFolder,
       "restore-folder": restoreMailFolder,
@@ -3410,7 +3806,7 @@ document.addEventListener("DOMContentLoaded", function () {
     // applyMailSelectChoice selects loaded rows by the select-all menu's choice.
     function applyMailSelectChoice(choice) {
       if (choice === "none") {
-        clearMailSelection({ keepMode: true })
+        clearMailSelection({ keepMode: mobileMailList.matches })
         return
       }
       var rows = loadedMailRows()
@@ -3430,8 +3826,8 @@ document.addEventListener("DOMContentLoaded", function () {
         selectedMailThreads.set(picked[i].id, picked[i].thread)
       }
       lastSelectedMailId = picked.length ? picked[picked.length - 1].id : null
-      keepMailSelectionModeWhenEmpty = picked.length === 0
-      if (picked.length && mobileMailList.matches) setMailSelectionMode(true)
+      keepMailSelectionModeWhenEmpty = picked.length === 0 && mobileMailList.matches
+      if (picked.length) setMailSelectionMode(true)
       syncMailSelectionControls()
     }
 
@@ -3525,10 +3921,12 @@ document.addEventListener("DOMContentLoaded", function () {
         text = formatMailCount(count) + " selected."
       }
       var canSelectAll = count > 0 && !mailSelectAllMatching && total > count
-      banner.classList.toggle("hidden", !text)
-      banner.classList.toggle("flex", !!text)
+      // The banner folds open and shut; while it shuts it keeps its last words.
+      banner.toggleAttribute("data-open", !!text)
+      banner.setAttribute("aria-hidden", text ? "false" : "true")
+      banner.inert = !text
       var label = banner.querySelector("[data-mail-select-all-banner-text]")
-      if (label) label.textContent = text
+      if (label && text) label.textContent = text
       var button = banner.querySelector("[data-mail-select-all-banner-action]")
       if (button) {
         // The button's own inline-flex outranks hidden, so it goes too.
@@ -3547,6 +3945,28 @@ document.addEventListener("DOMContentLoaded", function () {
         rows[i].toggleAttribute("data-mail-selected", selected)
         var anchor = rows[i].querySelector(":scope > a")
         if (anchor) anchor.toggleAttribute("data-mail-selected", selected)
+        var check = rows[i].querySelector(":scope > [data-mail-row-check] input")
+        if (check) {
+          var state = mailThreadSelectionState(rows[i].dataset.emailId)
+          check.checked = state === "all"
+          check.indeterminate = state === "some"
+        }
+      }
+      var slots = root ? [root] : document.querySelectorAll("#mail-list-scroll .mail-list-thread-slot")
+      for (var s = 0; s < slots.length; s++) {
+        var slot = slots[s].matches && slots[s].matches(".mail-list-thread-slot") ? slots[s] : null
+        if (!slot) continue
+        rememberMailThreadSubs(slot)
+        var mainRow = slot.querySelector(".mail-list-item[data-email-id]")
+        var whole = mainRow && mailThreadSelectionState(mainRow.dataset.emailId) === "all"
+        var subs = slot.querySelectorAll(".thread-sub-item[data-sub-email-id]")
+        for (var k = 0; k < subs.length; k++) {
+          var subSelected = whole || selectedMailIds.has(subs[k].dataset.subEmailId)
+          var subLink = subs[k].querySelector(":scope > a")
+          if (subLink) subLink.toggleAttribute("data-mail-selected", !whole && subSelected)
+          var subCheck = subs[k].querySelector(":scope > [data-mail-row-check] input")
+          if (subCheck) subCheck.checked = subSelected
+        }
       }
     }
 
@@ -3776,7 +4196,9 @@ document.addEventListener("DOMContentLoaded", function () {
     function mailToolbarLabelWidth(el) {
       var range = document.createRange()
       range.selectNodeContents(el)
-      return range.getBoundingClientRect().width
+      // A range around buttons can measure 0 (no text inside), which capped
+      // the action buttons at max-width 0; scrollWidth still sees them.
+      return Math.max(range.getBoundingClientRect().width, el.scrollWidth)
     }
 
     // Each collapsible part with the width it takes now (mid-animation, maybe)
@@ -4513,7 +4935,7 @@ document.addEventListener("DOMContentLoaded", function () {
           return
         }
 
-        if (e.key === "Escape" && (selectedMailIds.size > 0 || selectedMailIdForKeyboard())) {
+        if (e.key === "Escape" && (selectedMailIds.size > 0 || mailSelectionModeActive() || selectedMailIdForKeyboard())) {
           e.preventDefault()
           clearKeyboardMailSelection()
           return
@@ -5968,6 +6390,199 @@ document.addEventListener("DOMContentLoaded", function () {
       search.setSelectionRange(search.value.length, search.value.length)
     })
 
+    // Search suggestions: the commands that match the word being typed, under
+    // the field. A word matches a command by its start ("fr" → from:) or by
+    // its value ("un" → is:unread); after "filetype:" or "account:" it lists
+    // their values. Tab or Enter on a highlighted one types it in.
+    var SEARCH_FILETYPES = ["pdf", "image", "document", "spreadsheet", "presentation", "archive", "audio", "video"]
+
+    function searchSuggestRoot() {
+      return document.getElementById("mail-search-suggest")
+    }
+
+    function searchSuggestList() {
+      return document.querySelector("[data-mail-search-suggestions]")
+    }
+
+    function searchSuggestOpen() {
+      var content = document.querySelector("[data-mail-search-suggest-content]")
+      return !!(content && content.getAttribute("data-tui-popover-open") === "true")
+    }
+
+    function closeSearchSuggest() {
+      var input = document.querySelector("[data-mail-search-input]")
+      if (input) {
+        input.setAttribute("aria-expanded", "false")
+        input.removeAttribute("aria-activedescendant")
+      }
+      if (searchSuggestOpen() && window.tui && window.tui.popover) window.tui.popover.close("mail-search-suggest")
+    }
+
+    // The word the cursor is in, and where it starts and ends.
+    function searchSuggestWord(input) {
+      var text = input.value
+      var cursor = input.selectionStart == null ? text.length : input.selectionStart
+      var start = cursor
+      while (start > 0 && !/\s/.test(text.charAt(start - 1))) start--
+      var end = cursor
+      while (end < text.length && !/\s/.test(text.charAt(end))) end++
+      return { start: start, end: end, word: text.slice(start, cursor).toLowerCase() }
+    }
+
+    function searchAccountValues() {
+      var form = document.querySelector("[data-mail-advanced-filter-form]")
+      var field = form && form.querySelector('[name="account_id"]')
+      var select = field && field.closest(".select-container")
+      var values = []
+      if (!select) return values
+      select.querySelectorAll(".select-item").forEach(function (item) {
+        if (!item.getAttribute("data-tui-selectbox-value")) return
+        var text = ((item.querySelector(".select-item-text") || item).textContent || "").trim()
+        if (text && !/\s/.test(text)) values.push(text)
+      })
+      return values
+    }
+
+    function searchSuggestValueItem(list, insert, meaning) {
+      var item = list.querySelector("[data-mail-search-suggestion]").cloneNode(true)
+      item.setAttribute("data-mail-search-suggestion", insert)
+      item.setAttribute("data-mail-search-suggestion-value", "")
+      item.querySelector("code").textContent = insert
+      item.querySelector("span").textContent = meaning
+      list.appendChild(item)
+      return item
+    }
+
+    function updateSearchSuggest(input) {
+      var list = searchSuggestList()
+      if (!list || !input) return
+      list.querySelectorAll("[data-mail-search-suggestion-value]").forEach(function (item) { item.remove() })
+      var word = searchSuggestWord(input).word
+      var shown = []
+      if (word && word.charAt(0) !== '"' && word.charAt(0) !== "'") {
+        var colon = word.indexOf(":")
+        var key = colon > 0 ? word.slice(0, colon) : ""
+        var value = colon > 0 ? word.slice(colon + 1) : ""
+        list.querySelectorAll("[data-mail-search-suggestion]").forEach(function (item) {
+          var insert = item.getAttribute("data-mail-search-suggestion")
+          var at = insert.indexOf(":")
+          var match = colon > 0
+            ? insert !== word && insert.indexOf(word) === 0
+            : insert.indexOf(word) === 0 || (at > 0 && at < insert.length - 1 && insert.slice(at + 1).indexOf(word) === 0)
+          item.classList.toggle("hidden", !match)
+          if (match) shown.push(item)
+        })
+        var values = key === "filetype" ? SEARCH_FILETYPES : key === "account" ? searchAccountValues() : []
+        values.forEach(function (v) {
+          if (v.toLowerCase().indexOf(value) !== 0 || v.toLowerCase() === value) return
+          shown.push(searchSuggestValueItem(list, key + ":" + v, key === "filetype" ? "File type" : "Account"))
+        })
+      } else {
+        list.querySelectorAll("[data-mail-search-suggestion]").forEach(function (item) { item.classList.add("hidden") })
+      }
+      list.querySelectorAll('[aria-selected="true"]').forEach(function (item) { item.setAttribute("aria-selected", "false") })
+      input.removeAttribute("aria-activedescendant")
+      if (!shown.length) {
+        closeSearchSuggest()
+        return
+      }
+      input.setAttribute("aria-expanded", "true")
+      list.scrollTop = 0
+      if (!searchSuggestOpen() && window.tui && window.tui.popover) {
+        var content = document.querySelector("[data-mail-search-suggest-content]")
+        var wrap = input.closest(".mail-list-search-input-wrap")
+        if (content && wrap) content.style.minWidth = Math.min(wrap.offsetWidth, 448) + "px"
+        window.tui.popover.open("mail-search-suggest")
+      }
+    }
+
+    function searchSuggestItems() {
+      var list = searchSuggestList()
+      return list ? Array.prototype.slice.call(list.querySelectorAll("[data-mail-search-suggestion]:not(.hidden)")) : []
+    }
+
+    function moveSearchSuggest(input, step) {
+      var items = searchSuggestItems()
+      if (!items.length) return
+      var index = items.findIndex(function (item) { return item.getAttribute("aria-selected") === "true" })
+      if (index !== -1) items[index].setAttribute("aria-selected", "false")
+      index = index === -1 ? (step > 0 ? 0 : items.length - 1) : (index + step + items.length) % items.length
+      var item = items[index]
+      item.setAttribute("aria-selected", "true")
+      if (!item.id) item.id = "mail-search-suggestion-" + index + "-" + Date.now()
+      input.setAttribute("aria-activedescendant", item.id)
+      item.scrollIntoView({ block: "nearest" })
+    }
+
+    // Types the command in place of the word being typed. A command that
+    // still needs its value leaves the cursor after its colon.
+    function applySearchSuggestion(input, item) {
+      var insert = item.getAttribute("data-mail-search-suggestion")
+      var word = searchSuggestWord(input)
+      var text = input.value
+      var needsValue = insert.charAt(insert.length - 1) === ":"
+      var after = text.slice(word.end)
+      var addition = insert + (needsValue ? "" : (after.charAt(0) === " " ? "" : " "))
+      input.value = text.slice(0, word.start) + addition + after
+      var cursor = word.start + addition.length + (needsValue || after.charAt(0) !== " " ? 0 : 1)
+      input.focus()
+      input.setSelectionRange(cursor, cursor)
+      if (needsValue && (insert === "filetype:" || insert === "account:")) updateSearchSuggest(input)
+      else closeSearchSuggest()
+    }
+
+    document.addEventListener("input", function (e) {
+      if (e.target && e.target.matches && e.target.matches("[data-mail-search-input]")) updateSearchSuggest(e.target)
+    })
+
+    // Before the search's own Enter handler and the phone search mode's Escape.
+    document.addEventListener("keydown", function (e) {
+      if (!e.target || !e.target.matches || !e.target.matches("[data-mail-search-input]")) return
+      if (!searchSuggestOpen()) {
+        if (e.key === "ArrowDown" && e.target.value) updateSearchSuggest(e.target)
+        return
+      }
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault()
+        moveSearchSuggest(e.target, e.key === "ArrowDown" ? 1 : -1)
+        return
+      }
+      if (e.key === "Escape") {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        closeSearchSuggest()
+        return
+      }
+      if (e.key === "Tab" || e.key === "Enter") {
+        var items = searchSuggestItems()
+        var chosen = items.find(function (item) { return item.getAttribute("aria-selected") === "true" })
+        if (!chosen && e.key === "Tab" && !e.shiftKey) chosen = items[0]
+        if (!chosen) {
+          closeSearchSuggest()
+          return
+        }
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        applySearchSuggestion(e.target, chosen)
+      }
+    }, true)
+
+    // Clicking a suggestion keeps the focus in the field.
+    document.addEventListener("mousedown", function (e) {
+      if (e.target.closest && e.target.closest("[data-mail-search-suggestion]")) e.preventDefault()
+    })
+
+    document.addEventListener("click", function (e) {
+      var item = e.target.closest && e.target.closest("[data-mail-search-suggestion]")
+      if (!item) return
+      var input = document.querySelector("[data-mail-search-input]")
+      if (input) applySearchSuggestion(input, item)
+    })
+
+    document.addEventListener("focusout", function (e) {
+      if (e.target && e.target.matches && e.target.matches("[data-mail-search-input]")) closeSearchSuggest()
+    })
+
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape") closeActivePillOverflow()
       if (!e.target || !e.target.matches || !e.target.matches("[data-mail-search-input]")) return
@@ -6786,6 +7401,13 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function setupDesktopNotifications() {
+    updateNotificationAppearancePreview()
+    document.addEventListener("change", function (e) {
+      var input = e.target && e.target.closest ? e.target.closest('input[name="notification_title"], input[name="notification_content"], input[name="notification_icon"]') : null
+      if (!input || !window.GoferSettings) return
+      GoferSettings.set(input.name, input.value)
+      updateNotificationAppearancePreview()
+    })
     updateDesktopNotificationControls()
     if (notificationsEnabled()) {
       configureNotificationMethod({ prompt: false }).catch(function () { setNotificationActiveMethod("none") })
@@ -6839,7 +7461,11 @@ document.addEventListener("DOMContentLoaded", function () {
       if (!button || button.disabled) return
       button.disabled = true
       button.setAttribute("data-busy", "")
-      sendTestNotification().then(function () {
+      var saved = window.GoferSettings ? GoferSettings.saveNow() : Promise.resolve()
+      saved.then(function (res) {
+        if (window.GoferSettings && (!res || !res.ok)) throw new Error("Could not save notification settings. Try again before sending a test.")
+        return sendTestNotification()
+      }).then(function () {
         showGoferToast({
           id: "desktop-notifications-test-toast",
           title: "Test notification sent",
@@ -6868,6 +7494,7 @@ document.addEventListener("DOMContentLoaded", function () {
     })
     document.addEventListener("htmx:afterSwap", function () {
       updateDesktopNotificationControls()
+      updateNotificationAppearancePreview()
       setNotificationActiveMethod(_notificationActiveMethod)
     })
   }
@@ -6913,7 +7540,7 @@ document.addEventListener("DOMContentLoaded", function () {
   function sendTestNotification() {
     if (_notificationActiveMethod === "web_push") {
       if (!("serviceWorker" in navigator)) return Promise.reject(new Error("This browser does not support Web Push."))
-      return navigator.serviceWorker.getRegistration("/sw.js").then(function (registration) {
+      return navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).then(waitForNotificationWorker).then(function (registration) {
         return registration ? registration.pushManager.getSubscription() : null
       }).then(function (subscription) {
         if (!subscription) throw new Error("This browser has no push subscription. Turn notifications off and on again to register it.")
@@ -6933,18 +7560,21 @@ document.addEventListener("DOMContentLoaded", function () {
       if (!browserNotificationsSupported() || Notification.permission !== "granted") {
         return Promise.reject(new Error("Notification permission was not granted."))
       }
-      var notification = new Notification("Gofer", {
-        body: "Test notification. Desktop notifications are working.",
-        tag: "gofer-test-notification",
-        icon: "/assets/logo.png",
-        badge: "/assets/logo.png",
+      var appearance = newMailNotificationAppearance(notificationAppearanceExample(), 1)
+      return window.GoferNotificationAvatar.render(appearance.icon).then(function (circularIcon) {
+        var notification = new Notification(appearance.title, {
+          body: appearance.body,
+          tag: "gofer-test-notification",
+          icon: circularIcon,
+          badge: "/assets/logo.png",
+        })
+        notification.onclick = function () {
+          window.focus()
+          notification.close()
+        }
+        setTimeout(function () { notification.close() }, 12000)
+        return Promise.resolve()
       })
-      notification.onclick = function () {
-        window.focus()
-        notification.close()
-      }
-      setTimeout(function () { notification.close() }, 12000)
-      return Promise.resolve()
     }
     return Promise.reject(new Error("Turn on desktop notifications first."))
   }
@@ -7010,6 +7640,29 @@ document.addEventListener("DOMContentLoaded", function () {
     return output
   }
 
+  function waitForNotificationWorker(registration) {
+    var worker = registration.installing || registration.waiting || registration.active
+    if (!worker) return Promise.reject(new Error("The notification service worker is unavailable."))
+    if (worker.state === "activated") return Promise.resolve(registration)
+    return new Promise(function (resolve, reject) {
+      var timer = setTimeout(function () {
+        finish(new Error("The notification update is taking too long. Try again in a moment."))
+      }, 10000)
+      function finish(err) {
+        clearTimeout(timer)
+        worker.removeEventListener("statechange", changed)
+        if (err) reject(err)
+        else resolve(registration)
+      }
+      function changed() {
+        if (worker.state === "activated") finish()
+        else if (worker.state === "redundant") finish(new Error("The notification service worker could not activate. Try again."))
+      }
+      worker.addEventListener("statechange", changed)
+      changed()
+    })
+  }
+
   function ensureWebPushSubscription(prompt) {
     if (!webPushSupported()) return Promise.reject(new Error("Web Push requires HTTPS or localhost in a supported browser."))
     return requestNotificationPermission(prompt).then(function (permission) {
@@ -7020,7 +7673,7 @@ document.addEventListener("DOMContentLoaded", function () {
       return res.json()
     }).then(function (data) {
       if (!data.public_key) throw new Error("Web Push is not configured on this server.")
-      return navigator.serviceWorker.register("/sw.js").then(function (registration) {
+      return navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).then(waitForNotificationWorker).then(function (registration) {
         return registration.pushManager.getSubscription().then(function (existing) {
           if (existing) return existing
           return registration.pushManager.subscribe({
@@ -7080,6 +7733,45 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
+  // Keep this formatter in sync with internal/notifications/appearance.go.
+  function newMailNotificationAppearance(data, unreadCount) {
+    var setting = function (key) { return window.GoferSettings ? GoferSettings.get(key) : null }
+    var sender = String(data.from_name || "").trim() || String(data.from_email || "").trim() || "New mail"
+    var subject = String(data.subject || "").trim() || "(no subject)"
+    var folder = String(data.folder_name || "").trim() || "Inbox"
+    var countTitle = unreadCount === 1 ? "1 new message" : unreadCount + " new messages"
+    var title = sender + (unreadCount > 1 ? " · +" + (unreadCount - 1) + " more" : "")
+    if (setting("notification_title") === "sender") title = sender
+    else if (setting("notification_title") === "gofer") title = "Gofer"
+    else if (setting("notification_title") === "count") title = countTitle
+    var body = unreadCount === 1 ? subject : sender + ": " + subject + " - " + folder
+    if (setting("notification_content") === "hidden") body = ""
+    else if (setting("notification_content") === "preview") {
+      var preview = String(data.preview || "").replace(/\s+/g, " ").trim()
+      var chars = Array.from(preview)
+      if (chars.length > 180) preview = chars.slice(0, 180).join("") + "…"
+      if (preview) body += "\n" + preview
+    }
+    var icon = setting("notification_icon") === "gofer" ? "/assets/logo.png" : String(data.avatar_url || data.icon || "/assets/logo.png")
+    return { title: title, body: body, icon: icon }
+  }
+
+  function notificationAppearanceExample() {
+    return { from_name: "Alex Smith", subject: "Tomorrow's meeting", preview: "Hi! Shall we meet at 10 tomorrow?", folder_name: "Inbox", avatar_url: "/assets/notification-avatar.png" }
+  }
+
+  function updateNotificationAppearancePreview() {
+    var appearance = newMailNotificationAppearance(notificationAppearanceExample(), 3)
+    document.querySelectorAll("[data-notification-preview-title]").forEach(function (node) { node.textContent = appearance.title })
+    document.querySelectorAll("[data-notification-preview-body]").forEach(function (node) {
+      node.textContent = appearance.body
+      node.hidden = !appearance.body
+    })
+    var avatar = !window.GoferSettings || GoferSettings.get("notification_icon") !== "gofer"
+    document.querySelectorAll("[data-notification-preview-avatar]").forEach(function (node) { node.hidden = !avatar; node.classList.toggle("hidden", !avatar) })
+    document.querySelectorAll("[data-notification-preview-logo]").forEach(function (node) { node.hidden = avatar; node.classList.toggle("hidden", avatar) })
+  }
+
   function showBrowserTabNewMailNotification(data) {
     if (!notificationsEnabled()) return
     if (_notificationActiveMethod !== "browser_tab") return
@@ -7092,28 +7784,26 @@ document.addEventListener("DOMContentLoaded", function () {
     var unreadCount = Number(data.unread_count || 0)
     if (unreadCount <= 0) return
 
-    var sender = String(data.from_name || data.from_email || "New mail")
-    var subject = String(data.subject || "(no subject)")
+    var appearance = newMailNotificationAppearance(data, unreadCount)
     var folderName = String(data.folder_name || "Inbox")
-    var title = unreadCount === 1 ? sender : unreadCount + " new messages"
-    var body = unreadCount === 1 ? subject : sender + ": " + subject
-    var icon = data.avatar_url || data.icon || "/assets/logo.png"
 
-    var notification = new Notification(title, {
-      body: body,
-      tag: "gofer-new-mail-" + (data.account_id || "") + "-" + (data.folder_id || folderName),
-      icon: icon,
-      badge: "/assets/logo.png",
-      data: { folderID: data.folder_id || "" },
-    })
-    notification.onclick = function () {
-      window.focus()
-      if (notification.data && notification.data.folderID) {
-        window.location.href = "/folder/" + encodeURIComponent(notification.data.folderID)
+    return window.GoferNotificationAvatar.render(appearance.icon).then(function (circularIcon) {
+      var notification = new Notification(appearance.title, {
+        body: appearance.body,
+        tag: "gofer-new-mail-" + (data.account_id || "") + "-" + (data.folder_id || folderName),
+        icon: circularIcon,
+        badge: "/assets/logo.png",
+        data: { folderID: data.folder_id || "" },
+      })
+      notification.onclick = function () {
+        window.focus()
+        if (notification.data && notification.data.folderID) {
+          window.location.href = "/folder/" + encodeURIComponent(notification.data.folderID)
+        }
+        notification.close()
       }
-      notification.close()
-    }
-    setTimeout(function () { notification.close() }, 12000)
+      setTimeout(function () { notification.close() }, 12000)
+    }).catch(function () {})
   }
 
   function openContactDetail(contactID) {
@@ -7602,9 +8292,12 @@ document.addEventListener("DOMContentLoaded", function () {
         var loadEmailAfterShell = function (evt) {
           if (!evt.target || evt.target.id !== "main-content") return
           document.body.removeEventListener("htmx:afterSettle", loadEmailAfterShell)
+          initialMailReaderLoader = null
           preserveMailListSelectionFor = initialEmailId
           htmx.ajax("GET", mailViewRequestURL(initialEmailId), "#mail-view")
         }
+        if (initialMailReaderLoader) document.body.removeEventListener("htmx:afterSettle", initialMailReaderLoader)
+        initialMailReaderLoader = loadEmailAfterShell
         document.body.addEventListener("htmx:afterSettle", loadEmailAfterShell)
       }
       var params = new URLSearchParams(window.location.search)
@@ -7632,7 +8325,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function setupFolderClickInterception() {
     var sidebar = document.querySelector("aside")
-    if (!sidebar) return
+    if (!sidebar || sidebar._goferFolderClicks) return
+    sidebar._goferFolderClicks = true
 
     function clearFolderActiveState() {
       var sidebarLinks = sidebar.querySelectorAll("a[hx-get^='/folder/']")
@@ -8119,19 +8813,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
         return
       }
-      if (_calendarContentRequest) _calendarContentRequest.abort()
-      if (_calendarCacheRequest) {
-        var cache = _calendarCacheRequest
-        _calendarCacheRequest = null
-        cache.abort()
-      }
-      if (_calendarSyncRequest) {
-        var sync = _calendarSyncRequest
-        handleCalendarSyncAbort({ detail: { xhr: sync } })
-        sync.abort()
-      }
-      _calendarNavigationRequest = null
-      finishCalendarNavigationTransition()
+      cancelCalendarPageRequests()
       if (!previous) {
         var sidebar = document.getElementById("sidebar-app-body")
         previous = { mode: sidebar ? sidebar.dataset.sidebarAppBody : "mail", panes: [] }
@@ -8553,22 +9235,38 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     var list = document.getElementById("mail-list")
     if (list) {
-      list.removeAttribute("inert")
-      list.removeAttribute("aria-busy")
-      var rows = pendingRowCount(list, mode, viewMode)
-      list.className = "w-full lg:flex flex-col border-r border-border bg-card h-full overflow-hidden"
-      list.dataset.viewMode = viewMode
-      list.dataset.panelSection = mode
-      if (mode === "contacts") {
-        list.setAttribute("data-contact-list-shell", "")
-        list.removeAttribute("data-mail-list-view")
-        list.removeAttribute("data-mail-navigation-mode")
+      var listTemplate = document.getElementById("app-navigation-" + mode + "-" + viewMode)
+      var preloadedList = listTemplate && listTemplate.content.querySelector("#mail-list")
+      if (preloadedList) {
+        var rowCount = pendingRowCount(list, mode, viewMode)
+        replaceAppPaneContents(list, preloadedList, true)
+        list.setAttribute("inert", "")
+        list.setAttribute("aria-busy", "true")
+        list.setAttribute("data-navigation-pending", "")
+        var pendingScroll = list.querySelector(mode === "contacts" ? "#contacts-list-scroll" : "#mail-list-scroll")
+        if (pendingScroll) {
+          pendingScroll.removeAttribute("data-load-folder")
+          pendingScroll.removeAttribute("data-hydrate-dropin")
+          pendingScroll.innerHTML = listRowsPendingHTML(mode, viewMode, rowCount)
+        }
       } else {
-        list.removeAttribute("data-contact-list-shell")
-        list.dataset.mailListView = viewMode
-        list.dataset.mailNavigationMode = window.GoferSettings ? (GoferSettings.get("mail_list_navigation") || "infinite") : "infinite"
+        list.removeAttribute("inert")
+        list.removeAttribute("aria-busy")
+        var rows = pendingRowCount(list, mode, viewMode)
+        list.className = "w-full lg:flex flex-col border-r border-border bg-card h-full overflow-hidden"
+        list.dataset.viewMode = viewMode
+        list.dataset.panelSection = mode
+        if (mode === "contacts") {
+          list.setAttribute("data-contact-list-shell", "")
+          list.removeAttribute("data-mail-list-view")
+          list.removeAttribute("data-mail-navigation-mode")
+        } else {
+          list.removeAttribute("data-contact-list-shell")
+          list.dataset.mailListView = viewMode
+          list.dataset.mailNavigationMode = window.GoferSettings ? (GoferSettings.get("mail_list_navigation") || "infinite") : "infinite"
+        }
+        list.innerHTML = listPendingHTML(mode, viewMode, rows)
       }
-      list.innerHTML = listPendingHTML(mode, viewMode, rows)
       if (mode === "mail" && viewMode === "table" && typeof window.applyMailTableColumnSettings === "function") {
         window.applyMailTableColumnSettings(list.querySelector("#mail-list-scroll"))
       }
@@ -8993,9 +9691,11 @@ document.addEventListener("DOMContentLoaded", function () {
     '</button>'
   }
 
-  // showMailViewLoading draws the reader as a single message (see MailViewContent in
-  // mailview.templ) with what the list row already knows filled in, so the sheet
-  // doesn't jump when the message arrives. Keep it in step with MailViewLoading.
+  // showMailViewLoading draws the reader as a single message, or as a
+  // conversation with one card per message (see MailViewContent and
+  // MailViewThreadContent in mailview.templ), with what the list row already
+  // knows filled in, so the sheet doesn't jump when it arrives. Keep the single
+  // message in step with MailViewLoading.
   function showMailViewLoading(trigger) {
     var mailView = document.getElementById("mail-view")
     if (!mailView) return
@@ -9024,7 +9724,6 @@ document.addEventListener("DOMContentLoaded", function () {
         '</div>' +
       '</div>'
     var bodyHTML =
-      '<div class="h-px bg-gradient-to-r from-transparent via-ink/10 to-transparent my-6"></div>' +
       '<div class="mb-3 flex justify-end lg:justify-between">' +
         '<div class="hidden lg:block h-7 w-48 shrink-0 rounded-lg bg-ink/[0.04] animate-pulse"></div>' +
         '<div class="h-7 w-32 rounded-md border border-ink/10 bg-ink/[0.04] animate-pulse"></div>' +
@@ -9036,30 +9735,55 @@ document.addEventListener("DOMContentLoaded", function () {
         '<div class="h-4 w-2/3 rounded bg-ink/5 animate-pulse"></div>' +
       '</div>'
     if (keepMailViewChrome(mailView, trigger, senderHTML, bodyHTML)) return
+    var toolbarHTML =
+      '<div class="mail-view-toolbar flex items-center justify-between px-6 py-2.5">' +
+        '<div class="mail-view-actions flex items-center gap-1 min-w-0">' +
+          '<button type="button" class="mobile-back-button h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-ink/5" data-on-click=\'["closeMobileMailView"]\' aria-label="Back to list">' + mailViewSkeletonIcon("arrow-left", "size-5") + '</button>' +
+          mailViewSkeletonToolbarButton("archive") +
+          mailViewSkeletonToolbarButton("trash-2") +
+          '<div>' + mailViewSkeletonToolbarButton("shield-alert").replace('<button ', '<button data-mail-action="spam" ') + '</div>' +
+          mailViewSkeletonToolbarButton("star", "size-4") +
+          mailViewSkeletonToolbarButton("mail") +
+        '</div>' +
+        '<div class="mail-view-meta flex items-center gap-2">' +
+          (time ? '<span class="mail-view-date text-xs text-muted-foreground tabular-nums">' + time + '</span>' : '<span class="mail-view-date h-3 w-32 rounded bg-ink/5 animate-pulse"></span>') +
+          mailViewSkeletonToolbarButton("ellipsis-vertical") +
+        '</div>' +
+      '</div>'
+    var threadCount = mailViewTriggerThreadCount(trigger)
+    if (threadCount > 1) {
+      mailView.innerHTML =
+        '<div class="mail-view-frame flex flex-col h-full" aria-busy="true" aria-label="Loading conversation">' +
+          '<div class="mail-view-thread-frame flex flex-col h-full">' +
+            '<div class="mail-view-thread-toolbar surface-paper rounded-md shrink-0">' +
+              toolbarHTML +
+              '<div class="h-px bg-gradient-to-r from-transparent via-amber-900/10 to-transparent"></div>' +
+              '<div class="mail-view-content mx-auto px-8 pt-4 pb-3">' +
+                mailViewSkeletonSubject(subject).replace(" mt-5", " mb-1") +
+                mailViewSkeletonThreadCount(threadCount) +
+              '</div>' +
+            '</div>' +
+            '<div data-thread-list class="mail-view-thread-scroll flex-1 min-h-0 overflow-y-auto flex flex-col gap-2">' +
+              mailViewThreadSkeletonCards(threadCount, senderHTML, bodyHTML) +
+            '</div>' +
+          '</div>' +
+        '</div>'
+      scrollThreadSkeletonToOpen(mailView.querySelector("[data-thread-list]"))
+      return
+    }
     mailView.innerHTML =
       '<div class="mail-view-frame flex flex-col h-full" aria-busy="true" aria-label="Loading message">' +
         '<div class="surface-paper rounded-md flex flex-col h-full overflow-hidden">' +
-          '<div class="mail-view-toolbar flex items-center justify-between px-6 py-2.5">' +
-            '<div class="mail-view-actions flex items-center gap-1 min-w-0">' +
-              '<button type="button" class="mobile-back-button h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-ink/5" data-on-click=\'["closeMobileMailView"]\' aria-label="Back to list">' + mailViewSkeletonIcon("arrow-left", "size-5") + '</button>' +
-              mailViewSkeletonToolbarButton("archive") +
-              mailViewSkeletonToolbarButton("trash-2") +
-              '<div>' + mailViewSkeletonToolbarButton("shield-alert").replace('<button ', '<button data-mail-action="spam" ') + '</div>' +
-              mailViewSkeletonToolbarButton("star", "size-4") +
-              mailViewSkeletonToolbarButton("mail") +
-            '</div>' +
-            '<div class="mail-view-meta flex items-center gap-2">' +
-              (time ? '<span class="mail-view-date text-xs text-muted-foreground tabular-nums">' + time + '</span>' : '<span class="mail-view-date h-3 w-32 rounded bg-ink/5 animate-pulse"></span>') +
-              mailViewSkeletonToolbarButton("ellipsis-vertical") +
-            '</div>' +
-          '</div>' +
+          '<div class="mail-view-message-header shrink-0">' +
+          toolbarHTML +
           '<div class="h-px bg-gradient-to-r from-transparent via-amber-900/10 to-transparent"></div>' +
+          '<div class="mail-view-content mx-auto px-8 py-6">' +
+            senderHTML +
+            mailViewSkeletonSubject(subject) +
+          '</div>' +
+          '</div>' +
           '<div class="flex-1 overflow-y-auto">' +
-            '<div class="mail-view-content mx-auto px-8 py-6">' +
-              senderHTML +
-              mailViewSkeletonSubject(subject) +
-              bodyHTML +
-            '</div>' +
+            '<div class="mail-view-content mx-auto px-8 py-6">' + bodyHTML + '</div>' +
           '</div>' +
           '<div class="px-6 py-3 border-t border-ink/6">' +
             '<div class="mail-view-reply-actions flex items-center gap-2">' +
@@ -9081,6 +9805,64 @@ document.addEventListener("DOMContentLoaded", function () {
       '</div>'
   }
 
+  function mailViewSkeletonThreadCount(count) {
+    return '<div class="flex items-center gap-2">' +
+      '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-3.5 text-muted-foreground" aria-hidden="true"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/></svg>' +
+      '<span class="text-xs font-medium text-muted-foreground" data-thread-count>' + count + ' messages in this thread</span>' +
+      '<span class="text-xs text-ink/20">|</span>' +
+      '<span class="h-3 w-16 rounded bg-ink/5 animate-pulse"></span>' +
+    '</div>'
+  }
+
+  // mailViewThreadSkeletonCards draws one card per message of a conversation,
+  // as MailViewThreadContent lays them out: each collapsed, except the opened
+  // message, which comes first or last depending on the thread order.
+  function mailViewThreadSkeletonCards(count, senderHTML, bodyHTML) {
+    count = Math.max(1, Math.min(count || 1, 50))
+    var oldestFirst = window.GoferSettings && GoferSettings.get("thread_order") === "oldest"
+    var openIndex = oldestFirst ? count - 1 : 0
+    var actions = '<div class="mt-2 -ml-1 max-lg:-mr-1 max-lg:ml-0 flex items-center gap-0.5 max-lg:justify-end">' +
+      '<div class="h-7 w-7"></div><div class="h-7 w-7"></div><div class="h-7 w-7"></div>' +
+      '<div class="ml-1 h-4 w-28 rounded bg-ink/[0.04] animate-pulse"></div>' +
+    '</div>'
+    var closedSender =
+      '<div class="mail-view-thread-sender flex items-start gap-4">' +
+        '<div class="mail-view-avatar size-11 rounded-full bg-ink/5 shrink-0 animate-pulse"></div>' +
+        '<div class="flex-1 min-w-0">' +
+          '<div class="flex items-center gap-2 min-h-6"><span class="h-4 w-36 rounded bg-ink/5 animate-pulse"></span><span class="mail-view-address h-3 w-44 rounded bg-ink/5 animate-pulse"></span></div>' +
+          '<div class="mt-1 h-3 w-28 rounded bg-ink/5 animate-pulse"></div>' +
+        '</div>' +
+      '</div>'
+    var html = ""
+    for (var i = 0; i < count; i++) {
+      var open = i === openIndex
+      html += '<div class="shrink-0"' + (open ? ' data-thread-skeleton-open' : '') + '><article class="mail-thread-card surface-paper rounded-md">' +
+        '<div class="mail-view-content mx-auto px-8 py-6">' +
+          (open ? senderHTML.replace("mail-view-sender", "mail-view-thread-sender") : closedSender) +
+          actions +
+          '<div class="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground/60 select-none"><span class="size-3.5"></span>' + (open ? 'Hide email' : 'Show email') + '</div>' +
+          (open ? '<div class="mt-3">' + bodyHTML + '</div>' : '') +
+        '</div></article></div>'
+    }
+    return html
+  }
+
+  // As scrollThreadToSelected does for the real thread: the open message goes
+  // to the top of the pane.
+  function scrollThreadSkeletonToOpen(list) {
+    var open = list && list.querySelector("[data-thread-skeleton-open]")
+    if (!open || list.firstElementChild === open) return
+    list.scrollTop += open.getBoundingClientRect().top - list.getBoundingClientRect().top
+  }
+
+  // How many messages a list row's conversation holds, or 0 when it opens on
+  // its own.
+  function mailViewTriggerThreadCount(trigger) {
+    if (!mailViewTriggerOpensThread(trigger)) return 0
+    var row = trigger.closest(".mail-list-item[data-email-id]")
+    return parseInt(row && row.dataset.threadCount, 10) || 2
+  }
+
   // keepMailViewChrome goes from one message to another without the reader's
   // toolbar, menu and reply bar turning into placeholders and back: they stay
   // where they are, and only what belongs to the message shows as loading.
@@ -9095,7 +9877,8 @@ document.addEventListener("DOMContentLoaded", function () {
     var threadFrame = frame.querySelector(".mail-view-thread-frame")
     var threadList = threadFrame && threadFrame.querySelector("[data-thread-list]")
     var scroll = frame.querySelector("[data-mail-view-scroll]")
-    if (opensThread ? !threadList : !scroll) return false
+    var header = frame.querySelector("[data-mail-view-header]")
+    if (opensThread ? !threadList : !(scroll && header)) return false
 
     var preview = getMailRowPreview(trigger) || {}
     frame.setAttribute("aria-busy", "true")
@@ -9107,12 +9890,15 @@ document.addEventListener("DOMContentLoaded", function () {
     if (opensThread) {
       var heading = threadFrame.querySelector(".mail-view-thread-toolbar .mail-view-subject-row h1")
       if (heading && preview.subject) heading.textContent = preview.subject
-      threadList.innerHTML = '<div class="shrink-0"><article class="mail-thread-card surface-paper rounded-md">' +
-        '<div class="mail-view-content mx-auto px-8 py-6">' + senderHTML + bodyHTML + '</div></article></div>'
+      var count = mailViewTriggerThreadCount(trigger)
+      var countLabel = threadFrame.querySelector("[data-thread-count]")
+      if (countLabel && count > 1) countLabel.textContent = count + " messages in this thread"
+      threadList.innerHTML = mailViewThreadSkeletonCards(count, senderHTML, bodyHTML)
       threadList.scrollTop = 0
+      scrollThreadSkeletonToOpen(threadList)
     } else {
-      scroll.innerHTML = '<div class="mail-view-content mx-auto px-8 py-6">' + senderHTML +
-        mailViewSkeletonSubject(escapeHTML(preview.subject || "")) + bodyHTML + '</div>'
+      header.innerHTML = senderHTML + mailViewSkeletonSubject(escapeHTML(preview.subject || ""))
+      scroll.innerHTML = '<div class="mail-view-content mx-auto px-8 py-6">' + bodyHTML + '</div>'
       scroll.scrollTop = 0
       var footer = frame.querySelector("[data-mail-calendar-footer]")
       if (footer) footer.innerHTML = ""
@@ -9132,7 +9918,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   document.body.addEventListener("htmx:afterSettle", function (evt) {
     var scroll = document.getElementById("mail-list-scroll")
-    if (!scroll || scroll._virtualMailList) return
+    if (!scroll || scroll._virtualMailList || scroll.closest("[data-navigation-pending]")) return
     if (!evt.target || !evt.target.querySelector) return
     if (!evt.target.querySelector("#mail-list-scroll")) return
 
@@ -9627,6 +10413,8 @@ function setMailViewEmpty() {
 function setMailViewEmptyNow() {
   var mailView = document.getElementById("mail-view")
   if (!mailView) return
+  // Already showing it: drawing it again would replay its fade-in.
+  if (mailView.querySelector("[data-mail-view-empty]")) return
   mailView.innerHTML =
     '<div class="flex flex-col items-center justify-center h-full text-center" data-mail-view-empty>' +
       '<div class="space-y-4 animate-fade-in">' +
@@ -11294,6 +12082,22 @@ function replaceAppPaneContents(root, source, preserveWidth) {
 var _calendarContentRequest = null
 var _calendarContentPrevious = null
 
+function cancelCalendarPageRequests() {
+  if (_calendarContentRequest) _calendarContentRequest.abort()
+  if (_calendarCacheRequest) {
+    var cache = _calendarCacheRequest
+    _calendarCacheRequest = null
+    cache.abort()
+  }
+  if (_calendarSyncRequest) {
+    var sync = _calendarSyncRequest
+    handleCalendarSyncAbort({ detail: { xhr: sync } })
+    sync.abort()
+  }
+  _calendarNavigationRequest = null
+  finishCalendarNavigationTransition()
+}
+
 function calendarLoadingWeekCount(month) {
   var parts = /^(\d{4})-(\d{2})$/.exec(month || "")
   if (!parts) return null
@@ -11522,6 +12326,18 @@ document.body.addEventListener("htmx:afterSwap", function (event) {
   slide.onfinish = slide.oncancel = function () { indicator.style.transition = "" }
 })
 
+// Agenda events that were not on show fade in like the calendar's own events
+// (same duration and easing); ones already showing stay put on later passes.
+var _calendarAgendaShown = new WeakSet()
+
+function fadeInCalendarAgendaEvent(event, show) {
+  if (!show) { _calendarAgendaShown.delete(event); return }
+  if (_calendarAgendaShown.has(event)) return
+  _calendarAgendaShown.add(event)
+  if (!event.animate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
+  event.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: "ease" })
+}
+
 function _calendarAgendaEventMatchesDay(event, day) {
   if (event.calendarEventAllDay === "true") {
     return !!event.calendarEventStartDate && !!event.calendarEventEndDate &&
@@ -11680,6 +12496,7 @@ function initializeCalendarDaySelection() {
     var show = _calendarSourceIsVisible(event) && (!selected || _calendarAgendaEventMatchesDay(event.dataset, selected.dataset))
     event.hidden = !show
     if (show) visible++
+    fadeInCalendarAgendaEvent(event, show)
   })
   agenda.querySelector("#calendar-agenda-heading").textContent = selected ? selected.dataset.calendarDayTitle : "All events"
   agenda.querySelector("[data-calendar-agenda-context]").textContent = selected ?
@@ -15003,6 +15820,228 @@ document.addEventListener("click", function (event) {
   })
 })
 
+// Import events… and Export calendar… open their dialogs, from the New event
+// menu or from a calendar's own menu, which picks that calendar.
+// Import adds an .ics file's events to a calendar, or to a new one named from
+// the file; Export downloads a calendar's events as one. Problems show in a
+// toast rather than leaving the page.
+function calendarImportNameFromFile(text, filename) {
+  var unfolded = text.replace(/\r?\n[ \t]/g, "")
+  var match = /^X-WR-CALNAME(?:;[^:\r\n]*)?:(.*)$/im.exec(unfolded)
+  var name = match ? match[1].replace(/\\([,;\\])/g, "$1").replace(/\\n/gi, " ").trim() : ""
+  if (!name) name = (filename || "").replace(/\.(ics|ical|ifb|icalendar)$/i, "").trim()
+  return name.slice(0, 100)
+}
+
+function updateCalendarImportNameField(form) {
+  var target = form.querySelector("input[name='target']")
+  var field = form.querySelector("[data-calendar-import-name-field]")
+  if (!target || !field) return
+  var creating = (target.value || "").indexOf("account:") === 0
+  field.hidden = !creating
+  var name = field.querySelector("[data-calendar-import-name]")
+  if (name) name.required = creating
+}
+
+function downloadCalendarExport(href) {
+  var filename = "calendar.ics"
+  return fetch(href, { headers: { "Accept": "text/calendar" } }).then(function (response) {
+    if (!response.ok) return response.text().then(function (text) { throw new Error((text || "").trim() || "Please try again.") })
+    var match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(response.headers.get("Content-Disposition") || "")
+    if (match) { try { filename = decodeURIComponent(match[1]) } catch (e) { filename = match[1] } }
+    return response.blob()
+  }).then(function (blob) {
+    var url = URL.createObjectURL(blob)
+    var a = document.createElement("a")
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    setTimeout(function () { URL.revokeObjectURL(url) }, 1000)
+  })
+}
+
+document.addEventListener("click", function (event) {
+  var button = event.target.closest && event.target.closest("[data-calendar-import-open]")
+  if (!button) return
+  event.preventDefault()
+  var form = document.querySelector("#calendar-import-dialog [data-calendar-import-form]")
+  if (form) {
+    form.reset()
+    var name = form.querySelector("[data-calendar-import-name]")
+    if (name) { name.value = ""; delete name.dataset.edited }
+    var sourceID = button.dataset.calendarImportOpen
+    var target = form.querySelector("input[name='target']")
+    if (sourceID && target) target.value = "source:" + sourceID
+    updateCalendarImportNameField(form)
+  }
+  if (window.tui && window.tui.dialog) window.tui.dialog.open("calendar-import-dialog")
+})
+
+document.addEventListener("click", function (event) {
+  var button = event.target.closest && event.target.closest("[data-calendar-export-open]")
+  if (!button) return
+  event.preventDefault()
+  if (window.tui && window.tui.dialog) window.tui.dialog.open("calendar-export-dialog")
+})
+
+document.addEventListener("change", function (event) {
+  var form = event.target.closest && event.target.closest("[data-calendar-import-form]")
+  if (!form) return
+  if (event.target.name === "target") { updateCalendarImportNameField(form); return }
+  if (!event.target.matches("[data-calendar-import-file]")) return
+  var file = event.target.files && event.target.files[0]
+  var name = form.querySelector("[data-calendar-import-name]")
+  if (!file || !name || name.dataset.edited) return
+  file.slice(0, 256 << 10).text().then(function (text) {
+    if (!name.dataset.edited) name.value = calendarImportNameFromFile(text, file.name)
+  }).catch(function () {
+    if (!name.dataset.edited) name.value = calendarImportNameFromFile("", file.name)
+  })
+})
+
+document.addEventListener("input", function (event) {
+  if (event.target.matches && event.target.matches("[data-calendar-import-name]")) event.target.dataset.edited = "true"
+})
+
+document.addEventListener("submit", function (event) {
+  var form = event.target.closest && event.target.closest("[data-calendar-import-form]")
+  if (!form) return
+  event.preventDefault()
+  var fileInput = form.querySelector("[data-calendar-import-file]")
+  var file = fileInput && fileInput.files && fileInput.files[0]
+  var target = (form.querySelector("input[name='target']") || {}).value || ""
+  var nameInput = form.querySelector("[data-calendar-import-name]")
+  var name = nameInput ? nameInput.value.trim() : ""
+  var problem = !file ? "Choose an .ics file." : !target ? "Choose a calendar to import into." : target.indexOf("account:") === 0 && !name ? "Enter a name for the new calendar." : ""
+  if (problem) {
+    showGoferToast({ title: "Could not import the events", description: problem, variant: "error", icon: "error", position: "bottom-right", duration: 5000, dismissible: true })
+    return
+  }
+  var creating = target.indexOf("account:") === 0
+  var query = creating
+    ? "?account=" + encodeURIComponent(target.slice(8)) + "&name=" + encodeURIComponent(name)
+    : "?source=" + encodeURIComponent(target.slice(7))
+  var submit = form.querySelector("[data-calendar-import-submit]")
+  var label = form.querySelector("[data-calendar-import-submit-label]")
+  var progress = form.querySelector("[data-calendar-import-progress]")
+  var progressLabel = form.querySelector("[data-calendar-import-progress-label]")
+  var progressCount = form.querySelector("[data-calendar-import-progress-count]")
+  var progressBar = form.querySelector("[data-calendar-import-progress-bar]")
+  var showProgress = function (done, total, text) {
+    if (progress) progress.hidden = false
+    if (progressLabel) progressLabel.textContent = text
+    if (progressCount) progressCount.textContent = total ? done + " of " + total : ""
+    var percent = total ? Math.round(done / total * 100) : 0
+    if (progressBar) {
+      progressBar.setAttribute("aria-valuenow", String(percent))
+      var indicator = progressBar.querySelector("[data-tui-progress-indicator]")
+      if (indicator) indicator.style.width = percent + "%"
+    }
+  }
+  if (submit) { submit.disabled = true; submit.setAttribute("aria-busy", "true") }
+  if (label) label.textContent = "Importing…"
+  showProgress(0, 0, creating ? "Creating the calendar…" : "Signing in to the calendar…")
+  var done = function () {
+    if (submit) { submit.disabled = false; submit.removeAttribute("aria-busy") }
+    if (label) label.textContent = "Import events"
+    if (progress) progress.hidden = true
+  }
+  // The server answers with JSON lines while it imports: progress, then the
+  // result or an error. An error before it starts is a plain text answer.
+  var readImport = function (response) {
+    if (!response.ok) return response.text().then(function (text) { throw new Error((text || "").trim() || "Please try again.") })
+    if ((response.headers.get("Content-Type") || "").indexOf("application/x-ndjson") !== 0 || !response.body) return response.json()
+    var reader = response.body.getReader()
+    var decoder = new TextDecoder()
+    var buffered = ""
+    var last = null
+    var handle = function (text) {
+      if (!text.trim()) return
+      var message = JSON.parse(text)
+      if (message.error) throw new Error(message.error)
+      if (typeof message.total === "number") {
+        showProgress(message.done, message.total, "Adding events to the calendar…")
+        return
+      }
+      last = message
+    }
+    var pump = function () {
+      return reader.read().then(function (chunk) {
+        if (chunk.done) {
+          handle(buffered)
+          if (!last) throw new Error("The import stopped before it finished. Importing the file again skips the events already added.")
+          return last
+        }
+        buffered += decoder.decode(chunk.value, { stream: true })
+        var lines = buffered.split("\n")
+        buffered = lines.pop()
+        lines.forEach(handle)
+        return pump()
+      })
+    }
+    return pump()
+  }
+  fetch("/api/calendar/import" + query, {
+    method: "POST",
+    headers: { "Content-Type": "text/calendar", "Accept": "application/x-ndjson, application/json" },
+    body: file,
+  }).then(readImport).then(function (result) {
+    done()
+    if (window.tui && window.tui.dialog) window.tui.dialog.close("calendar-import-dialog")
+    var added = result.added || 0
+    var existing = result.existing || 0
+    var failed = result.failed || 0
+    var into = result.calendar ? (result.created ? " into the new calendar “" + result.calendar + "”" : " into “" + result.calendar + "”") : ""
+    // Events already there are left as they are; ones the calendar couldn't
+    // take are counted apart, with why the first of them failed.
+    var notes = []
+    if (existing) notes.push(existing === 1 ? "1 event was already in the calendar." : existing + " events were already in the calendar.")
+    if (failed) notes.push((failed === 1 ? "1 event couldn't be imported. " : failed + " events couldn't be imported. ") + (result.reason || ""))
+    var warning = failed > 0
+    showGoferToast({
+      title: (added === 1 ? "1 event imported" : added + " events imported") + into,
+      description: notes.join(" ").trim(),
+      variant: warning ? "warning" : "success", icon: warning ? "warning" : "success", position: "bottom-right", duration: failed ? 12000 : existing ? 6000 : 4000, dismissible: true,
+    })
+    if (result.created) refreshCalendarSidebar()
+    var sync = document.querySelector("[data-calendar-sync-button]")
+    if (sync && !sync.disabled) sync.click()
+    else scheduleCalendarCacheRefresh()
+  }).catch(function (error) {
+    done()
+    if (creating) refreshCalendarSidebar()
+    showGoferToast({ title: "Could not import the events", description: error && error.message ? error.message : "Please try again.", variant: "error", icon: "error", position: "bottom-right", duration: 8000, dismissible: true })
+  })
+})
+
+document.addEventListener("submit", function (event) {
+  var form = event.target.closest && event.target.closest("[data-calendar-export-form]")
+  if (!form) return
+  event.preventDefault()
+  var sourceID = (form.querySelector("input[name='source']") || {}).value || ""
+  if (!sourceID) return
+  var submit = form.querySelector("[data-calendar-export-submit]")
+  if (submit) submit.disabled = true
+  downloadCalendarExport("/api/calendar/sources/" + encodeURIComponent(sourceID) + "/export").then(function () {
+    if (window.tui && window.tui.dialog) window.tui.dialog.close("calendar-export-dialog")
+  }).catch(function (error) {
+    showGoferToast({ title: "Could not export the calendar", description: error && error.message ? error.message : "Please try again.", variant: "error", icon: "error", position: "bottom-right", duration: 6000, dismissible: true })
+  }).then(function () {
+    if (submit) submit.disabled = false
+  })
+})
+
+document.addEventListener("click", function (event) {
+  var link = event.target.closest && event.target.closest("[data-calendar-source-export]")
+  if (!link) return
+  event.preventDefault()
+  downloadCalendarExport(link.getAttribute("href")).catch(function (error) {
+    showGoferToast({ title: "Could not export the calendar", description: error && error.message ? error.message : "Please try again.", variant: "error", icon: "error", position: "bottom-right", duration: 6000, dismissible: true })
+  })
+})
+
 function scheduleCalendarCacheRefresh() {
   _calendarCacheRefreshPending = true
   if (_calendarCacheRefreshTimer) return
@@ -15589,8 +16628,28 @@ function resetComposeForm(fromPane, skipCleanup) {
   delete form.dataset.composeOutgoingStatus
   delete form.dataset.composeUploadFailed
   form.dataset.composeDirty = "false"
+  if (!fromPane) refreshComposeAccountData(true)
   updateComposeSendState(form)
   _setComposeDraftButtonState(form, "default")
+}
+
+function refreshComposeAccountData(reset) {
+  var form = document.getElementById("compose-form")
+  var template = document.getElementById("compose-account-data")
+  var data = template && template.content.querySelector("[data-compose-default-account]")
+  if (!form || !data) return
+  if (!reset && (document.querySelector("#compose-dialog dialog[open]") || _composeHasDraftContent(form) || _composePendingUploads(form) > 0 || form.dataset.composeSending === "true")) return
+  var menu = form.querySelector(".compose-from-menu")
+  if (menu) menu.replaceChildren(data.querySelector("[data-compose-from-options]").cloneNode(true))
+  var oldRow = form.querySelector("[data-compose-one-time-from]")
+  var newRow = data.querySelector("[data-compose-one-time-options]").firstElementChild
+  if (oldRow) oldRow.remove()
+  if (newRow) form.querySelector("[data-compose-from-row]").after(newRow.cloneNode(true))
+  form.querySelector('[name="account_id"]').value = data.dataset.composeDefaultAccount
+  form.querySelector('[name="identity_id"]').value = ""
+  var display = document.getElementById("compose-from-display")
+  if (display) display.textContent = data.dataset.composeDefaultName + " <" + data.dataset.composeDefaultEmail + ">"
+  updateComposeSendState(form)
 }
 
 function composeModeForForm(form) {
@@ -20373,6 +21432,9 @@ function manageFolderAction(button) {
     folderID: id,
     labelID: id,
     name: button.getAttribute("data-folder-name") || "",
+    virtual: button.hasAttribute("data-folder-appearance-virtual"),
+    tag: button.hasAttribute("data-tag-appearance"),
+    unifiedTag: button.hasAttribute("data-tag-appearance-unified"),
   })
 }
 
@@ -20593,7 +21655,17 @@ function closeMessagesToAccountDialog() {
   if (content && content.open) content.close()
 }
 
+// chooseMessagesToAccountMode names the confirm button after the choice.
+function chooseMessagesToAccountMode(input) {
+  var button = document.querySelector("#mail-to-account-dialog [data-mail-to-account-confirm]")
+  if (button && input && input.checked) button.textContent = input.getAttribute("data-mail-to-account-button") || "Move"
+}
+
 function confirmMessagesToAccount(mode) {
+  if (!mode) {
+    var chosen = document.querySelector('#mail-to-account-dialog [data-mail-to-account-mode]:checked')
+    mode = chosen ? chosen.value : "move"
+  }
   var pending = pendingMessagesToAccount
   pendingMessagesToAccount = null
   closeMessagesToAccountDialog()
@@ -20905,6 +21977,36 @@ function scrollThreadToSelected() {
   })
 }
 document.body.addEventListener("htmx:afterSettle", scrollThreadToSelected)
+
+// The reader's back-to-the-top button shows once its pane is scrolled down.
+document.addEventListener("scroll", function (e) {
+  var pane = e.target
+  if (!pane || !pane.matches || !pane.matches("[data-mail-view-scroll], [data-thread-list]")) return
+  var strip = pane.querySelector(":scope > [data-mail-view-scroll-top]")
+  if (strip) strip.toggleAttribute("data-visible", pane.scrollTop > 300)
+}, true)
+
+document.addEventListener("click", function (e) {
+  var button = e.target.closest && e.target.closest("[data-mail-view-scroll-top-button]")
+  if (!button) return
+  var pane = button.closest("[data-mail-view-scroll], [data-thread-list]")
+  if (!pane) return
+  var smooth = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"
+  var target = 0
+  if (pane.matches("[data-thread-list]")) {
+    // The start of the message being read; from there, the one before it.
+    var paneTop = pane.getBoundingClientRect().top + parseFloat(getComputedStyle(pane).paddingTop || "0")
+    var cards = pane.querySelectorAll("[data-thread-card]")
+    for (var i = cards.length - 1; i >= 0; i--) {
+      var offset = cards[i].getBoundingClientRect().top - paneTop
+      if (offset < -8) {
+        target = Math.max(0, pane.scrollTop + offset)
+        break
+      }
+    }
+  }
+  pane.scrollTo({ top: target, behavior: smooth })
+})
 
 // emailBodyFrameFor returns the message frame a message event came from, or
 // null. Messages are only accepted from Gofer's own message frames, and the
@@ -22919,3 +24021,16 @@ function openCalendarPick(pick) {
   document.body.addEventListener("htmx:afterRequest", done)
   trigger.click()
 }
+
+// A single message's header casts its shadow only once the body scrolls under it;
+// at the top the reader reads as one sheet. Scroll events don't bubble, so this
+// listens in the capture phase and survives the reader being swapped.
+document.addEventListener("scroll", function (event) {
+  var scroll = event.target
+  if (!(scroll instanceof Element) || !scroll.matches("[data-mail-view-scroll]")) return
+  var header = scroll.previousElementSibling
+  if (!header || !header.classList.contains("mail-view-message-header")) return
+  // Smooth scrolling eases its last few pixels toward the top, so waiting for
+  // exactly 0 left the shadow up after the body had visibly reached the top.
+  header.toggleAttribute("data-scrolled", scroll.scrollTop > 8)
+}, true)

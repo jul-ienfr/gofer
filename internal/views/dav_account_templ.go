@@ -361,7 +361,7 @@ func DAVAccountDialog(data DAVAccountDialogData) templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<style>\n\t\t\t\t[data-dav-account-dialog]:not([data-dav-service=\"contacts\"]) [data-dav-mode=\"contacts\"],\n\t\t\t\t[data-dav-account-dialog][data-dav-service=\"contacts\"] [data-dav-mode=\"calendar\"] { display:none !important; }\n\t\t\t</style> ")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<style>\r\n\t\t\t\t[data-dav-account-dialog]:not([data-dav-service=\"contacts\"]) [data-dav-mode=\"contacts\"],\r\n\t\t\t\t[data-dav-account-dialog][data-dav-service=\"contacts\"] [data-dav-mode=\"calendar\"] { display:none !important; }\r\n\t\t\t</style> ")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

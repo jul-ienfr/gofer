@@ -513,6 +513,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/calendar/sources/{id}/sync", h.handleCalendarSourceSync)
 	mux.HandleFunc("PATCH /api/calendar/sources/{id}", h.handleCalendarSourceManage)
 	mux.HandleFunc("DELETE /api/calendar/sources/{id}", h.handleCalendarSourceManage)
+	mux.HandleFunc("POST /api/calendar/sources/{id}/import", h.handleCalendarSourceImport)
+	mux.HandleFunc("POST /api/calendar/import", h.handleCalendarImport)
+	mux.HandleFunc("GET /api/calendar/sources/{id}/export", h.handleCalendarSourceExport)
 	mux.HandleFunc("GET /api/calendar/events/{id}", h.handleCalendarEvent)
 	mux.HandleFunc("GET /api/calendar/events/{id}/actions", h.handleCalendarEventActions)
 	mux.HandleFunc("GET /api/calendar/events/{id}/delivery", h.handleCalendarDeliveryStatus)
@@ -565,6 +568,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/accounts/{id}/edit", h.handleUpdateAccount)
 	mux.HandleFunc("POST /api/accounts/{id}/services", h.handleUpdateAccountService)
 	mux.HandleFunc("POST /api/accounts/{id}/color", h.handleUpdateAccountColor)
+	mux.HandleFunc("POST /api/accounts/{id}/shown", h.handleLocalFoldersShown)
 	mux.HandleFunc("POST /api/accounts/{id}/calendar/discover", h.handleDiscoverAccountCalendars)
 	mux.HandleFunc("POST /api/accounts/{id}/calendar/sources", h.handleSaveAccountCalendarSources)
 	mux.HandleFunc("POST /api/accounts/{id}/contacts/sync", h.handleSaveAccountContactSync)
@@ -591,6 +595,14 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/accounts/{id}/folders", h.handleCreateFolder)
 	mux.HandleFunc("GET /api/accounts/{id}/folders/manage", h.handleManageFolders)
 	mux.HandleFunc("GET /api/folders/{id}/manage", h.handleFolderInfo)
+	mux.HandleFunc("GET /api/virtual-folders/{id}/appearance", h.handleVirtualFolderAppearance)
+	mux.HandleFunc("GET /api/tags/{id}/appearance", h.handleTagAppearance)
+	mux.HandleFunc("POST /api/tags/{id}/appearance", h.handleSaveTagAppearance)
+	mux.HandleFunc("GET /api/unified-tags/{id}/appearance", h.handleUnifiedTagAppearance)
+	mux.HandleFunc("POST /api/unified-tags/{id}/appearance", h.handleSaveUnifiedTagAppearance)
+	mux.HandleFunc("POST /api/virtual-folders/{id}/appearance", h.handleSaveVirtualFolderAppearance)
+	mux.HandleFunc("GET /api/folders/{id}/appearance", h.handleFolderAppearance)
+	mux.HandleFunc("POST /api/folders/{id}/appearance", h.handleSaveFolderAppearance)
 	mux.HandleFunc("POST /api/folders/{id}/rename", h.handleRenameFolder)
 	mux.HandleFunc("POST /api/folders/{id}/delete", h.handleDeleteFolder)
 	mux.HandleFunc("POST /api/folders/{id}/restore", h.handleRestoreFolder)
@@ -3367,6 +3379,13 @@ func (h *Handler) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
 	if !h.requireOwnedAccount(w, r, accountID) {
 		return
 	}
+	if provider, err := h.db.GetAccountProvider(r.Context(), accountID); err != nil {
+		http.Error(w, "account unavailable", http.StatusInternalServerError)
+		return
+	} else if provider == providers.ProviderLocal {
+		http.Error(w, localFoldersNoDelete, http.StatusConflict)
+		return
+	}
 
 	h.closeBodyClient(accountID)
 	h.syncer.StopAccount(accountID)
@@ -3534,6 +3553,10 @@ func (h *Handler) handleSettings(w http.ResponseWriter, r *http.Request) {
 
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("Content-Type", "text/html")
+		if r.Header.Get("HX-Target") == "settings-content" {
+			views.SettingsPage(displayAccounts, syncSettings, "accounts", uiSettings, signatureData, aiSettings).Render(ctx, w)
+			return
+		}
 		views.SettingsPartial(displayAccounts, syncSettings, "accounts", uiSettings, signatureData, aiSettings).Render(ctx, w)
 		return
 	}
@@ -3574,6 +3597,10 @@ func (h *Handler) handleSettingsTab(w http.ResponseWriter, r *http.Request) {
 
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("Content-Type", "text/html")
+		if r.Header.Get("HX-Target") == "settings-content" {
+			views.SettingsPage(displayAccounts, syncSettings, tab, uiSettings, signatureData, aiSettings).Render(ctx, w)
+			return
+		}
 		views.SettingsPartial(displayAccounts, syncSettings, tab, uiSettings, signatureData, aiSettings).Render(ctx, w)
 		return
 	}
@@ -3887,6 +3914,10 @@ func (h *Handler) buildAccountSignatureData(ctx context.Context, accounts []mode
 	signatures, _ := h.db.ListSignatures(ctx, userID)
 	data := make([]models.AccountSignatureData, 0, len(accounts))
 	for _, account := range accounts {
+		if account.Provider == providers.ProviderLocal {
+			// Mail isn't sent from Local folders.
+			continue
+		}
 		settings, _ := h.db.GetAccountSignatureSettings(ctx, userID, account.ID)
 		data = append(data, models.AccountSignatureData{Account: account, Signatures: signatures, Settings: settings})
 	}
@@ -3896,9 +3927,15 @@ func (h *Handler) buildAccountSignatureData(ctx context.Context, accounts []mode
 func (h *Handler) buildSyncSettings(ctx context.Context, accounts []models.Account) models.SyncSettings {
 	syncInterval := h.db.GetSyncInterval(ctx, h.userID(ctx))
 
-	var accountStatuses []models.AccountSyncStatus
+	var accountStatuses, unifiedAccounts []models.AccountSyncStatus
 	for _, account := range accounts {
-		if !account.EmailSyncEnabled {
+		if account.EmailSyncEnabled && !account.IsDeleting && !account.Hidden {
+			unifiedAccounts = append(unifiedAccounts, models.AccountSyncStatus{
+				AccountID: account.ID, AccountName: account.Name, AccountEmail: account.Email,
+				Provider: account.Provider, Color: account.Color, Initials: account.Initials,
+			})
+		}
+		if !account.EmailSyncEnabled || account.Provider == providers.ProviderLocal {
 			continue
 		}
 		folders, err := h.db.GetFoldersForAccount(ctx, account.ID)
@@ -3970,6 +4007,7 @@ func (h *Handler) buildSyncSettings(ctx context.Context, accounts []models.Accou
 	return models.SyncSettings{
 		SyncIntervalMinutes: syncInterval,
 		Accounts:            accountStatuses,
+		UnifiedAccounts:     unifiedAccounts,
 	}
 }
 
@@ -6343,7 +6381,10 @@ type messageBulkTarget struct {
 }
 
 type messageBulkRequest struct {
-	Permanent   bool                    `json:"permanent,omitempty"`
+	Permanent bool `json:"permanent,omitempty"`
+	// ForGood deletes the messages for good from whatever folder they are
+	// in, without passing through Trash, as a move that deletes them does.
+	ForGood     bool                    `json:"for_good,omitempty"`
 	SearchScope *models.MailSearchScope `json:"search_scope,omitempty"`
 	Targets     []messageBulkTarget     `json:"targets"`
 	State       string                  `json:"state"`
@@ -6675,7 +6716,12 @@ func (h *Handler) handleDeleteMessages(w http.ResponseWriter, r *http.Request) {
 
 	for _, target := range targets {
 		currentInfo := target.Infos[0].MessageMutationInfo
-		if currentInfo.FolderRole == "trash" {
+		if payload.ForGood && currentInfo.FolderRole != "trash" {
+			if err := h.queuePermanentDeletes(ctx, target.Infos); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		} else if currentInfo.FolderRole == "trash" {
 			if payload.SearchScope != nil && !payload.Permanent {
 				keptTrash = append(keptTrash, target.Target)
 				continue
