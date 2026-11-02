@@ -18,6 +18,10 @@ This file maps the Phase 8 work to repository evidence. It distinguishes what is
 | Runbooks | Implemented | [backup-restore.md](./backup-restore.md), [release-rollback.md](./release-rollback.md) |
 | Rollback tested | Local migration rollback drill passed; production drill pending | [release-rollback.md](./release-rollback.md) |
 
+## Upstream v0.20.0 merge (2026-11-02)
+
+The fork merged `upstream/master` as commit `7f258bc0`. The base schema now comes from upstream at version 135; the fork AI migrations are 136–145 and `CurrentSchemaVersion` is 145. A fresh-database smoke run created schema 145, served `/healthz` and `/login` with status 200, and `go build ./...`, `go vet ./...` and `go test ./... -count=1` pass. `govulncheck` v1.9.0 reports 0 vulnerabilities affecting the code. Pre-merge fork databases at schema 144 are not upgraded automatically because their AI migration numbers collide with the new upstream numbering; recreate them.
+
 ## Reproducible checks
 
 ```sh
