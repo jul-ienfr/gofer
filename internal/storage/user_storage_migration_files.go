@@ -81,6 +81,12 @@ func InspectUserStorageMigrationFiles(ctx context.Context, source *DB, workingDi
 			path = filepath.Join(base, path)
 		} else if !filepath.IsAbs(path) {
 			path = filepath.Join(workingDirectory, path)
+		} else {
+			canonical, err := canonicalMigrationStoredPath(path)
+			if err != nil {
+				return err
+			}
+			path = canonical
 		}
 		path = filepath.Clean(path)
 		relative, err := filepath.Rel(base, path)
@@ -393,5 +399,32 @@ func migrationDigestFields(digest hash.Hash, fields ...string) {
 		binary.BigEndian.PutUint64(size[:], uint64(len(field)))
 		digest.Write(size[:])
 		digest.Write([]byte(field))
+	}
+}
+
+func canonicalMigrationStoredPath(path string) (string, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Dir(abs)
+	var suffix []string
+	for {
+		resolved, err := filepath.EvalSymlinks(dir)
+		if err == nil {
+			for i := len(suffix) - 1; i >= 0; i-- {
+				resolved = filepath.Join(resolved, suffix[i])
+			}
+			return filepath.Join(resolved, filepath.Base(abs)), nil
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return "", err
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return abs, nil
+		}
+		suffix = append(suffix, filepath.Base(dir))
+		dir = parent
 	}
 }
