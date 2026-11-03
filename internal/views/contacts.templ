@@ -1490,7 +1490,7 @@ templ ContactsListPane(contacts []models.Contact, selected *models.Contact, filt
 			</div>
 			// Under the search, as the mail list's active filter strip. It stays in
 			// the page, collapsed, so the pills open and close it smoothly.
-			<div data-contact-active-filter-pills class={ "mail-active-filter-strip", templ.KV("hidden", !contactFiltersActive(filters)) } aria-label="Active filters">
+			<div data-contact-active-filter-pills class={ "mail-active-filter-strip", templ.KV("hidden", !contactFiltersActive(filters)) } role="group" aria-label="Active filters">
 				if contactFiltersActive(filters) {
 					<div class="mail-active-filter-visible">
 						if filters.Source != "" {
