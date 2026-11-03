@@ -70,8 +70,8 @@ jobs:
             Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue
             exit 1
           }
-          $home = Invoke-WebRequest -UseBasicParsing http://127.0.0.1:18090/ -TimeoutSec 10
-          if ($home.StatusCode -ne 200 -or $home.Content.Length -eq 0) {
+          $homePage = Invoke-WebRequest -UseBasicParsing http://127.0.0.1:18090/ -TimeoutSec 10
+          if ($homePage.StatusCode -ne 200 -or $homePage.Content.Length -eq 0) {
             Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue
             exit 1
           }

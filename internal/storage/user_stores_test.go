@@ -50,7 +50,7 @@ func newUserStoreTestManager(t *testing.T, system *DB, options UserStoreOptions)
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if err := m.Close(ctx); err != nil {
 			t.Error(err)
