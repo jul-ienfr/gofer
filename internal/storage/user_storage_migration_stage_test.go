@@ -25,7 +25,10 @@ var stageCredentialKey = []byte("0123456789abcdef0123456789abcdef")
 
 func newMigrationStageFixture(t *testing.T) (storage.UserStorageMigrationOptions, []byte) {
 	t.Helper()
-	root := t.TempDir()
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	path := filepath.Join(root, "shared.db")
 	source, err := storage.New(path)
 	if err != nil {
