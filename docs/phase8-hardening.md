@@ -87,6 +87,7 @@ A local release build on 2026-10-25 produced all six targets (Windows, Linux, an
 - Added a theme audit across all four looks, both color modes, and all 17 primary and settings pages; it found and we fixed the Express select-all target size, Express link and destructive-button contrast, the Calendar "Today" badge contrast, and two amber warning contrasts. All 136 checks now pass.
 - The rollback drill found that a binary could start against a newer schema. `storage.New` now rejects any schema version above the supported version before writing, with a regression test.
 - The folder-thread schema test now normalizes CRLF so the Windows checkout does not fail on line endings alone.
+- The fork's default branch `master` now triggers CI, Security, Accessibility, and Windows, and all four pass. The first runs exposed and we fixed 8.3 short-path handling in migration inspection, the contacts active-filter ARIA role, and a PowerShell `$home` conflict in the Windows smoke script.
 
 ## Residual gaps
 
