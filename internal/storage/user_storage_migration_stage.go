@@ -172,14 +172,14 @@ func canonicalMigrationDirectory(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	resolved, err := canonicalMigrationNativePath(abs)
+	resolved, err := filepath.EvalSymlinks(abs)
 	if err == nil {
 		return resolved, nil
 	}
 	if !errors.Is(err, os.ErrNotExist) {
 		return "", err
 	}
-	parent, err := canonicalMigrationNativePath(filepath.Dir(abs))
+	parent, err := filepath.EvalSymlinks(filepath.Dir(abs))
 	if err != nil {
 		return "", err
 	}

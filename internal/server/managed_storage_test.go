@@ -19,7 +19,11 @@ import (
 
 func TestManagedStorageFreshInitializationRestartAndExclusiveLocks(t *testing.T) {
 	t.Setenv("GOFER_SECRET_KEY", "")
-	path := filepath.Join(t.TempDir(), "new-data", "central.db")
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(root, "new-data", "central.db")
 	s, err := openManagedStorage(t.Context(), path, 1)
 	if err != nil {
 		t.Fatal(err)

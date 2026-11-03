@@ -52,7 +52,7 @@ func InspectUserStorageMigrationFiles(ctx context.Context, source *DB, workingDi
 	if err != nil {
 		return result, err
 	}
-	base, err := canonicalMigrationDirectory(filepath.Join(filepath.Dir(source.Path()), "accounts"))
+	base, err := canonicalMigrationPath(filepath.Join(filepath.Dir(source.Path()), "accounts"))
 	if err != nil {
 		return result, err
 	}

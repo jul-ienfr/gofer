@@ -96,7 +96,10 @@ func TestStorageInspectionCommandRejectsInvalidArgumentsAndRunningRuntime(t *tes
 func migrationCommandFixture(t *testing.T) (storage.UserStorageMigrationOptions, []byte, []byte) {
 	t.Helper()
 	t.Setenv("GOFER_SECRET_KEY", "")
-	root := t.TempDir()
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	path := filepath.Join(root, "shared.db")
 	key := []byte("0123456789abcdef0123456789abcdef")
 	if err := os.WriteFile(filepath.Join(root, "secret.key"), key, 0600); err != nil {
