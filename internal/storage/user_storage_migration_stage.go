@@ -99,7 +99,7 @@ func stageUserStorageMigrationLocked(ctx context.Context, options UserStorageMig
 			return result, err
 		}
 	}
-	workingDirectory, err = filepath.Abs(workingDirectory)
+	workingDirectory, err = canonicalMigrationDirectory(workingDirectory)
 	if err != nil {
 		return result, err
 	}
@@ -155,6 +155,28 @@ func canonicalMigrationPath(path string) (string, error) {
 	}
 	abs, err := filepath.Abs(path)
 	if err != nil {
+		return "", err
+	}
+	parent, err := filepath.EvalSymlinks(filepath.Dir(abs))
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(parent, filepath.Base(abs)), nil
+}
+
+func canonicalMigrationDirectory(path string) (string, error) {
+	if path == "" {
+		return "", errors.New("migration working directory is required")
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	resolved, err := filepath.EvalSymlinks(abs)
+	if err == nil {
+		return resolved, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
 		return "", err
 	}
 	parent, err := filepath.EvalSymlinks(filepath.Dir(abs))

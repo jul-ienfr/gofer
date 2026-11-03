@@ -2,7 +2,7 @@ name: Security
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
     paths:
       - "**/*.go"
       - "go.mod"

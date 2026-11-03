@@ -83,7 +83,7 @@ func publishUserStorageMigrationLocked(ctx context.Context, options UserStorageM
 			return layout, err
 		}
 	}
-	cwd, err = filepath.Abs(cwd)
+	cwd, err = canonicalMigrationDirectory(cwd)
 	if err != nil {
 		return layout, err
 	}
