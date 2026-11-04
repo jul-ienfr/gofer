@@ -6,11 +6,14 @@ import (
 	"strings"
 )
 
+// Locale identifies an interface language catalog.
 type Locale string
 
 const (
+	// English is the source catalog and the fallback for every lookup.
 	English Locale = "en"
-	French  Locale = "fr"
+	// French is the first translated catalog.
+	French Locale = "fr"
 )
 
 var messages = map[Locale]map[string]string{
@@ -22,10 +25,12 @@ func (l Locale) String() string {
 	return string(l)
 }
 
+// Supported lists the locales offered in the interface language picker.
 func Supported() []Locale {
 	return []Locale{English, French}
 }
 
+// NativeName returns the language name shown in its own language.
 func NativeName(locale Locale) string {
 	switch locale {
 	case French:
@@ -35,6 +40,7 @@ func NativeName(locale Locale) string {
 	}
 }
 
+// Normalize maps a language tag such as fr-CA or fr_CA to a supported locale.
 func Normalize(raw string) (Locale, bool) {
 	tag := strings.ToLower(strings.TrimSpace(raw))
 	tag = strings.ReplaceAll(tag, "_", "-")
@@ -51,6 +57,7 @@ func Normalize(raw string) (Locale, bool) {
 	}
 }
 
+// Resolve returns the matching locale, or English for an unknown tag.
 func Resolve(raw string) Locale {
 	if locale, ok := Normalize(raw); ok {
 		return locale
@@ -58,10 +65,12 @@ func Resolve(raw string) Locale {
 	return English
 }
 
+// T returns the translation for key, falling back to English and then the key.
 func T(locale Locale, key string) string {
 	return text(locale, key)
 }
 
+// Tf formats a translated message with fmt.Sprintf when arguments are given.
 func Tf(locale Locale, key string, args ...any) string {
 	value := text(locale, key)
 	if len(args) == 0 {
@@ -70,6 +79,7 @@ func Tf(locale Locale, key string, args ...any) string {
 	return fmt.Sprintf(value, args...)
 }
 
+// Plural returns "one" or "other" for the locale's cardinal rule.
 func Plural(locale Locale, count int) string {
 	if locale == French {
 		if count == 0 || count == 1 {
@@ -83,6 +93,7 @@ func Plural(locale Locale, count int) string {
 	return "other"
 }
 
+// TP picks the singular or plural key for count and formats it.
 func TP(locale Locale, count int, one, other string, args ...any) string {
 	key := other
 	if Plural(locale, count) == "one" {
