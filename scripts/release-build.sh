@@ -9,63 +9,7 @@ if [[ -z "${VERSION:-}" ]]; then
   exit 1
 fi
 
-DIST="$ROOT/dist"
-rm -rf "$DIST"
-mkdir -p "$DIST"
-
 task generate
 ./scripts/licenses.sh --check
 
-export CGO_ENABLED="${CGO_ENABLED:-0}"
-LDFLAGS="-X github.com/cristianadrielbraun/gofer/internal/buildinfo.Version=${VERSION}"
-
-targets=(
-  "linux amd64"
-  "linux arm64"
-  "darwin amd64"
-  "darwin arm64"
-  "windows amd64"
-)
-
-for target in "${targets[@]}"; do
-  read -r goos goarch <<< "$target"
-  ext=""
-  archive_ext="tar.gz"
-  if [[ "$goos" == "windows" ]]; then
-    ext=".exe"
-    archive_ext="zip"
-  fi
-
-  name="gofer-${VERSION}-${goos}-${goarch}"
-  package_dir="$DIST/$name"
-  mkdir -p "$package_dir"
-
-  echo "==> Building $goos/$goarch"
-  GOOS="$goos" GOARCH="$goarch" go build -tags embedded_assets -trimpath -ldflags "$LDFLAGS" -o "$package_dir/gofer$ext" .
-  cp README.md LICENSE "$package_dir/"
-  cp internal/attribution/notices.txt "$package_dir/THIRD_PARTY_NOTICES.txt"
-
-  echo "==> Packaging $name.$archive_ext"
-  if [[ "$archive_ext" == "zip" ]]; then
-    (cd "$DIST" && zip -qr "$name.zip" "$name")
-  else
-    (cd "$DIST" && tar -czf "$name.tar.gz" "$name")
-  fi
-
-  rm -rf "$package_dir"
-done
-
-(
-  cd "$DIST"
-  if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum *.tar.gz *.zip > checksums.txt
-  elif command -v shasum >/dev/null 2>&1; then
-    shasum -a 256 *.tar.gz *.zip > checksums.txt
-  else
-    echo "sha256sum or shasum is required to write checksums.txt" >&2
-    exit 1
-  fi
-)
-
-echo "Release artifacts written to $DIST"
-ls -lh "$DIST"
+VERSION="$VERSION" bash ./scripts/release-package.sh

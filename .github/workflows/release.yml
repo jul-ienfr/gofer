@@ -1,0 +1,90 @@
+name: Release packages
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version stamped into the binaries and archive names
+        required: false
+        default: dev
+
+permissions:
+  contents: read
+
+env:
+  TEMPL_VERSION: v0.3.1001
+  TAILWIND_VERSION: 4.3.3
+  ESBUILD_VERSION: v0.28.2
+
+jobs:
+  package:
+    name: Build release archives
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.x"
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install asset tools
+        run: npm install --no-save --no-package-lock "@tailwindcss/cli@${TAILWIND_VERSION}"
+      - name: Generate assets
+        run: |
+          go run "github.com/a-h/templ/cmd/templ@${TEMPL_VERSION}" generate --ignore-pattern='(^|/)dist(/|$)'
+          ./node_modules/.bin/tailwindcss -i assets/css/input.css -o assets/css/output.css --minify
+          mapfile -t scripts < <(find assets/js -maxdepth 1 -name '*.js' ! -name '*.min.js' ! -name 'sw.js')
+          go run "github.com/evanw/esbuild/cmd/esbuild@${ESBUILD_VERSION}" "${scripts[@]}" --minify --outdir=assets/min/js --log-level=warning
+      - name: Check attribution files
+        run: ./scripts/licenses.sh --check
+      - name: Package six targets
+        env:
+          VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
+          DIST: ${{ runner.temp }}/release
+        run: bash ./scripts/release-package.sh
+      - name: Upload archives
+        uses: actions/upload-artifact@v4
+        with:
+          name: gofer-release-${{ github.sha }}
+          path: ${{ runner.temp }}/release/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish GitHub release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download archives
+        uses: actions/download-artifact@v4
+        with:
+          name: gofer-release-${{ github.sha }}
+          path: dist
+      - name: Verify checksums
+        run: |
+          cd dist
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum -c checksums.txt
+          else
+            shasum -a 256 -c checksums.txt
+          fi
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* --title "$TAG" --generate-notes
+          fi
