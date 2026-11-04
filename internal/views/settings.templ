@@ -3,6 +3,7 @@ package views
 import (
 	"fmt"
 	"github.com/cristianadrielbraun/gofer/internal/buildinfo"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"github.com/cristianadrielbraun/gofer/internal/models"
 	"github.com/cristianadrielbraun/gofer/internal/providers"
 	"github.com/cristianadrielbraun/gofer/internal/themebuilder"
@@ -31,7 +32,7 @@ templ SettingsPage(accounts []models.Account, syncSettings models.SyncSettings, 
 	<div class="flex-1 flex flex-col min-w-0 overflow-hidden" data-settings-page>
 		<div class="flex-1 overflow-y-auto">
 			<div id="settings-content" class="max-w-3xl px-8 py-10">
-				@SettingsSectionHeader(activeTab)
+				@SettingsSectionHeader(activeTab, uiSettings)
 				if activeTab == "accounts" {
 					@SettingsAccountsTab(accounts)
 				} else if activeTab == "sync" {
@@ -63,43 +64,17 @@ templ SettingsPage(accounts []models.Account, syncSettings models.SyncSettings, 
 	</div>
 }
 
-func settingsSectionHeading(section string) (string, string) {
+func settingsSectionHeading(locale i18n.Locale, section string) (string, string) {
 	switch section {
-		case "accounts":
-			return "Accounts", "Connect and manage your email and calendar accounts."
-		case "sync":
-			return "Email sync and folders", "Choose how email syncs and which folders appear in unified views."
-		case "rules":
-			return "Rules", "Sort, file and clean up new mail automatically, on the server, around the clock."
-		case "operations":
-			return "Mail operations", "Track outgoing messages and background mail operations."
-		case "contacts":
-			return "Contacts", "Manage local contacts and sync contacts from connected accounts."
-		case "appearance":
-			return "Appearance", "Choose the visual style, color mode, and pane layout for Gofer."
-		case "regional":
-			return "Regional", "Choose the time zone used for message dates and scheduled sends."
-		case "compose-display":
-			return "Compose and display", "Customize compose windows, message lists, signatures, and translation."
-		case "ai":
-			return "AI assistant", "Configure Jev analysis, reply drafting, routing, and guarded automation."
-		case "security":
-			return "Security", "Manage sign-in methods, active sessions, and security activity."
-		case "security-open":
-			return "Security", "Choose which mail servers Gofer may connect to. Sign-in settings appear only when Gofer runs with sign-in."
-		case "advanced":
-			return "Advanced", "Configure prefetching, notifications, and email link handling."
-		case "export-import":
-			return "Export and import", "Move your Gofer profile to another installation, and your mail in and out of your accounts."
-		case "about":
-			return "About", "Which version of Gofer is running, and where it comes from."
+		case "accounts", "sync", "rules", "operations", "contacts", "appearance", "regional", "compose-display", "ai", "security", "security-open", "advanced", "export-import", "about":
 		default:
-			return "Settings", "Manage your accounts and preferences."
+			section = "default"
 	}
+	return i18n.T(locale, "settings.heading."+section+".title"), i18n.T(locale, "settings.heading."+section+".description")
 }
 
-templ SettingsSectionHeader(section string) {
-	{{ title, description := settingsSectionHeading(section) }}
+templ SettingsSectionHeader(section string, uiSettings map[string]string) {
+	{{ title, description := settingsSectionHeading(uiLocale(uiSettings), section) }}
 	<div class="settings-section-header mb-6">
 		<h2 class="text-2xl font-bold text-foreground mb-1" style="font-family: var(--font-serif)" data-settings-title>{ title }</h2>
 		<p class="text-sm text-muted-foreground">{ description }</p>
@@ -643,24 +618,37 @@ templ SettingsRegionalTab(uiSettings map[string]string) {
 	<div class="mt-6 space-y-6">
 		<div class="settings-card bg-card rounded-lg border p-6 space-y-5">
 			<div>
-				<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">Regional</h3>
-				<p class="text-xs text-muted-foreground">Set locale preferences for dates, times, and future language options.</p>
+				<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">{ tr(uiSettings, "settings.heading.regional.title") }</h3>
+				<p class="text-xs text-muted-foreground">{ tr(uiSettings, "regional.description") }</p>
 			</div>
 			<div class="settings-row border-t border-border/60 pt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 				<div class="min-w-0">
-					<h4 class="text-sm font-medium text-foreground">Timezone</h4>
-					<p class="text-xs text-muted-foreground mt-1">Used for email timestamps, scheduled sends, and date labels across Gofer.</p>
+					<label for="language" class="text-sm font-medium text-foreground">{ tr(uiSettings, "regional.language") }</label>
+					<p class="text-xs text-muted-foreground mt-1">{ tr(uiSettings, "regional.language_description") }</p>
+				</div>
+				<div class="w-full shrink-0 sm:w-64">
+					<select id="language" name="language" data-language-picker class="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm">
+						for _, locale := range i18n.Supported() {
+							<option value={ locale.String() } selected?={ uiLocale(uiSettings) == locale }>{ i18n.NativeName(locale) }</option>
+						}
+					</select>
+				</div>
+			</div>
+			<div class="settings-row border-t border-border/60 pt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+				<div class="min-w-0">
+					<h4 class="text-sm font-medium text-foreground">{ tr(uiSettings, "regional.timezone") }</h4>
+					<p class="text-xs text-muted-foreground mt-1">{ tr(uiSettings, "regional.timezone_description") }</p>
 				</div>
 				<div class="w-full shrink-0 sm:w-64" data-timezone-picker data-current-timezone={ uiSettingGet(uiSettings, "timezone", "local") }>
 					@selectbox.SelectBox(selectbox.Props{Class: "settings-select"}) {
 						@selectbox.Trigger(selectbox.TriggerProps{Name: "timezone", Class: "bg-background", DisableClear: true, Attributes: templ.Attributes{"data-timezone-input": ""}}) {
 							@selectbox.Value() {
-								{ uiSettingGet(uiSettings, "timezone", "Detecting...") }
+								{ uiSettingGet(uiSettings, "timezone", tr(uiSettings, "regional.timezone_detecting")) }
 							}
 						}
-						@selectbox.Content(selectbox.ContentProps{SearchPlaceholder: "Search timezones...", Class: "mobile-sheet w-72", Attributes: templ.Attributes{"data-timezone-options": ""}}) {
+						@selectbox.Content(selectbox.ContentProps{SearchPlaceholder: tr(uiSettings, "regional.timezone_search"), Class: "mobile-sheet w-72", Attributes: templ.Attributes{"data-timezone-options": ""}}) {
 							@selectbox.Group() {
-								@selectbox.Item(selectbox.ItemProps{Value: uiSettingGet(uiSettings, "timezone", "local"), Disabled: true}) { Loading timezones... }
+								@selectbox.Item(selectbox.ItemProps{Value: uiSettingGet(uiSettings, "timezone", "local"), Disabled: true}) { { tr(uiSettings, "regional.timezone_loading") } }
 							}
 						}
 					}

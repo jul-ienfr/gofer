@@ -176,23 +176,28 @@ Run this before a release that changes layout or navigation, and at least once p
 
 Current status:
 
-- The interface is English-only. There is no translation catalog, language switcher, or locale negotiation.
-- Full pages declare `lang="en"`.
-- Dates and times use the browser and Go formatting paths already present in the application; they have not been audited for every locale.
+- English (`en`) and French (`fr`) catalogs live in `internal/i18n`. English is the source catalog; a parity test requires every key in both catalogs and rejects empty values.
+- Each user chooses the interface language in **Settings → Regional → Interface language**. The choice is stored as `language` in the user's UI settings and applied to authenticated pages through `<html lang>`. A missing or unknown stored value falls back to English.
+- The settings navigation, section headings, page title, and Regional tab are translated. The rest of the interface, including login, setup, and the security settings partials, is still English.
 - Mail, contacts, and Calendar content is displayed in its original language, independent of the interface language.
+- Dates and times use the browser and Go formatting paths already present in the application; they have not been audited for every locale.
 - No right-to-left layout support has been implemented or tested.
 - User-facing error strings are English and sometimes include Go error text.
 
-Before claiming i18n support, add:
+To add a language:
 
-1. A message catalog with stable keys and pluralization.
-2. A per-user language preference and `lang` attribute update.
-3. Locale-aware date, time, number, and relative-time formatting.
-4. RTL layout and icon mirroring tests.
-5. Translation review for security-sensitive messages, especially sign-in, recovery, and deletion.
-6. A test that every visible string comes from the catalog rather than a Go literal.
+1. Add the locale and a complete catalog map in `internal/i18n`; the parity test requires every English key.
+2. Expose it in `Supported` and add its native name in `NativeName`.
+3. Translate templates with `tr(uiSettings, "key")` instead of Go literals.
 
-Until then, release notes should say "English UI, multilingual mail content" rather than "internationalized".
+Before claiming full i18n support, still add:
+
+1. Catalog coverage for every visible string, with a test that rejects user-facing Go literals.
+2. Locale-aware date, time, number, and relative-time formatting.
+3. RTL layout and icon mirroring tests.
+4. Translation review for security-sensitive messages, especially sign-in, recovery, and deletion.
+
+Until then, release notes should say "English and French settings UI, multilingual mail content" rather than "internationalized".
 
 ## Reporting issues
 

@@ -391,34 +391,34 @@ func contactSidebarBookName(book models.ContactAddressBook) string {
 	return "Address book"
 }
 
-templ SettingsSidebar(activeTab string, width string) {
+templ SettingsSidebar(activeTab string, width string, uiSettings map[string]string) {
 	<aside class="app-drawer flex flex-col surface-leather text-sidebar-foreground h-full overflow-hidden" style={ "width:" + width }>
 		<div class="px-4 pt-5 pb-4">
 			<div class="flex items-center gap-2.5 mb-5">
 				<img src={ assetver.URL("/assets/logo.svg") } alt="Gofer" class="h-8 w-8 shrink-0"/>
-				<span class="text-lg font-bold tracking-tight text-sidebar-accent-foreground" style="font-family: var(--font-serif)">Settings</span>
+				<span class="text-lg font-bold tracking-tight text-sidebar-accent-foreground" style="font-family: var(--font-serif)">{ tr(uiSettings, "settings.title") }</span>
 			</div>
 			<a href="/" class="flex items-center justify-center gap-2 w-full h-10 rounded-lg border border-sidebar-border bg-sidebar-accent/35 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors font-semibold text-sm">
 				@icon.ArrowLeft(icon.Props{Class: "size-4"})
-				Back to inbox
+				{ tr(uiSettings, "settings.back") }
 			</a>
 		</div>
 		<hr class="divider-etched mx-4"/>
 		<nav class="flex-1 overflow-y-auto px-3 pt-3 pb-3">
-			<div class="px-2.5 pb-2 text-[11px] text-sidebar-foreground uppercase tracking-wider font-semibold">Categories</div>
-			@SettingsSidebarItem(activeTab, "accounts", "Accounts")
-			@SettingsSidebarItem(activeTab, "sync", "Email sync and folders settings")
-			@SettingsSidebarItem(activeTab, "rules", "Rules")
-			@SettingsSidebarItem(activeTab, "operations", "Mail operations")
-			@SettingsSidebarItem(activeTab, "contacts", "Contacts")
-			@SettingsSidebarItem(activeTab, "appearance", "Appearance")
-			@SettingsSidebarItem(activeTab, "regional", "Regional")
-			@SettingsSidebarItem(activeTab, "compose-display", "Compose and display")
-			@SettingsSidebarItem(activeTab, "ai", "AI assistant")
-			@SettingsSidebarItem(activeTab, "security", "Security")
-			@SettingsSidebarItem(activeTab, "advanced", "Advanced")
-			@SettingsSidebarItem(activeTab, "export-import", "Export and import")
-			@SettingsSidebarItem(activeTab, "about", "About")
+			<div class="px-2.5 pb-2 text-[11px] text-sidebar-foreground uppercase tracking-wider font-semibold">{ tr(uiSettings, "settings.categories") }</div>
+			@SettingsSidebarItem(activeTab, "accounts", tr(uiSettings, "settings.nav.accounts"))
+			@SettingsSidebarItem(activeTab, "sync", tr(uiSettings, "settings.nav.sync"))
+			@SettingsSidebarItem(activeTab, "rules", tr(uiSettings, "settings.nav.rules"))
+			@SettingsSidebarItem(activeTab, "operations", tr(uiSettings, "settings.nav.operations"))
+			@SettingsSidebarItem(activeTab, "contacts", tr(uiSettings, "settings.nav.contacts"))
+			@SettingsSidebarItem(activeTab, "appearance", tr(uiSettings, "settings.nav.appearance"))
+			@SettingsSidebarItem(activeTab, "regional", tr(uiSettings, "settings.nav.regional"))
+			@SettingsSidebarItem(activeTab, "compose-display", tr(uiSettings, "settings.nav.compose"))
+			@SettingsSidebarItem(activeTab, "ai", tr(uiSettings, "settings.nav.ai"))
+			@SettingsSidebarItem(activeTab, "security", tr(uiSettings, "settings.nav.security"))
+			@SettingsSidebarItem(activeTab, "advanced", tr(uiSettings, "settings.nav.advanced"))
+			@SettingsSidebarItem(activeTab, "export-import", tr(uiSettings, "settings.nav.export_import"))
+			@SettingsSidebarItem(activeTab, "about", tr(uiSettings, "settings.nav.about"))
 		</nav>
 		<div class="shrink-0 px-4 pb-3">
 			@WebmailSidebarLogout()

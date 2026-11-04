@@ -44,7 +44,7 @@ templ AppNavigationTemplates(uiSettings map[string]string) {
 		@Sidebar(nil, "inbox", uiSettingGet(uiSettings, "sidebar_width", "256px"), uiSettings, 0, models.EmailFilters{})
 	</template>
 	<template id="app-navigation-settings-sidebar">
-		@SettingsSidebar("", uiSettingGet(uiSettings, "sidebar_width", "256px"))
+		@SettingsSidebar("", uiSettingGet(uiSettings, "sidebar_width", "256px"), uiSettings)
 	</template>
 	for _, mode := range []string{"cards", "table"} {
 		<template id={ "app-navigation-mail-" + mode }>
@@ -74,7 +74,7 @@ templ AppNavigationTemplates(uiSettings map[string]string) {
 		<div data-settings-page class="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
 			<div class="flex-1 min-h-0 overflow-y-auto">
 				<div id="settings-content" class="max-w-3xl px-8 py-10">
-					@SettingsSectionHeader("security")
+					@SettingsSectionHeader("security", uiSettings)
 					@NavigationLoadingContent()
 				</div>
 			</div>

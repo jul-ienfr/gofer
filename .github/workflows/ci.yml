@@ -43,6 +43,7 @@ jobs:
             ./internal/handler \
             ./internal/server \
             ./internal/views \
+            ./internal/i18n \
             ./internal/jev \
             ./internal/aipipeline \
             ./internal/airouting \

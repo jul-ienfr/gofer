@@ -16,6 +16,7 @@ import (
 	avatarresolver "github.com/cristianadrielbraun/gofer/internal/avatar"
 	"github.com/cristianadrielbraun/gofer/internal/calendar"
 	"github.com/cristianadrielbraun/gofer/internal/config"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"github.com/cristianadrielbraun/gofer/internal/llm"
 	mail "github.com/cristianadrielbraun/gofer/internal/mail"
 	mailautodiscover "github.com/cristianadrielbraun/gofer/internal/mail/autodiscover"
@@ -4133,6 +4134,7 @@ func (h *Handler) handleSaveUISettings(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
+	normalizeLanguageSetting(updates)
 	normalizeThemeColorSettings(updates)
 	normalizeCustomThemeSetting(updates)
 	normalizeCustomThemesSetting(updates)
@@ -4147,6 +4149,15 @@ func (h *Handler) handleSaveUISettings(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+}
+
+func normalizeLanguageSetting(updates map[string]string) {
+	raw, exists := updates["language"]
+	if !exists {
+		return
+	}
+	locale, _ := i18n.Normalize(raw)
+	updates["language"] = string(locale)
 }
 
 // normalizeThemeColorSettings stores each style's changed colors in their

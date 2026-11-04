@@ -702,6 +702,9 @@ var GoferSettings;
     if (key === "timezone") {
       document.documentElement.setAttribute("data-timezone", value || browserTimezone());
     }
+    if (key === "language") {
+      document.documentElement.lang = value === "fr" ? "fr" : "en";
+    }
   }
 
   GoferSettings = {
@@ -798,7 +801,7 @@ var GoferSettings;
         detail: { key: key, value: value, oldValue: oldValue },
       }));
 
-      if (key === "timezone" && oldValue !== value) {
+      if ((key === "timezone" || key === "language") && oldValue !== value) {
         if (_saveTimer) clearTimeout(_saveTimer);
         persistSettingsNow().finally(function () {
           window.location.reload();
