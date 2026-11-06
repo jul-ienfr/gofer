@@ -193,7 +193,7 @@ func TestRecoveryLoginAndRepairPagesAreAccessibleLocalAndExplicit(t *testing.T) 
 	}
 
 	var mfa bytes.Buffer
-	if err := RecoveryRepairMFAPage(RecoveryRepairMFAData{
+	if err := RecoveryRepairMFAPage(i18n.English, RecoveryRepairMFAData{
 		QRCodeDataURL: "data:image/png;base64,cXItZGF0YQ==", ManualKey: "ABCD EFGH",
 		Algorithm: "SHA1", Digits: 6, Period: 30, ErrorMessage: "Try again.",
 	}).Render(t.Context(), &mfa); err != nil {
@@ -214,7 +214,7 @@ func TestRecoveryLoginAndRepairPagesAreAccessibleLocalAndExplicit(t *testing.T) 
 	}
 
 	var codes bytes.Buffer
-	if err := RecoveryRepairCodesPage(RecoveryRepairCodesData{
+	if err := RecoveryRepairCodesPage(i18n.English, RecoveryRepairCodesData{
 		BatchID: "batch-id", Codes: []string{"AAAA-BBBB-CCCC-DDDD-EEEE-FFFF"}, Generated: true,
 	}).Render(t.Context(), &codes); err != nil {
 		t.Fatal(err)
@@ -231,6 +231,46 @@ func TestRecoveryLoginAndRepairPagesAreAccessibleLocalAndExplicit(t *testing.T) 
 	}
 	if strings.Contains(codes.String(), "https://") {
 		t.Fatalf("recovery-repair codes page loads a remote resource: %q", codes.String())
+	}
+}
+
+func TestRecoveryRepairMFAPageRendersFrenchLocale(t *testing.T) {
+	var output bytes.Buffer
+	if err := RecoveryRepairMFAPage(i18n.French, RecoveryRepairMFAData{
+		ManualKey: "ABCD EFGH", Algorithm: "SHA1", Digits: 6, Period: 30,
+	}).Render(t.Context(), &output); err != nil {
+		t.Fatal(err)
+	}
+	html := output.String()
+	for _, required := range []string{
+		`<html lang="fr"`, "Remplacer votre authentificateur",
+		"Clé de configuration manuelle",
+		"Code de l&#39;authentificateur de remplacement",
+		"période de 30 secondes",
+	} {
+		if !strings.Contains(html, required) {
+			t.Fatalf("French recovery-repair MFA page missing %q", required)
+		}
+	}
+}
+
+func TestRecoveryRepairCodesPageRendersFrenchLocale(t *testing.T) {
+	var output bytes.Buffer
+	if err := RecoveryRepairCodesPage(i18n.French, RecoveryRepairCodesData{
+		BatchID: "batch-id", Codes: []string{"AAAA-BBBB"}, Generated: true,
+	}).Render(t.Context(), &output); err != nil {
+		t.Fatal(err)
+	}
+	html := output.String()
+	for _, required := range []string{
+		`<html lang="fr"`, "Enregistrez les nouveaux codes de récupération",
+		"Ces codes ne sont affichés que dans cette réponse",
+		"Terminer la réparation et se connecter",
+		"Aucune session n&#39;existe",
+	} {
+		if !strings.Contains(html, required) {
+			t.Fatalf("French recovery-repair codes page missing %q", required)
+		}
 	}
 }
 

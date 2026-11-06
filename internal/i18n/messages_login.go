@@ -64,6 +64,30 @@ var loginEnglish = map[string]string{
 	"login.mfa_codes.replace":     "Replace these recovery codes",
 	"login.mfa_codes.generate":    "Generate recovery codes",
 	"login.mfa_codes.footnote":    "No new session or authenticator exists until this enrollment completes successfully.",
+
+	"login.mfa_repair.title":       "Gofer - Repair Your Authenticator",
+	"login.mfa_repair.eyebrow":     "Recovery code accepted",
+	"login.mfa_repair.heading":     "Replace your authenticator",
+	"login.mfa_repair.description": "Gofer has not created a session. Enroll this replacement authenticator and save a fresh recovery batch before access is restored.",
+	"login.mfa_repair.qr_alt":      "QR code for the replacement Gofer authenticator",
+	"login.mfa_repair.code_label":  "Code from the replacement authenticator",
+	"login.mfa_repair.verify":      "Verify replacement authenticator",
+	"login.mfa_repair.footnote":    "Your current authenticator and remaining recovery codes stay active until repair completes.",
+
+	"login.mfa_repair_codes.title":       "Gofer - Save New Recovery Codes",
+	"login.mfa_repair_codes.eyebrow":     "Replacement authenticator verified",
+	"login.mfa_repair_codes.heading":     "Save fresh recovery codes",
+	"login.mfa_repair_codes.description": "Completing this page replaces the old authenticator and remaining old recovery codes, revokes earlier sessions, and signs you in.",
+	"login.mfa_repair_codes.only":        "These codes are shown only in this response",
+	"login.mfa_repair_codes.copy":        "Copy them to a password manager or print this page before completing repair.",
+	"login.mfa_repair_codes.aria":        "New recovery codes",
+	"login.mfa_repair_codes.already":     "The new recovery codes were already shown",
+	"login.mfa_repair_codes.regenerate":  "If you did not save them, generate a replacement batch before completing repair.",
+	"login.mfa_repair_codes.confirm":     "I saved these new recovery codes and understand the old authenticator, old codes, and earlier sessions will be replaced.",
+	"login.mfa_repair_codes.finish":      "Complete repair and sign in",
+	"login.mfa_repair_codes.replace":     "Replace these new recovery codes",
+	"login.mfa_repair_codes.generate":    "Generate fresh recovery codes",
+	"login.mfa_repair_codes.footnote":    "No session exists until repair completes successfully.",
 }
 
 var loginFrench = map[string]string{
@@ -128,6 +152,30 @@ var loginFrench = map[string]string{
 	"login.mfa_codes.replace":     "Remplacer ces codes de récupération",
 	"login.mfa_codes.generate":    "Générer les codes de récupération",
 	"login.mfa_codes.footnote":    "Aucune session ni aucun authentificateur n'existe tant que cette configuration n'est pas terminée.",
+
+	"login.mfa_repair.title":       "Gofer - Réparer votre authentificateur",
+	"login.mfa_repair.eyebrow":     "Code de récupération accepté",
+	"login.mfa_repair.heading":     "Remplacer votre authentificateur",
+	"login.mfa_repair.description": "Gofer n'a pas créé de session. Enrôlez cet authentificateur de remplacement et enregistrez une nouvelle série de codes de récupération avant que l'accès ne soit rétabli.",
+	"login.mfa_repair.qr_alt":      "Code QR pour l'authentificateur Gofer de remplacement",
+	"login.mfa_repair.code_label":  "Code de l'authentificateur de remplacement",
+	"login.mfa_repair.verify":      "Vérifier l'authentificateur de remplacement",
+	"login.mfa_repair.footnote":    "Votre authentificateur actuel et les codes de récupération restants restent actifs jusqu'à la fin de la réparation.",
+
+	"login.mfa_repair_codes.title":       "Gofer - Enregistrer les nouveaux codes de récupération",
+	"login.mfa_repair_codes.eyebrow":     "Authentificateur de remplacement vérifié",
+	"login.mfa_repair_codes.heading":     "Enregistrez les nouveaux codes de récupération",
+	"login.mfa_repair_codes.description": "Terminer cette page remplace l'ancien authentificateur et les anciens codes de récupération restants, révoque les sessions précédentes et vous connecte.",
+	"login.mfa_repair_codes.only":        "Ces codes ne sont affichés que dans cette réponse",
+	"login.mfa_repair_codes.copy":        "Copiez-les dans un gestionnaire de mots de passe ou imprimez cette page avant de terminer la réparation.",
+	"login.mfa_repair_codes.aria":        "Nouveaux codes de récupération",
+	"login.mfa_repair_codes.already":     "Les nouveaux codes de récupération ont déjà été affichés",
+	"login.mfa_repair_codes.regenerate":  "Si vous ne les avez pas enregistrés, générez une nouvelle série avant de terminer la réparation.",
+	"login.mfa_repair_codes.confirm":     "J'ai enregistré ces nouveaux codes de récupération et je comprends que l'ancien authentificateur, les anciens codes et les sessions précédentes seront remplacés.",
+	"login.mfa_repair_codes.finish":      "Terminer la réparation et se connecter",
+	"login.mfa_repair_codes.replace":     "Remplacer ces nouveaux codes de récupération",
+	"login.mfa_repair_codes.generate":    "Générer de nouveaux codes de récupération",
+	"login.mfa_repair_codes.footnote":    "Aucune session n'existe tant que la réparation n'est pas terminée.",
 }
 
 func init() {

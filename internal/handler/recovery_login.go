@@ -334,7 +334,7 @@ func (h *Handler) renderRecoveryCodeLoginPage(w http.ResponseWriter, r *http.Req
 
 func (h *Handler) renderRecoveryRepairMFAPage(w http.ResponseWriter, r *http.Request, status int, data views.RecoveryRepairMFAData) {
 	var page bytes.Buffer
-	if err := views.RecoveryRepairMFAPage(data).Render(r.Context(), &page); err != nil {
+	if err := views.RecoveryRepairMFAPage(loginLocale(r), data).Render(r.Context(), &page); err != nil {
 		log.Printf("render recovery-repair authenticator page: %v", err)
 		http.Error(w, "failed to render authenticator repair", http.StatusInternalServerError)
 		return
@@ -344,7 +344,7 @@ func (h *Handler) renderRecoveryRepairMFAPage(w http.ResponseWriter, r *http.Req
 
 func (h *Handler) renderRecoveryRepairCodesPage(w http.ResponseWriter, r *http.Request, status int, data views.RecoveryRepairCodesData) {
 	var page bytes.Buffer
-	if err := views.RecoveryRepairCodesPage(data).Render(r.Context(), &page); err != nil {
+	if err := views.RecoveryRepairCodesPage(loginLocale(r), data).Render(r.Context(), &page); err != nil {
 		log.Printf("render recovery-repair code page: %v", err)
 		http.Error(w, "failed to render recovery codes", http.StatusInternalServerError)
 		return

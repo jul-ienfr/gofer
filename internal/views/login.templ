@@ -339,13 +339,13 @@ templ RecoveryCodeLoginPage(locale i18n.Locale, errorMessage string) {
 	</html>
 }
 
-templ RecoveryRepairMFAPage(data RecoveryRepairMFAData) {
+templ RecoveryRepairMFAPage(locale i18n.Locale, data RecoveryRepairMFAData) {
 	<!DOCTYPE html>
-	<html lang="en" class="dark" data-theme="classic">
+	<html lang={ string(i18n.Resolve(string(locale))) } class="dark" data-theme="classic">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-			<title>Gofer - Repair Your Authenticator</title>
+			<title>{ i18n.T(locale, "login.mfa_repair.title") }</title>
 			@AppIcon()
 			<link rel="stylesheet" href={ assetver.URL("/assets/css/output.css") }/>
 			<script src={ assetver.URL("/assets/js/actions.js") }></script>
@@ -355,40 +355,40 @@ templ RecoveryRepairMFAPage(data RecoveryRepairMFAData) {
 				<div class="w-full max-w-lg">
 					<div class="text-center mb-8">
 						<img src={ assetver.URL("/assets/logo.svg") } alt="Gofer" class="h-12 w-auto mx-auto"/>
-						<p class="mt-5 text-xs font-medium uppercase tracking-widest text-warning">Recovery code accepted</p>
-						<h1 class="mt-2 text-2xl font-semibold">Replace your authenticator</h1>
-						<p class="mt-2 text-sm text-muted-foreground">Gofer has not created a session. Enroll this replacement authenticator and save a fresh recovery batch before access is restored.</p>
+						<p class="mt-5 text-xs font-medium uppercase tracking-widest text-warning">{ i18n.T(locale, "login.mfa_repair.eyebrow") }</p>
+						<h1 class="mt-2 text-2xl font-semibold">{ i18n.T(locale, "login.mfa_repair.heading") }</h1>
+						<p class="mt-2 text-sm text-muted-foreground">{ i18n.T(locale, "login.mfa_repair.description") }</p>
 					</div>
 					if data.ErrorMessage != "" {
 						<div id="recovery-repair-mfa-error" role="alert" aria-live="polite" class="mb-4 rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">{ data.ErrorMessage }</div>
 					}
 					<div class="rounded-xl border border-border bg-card p-6">
 						<div class="flex justify-center rounded-lg bg-white p-4">
-							<img src={ data.QRCodeDataURL } alt="QR code for the replacement Gofer authenticator" class="h-56 w-56"/>
+							<img src={ data.QRCodeDataURL } alt={ i18n.T(locale, "login.mfa_repair.qr_alt") } class="h-56 w-56"/>
 						</div>
 						<div class="mt-5">
-							<p class="text-sm font-medium">Manual setup key</p>
+							<p class="text-sm font-medium">{ i18n.T(locale, "login.mfa_enroll.manual_key") }</p>
 							<p class="mt-2 break-all rounded-md border border-border bg-background px-3 py-2 text-center font-mono text-sm tracking-wider">{ data.ManualKey }</p>
-							<p class="mt-2 text-xs text-muted-foreground">{ data.Algorithm } · { fmt.Sprintf("%d digits", data.Digits) } · { fmt.Sprintf("%d-second period", data.Period) }</p>
+							<p class="mt-2 text-xs text-muted-foreground">{ data.Algorithm } · { i18n.Tf(locale, "login.mfa_enroll.meta_digits", data.Digits) } · { i18n.Tf(locale, "login.mfa_enroll.meta_period", data.Period) }</p>
 						</div>
 					</div>
 					<form method="post" action="/login/recovery/mfa" class="mt-4 space-y-4">
 						<input type="hidden" name="action" value="confirm"/>
 						<div class="space-y-2">
-							<label for="recovery-repair-code" class="text-sm font-medium">Code from the replacement authenticator</label>
+							<label for="recovery-repair-code" class="text-sm font-medium">{ i18n.T(locale, "login.mfa_repair.code_label") }</label>
 							<input id="recovery-repair-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus class="flex h-12 w-full rounded-md border border-input bg-background px-3 py-2 text-center font-mono text-xl tracking-[0.35em] outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"/>
 						</div>
 						@button.Button(button.Props{Type: button.TypeSubmit, FullWidth: true}) {
-							Verify replacement authenticator
+							{ i18n.T(locale, "login.mfa_repair.verify") }
 						}
 					</form>
 					<form method="post" action="/login/recovery/mfa" class="mt-2">
 						<input type="hidden" name="action" value="restart"/>
 						@button.Button(button.Props{Type: button.TypeSubmit, Variant: button.VariantOutline, FullWidth: true}) {
-							Generate a different setup key
+							{ i18n.T(locale, "login.mfa_enroll.restart") }
 						}
 					</form>
-					<p class="mt-6 text-center text-xs text-muted-foreground">Your current authenticator and remaining recovery codes stay active until repair completes.</p>
+					<p class="mt-6 text-center text-xs text-muted-foreground">{ i18n.T(locale, "login.mfa_repair.footnote") }</p>
 				</div>
 			</main>
 		</body>
@@ -523,13 +523,13 @@ templ MFAEnrollmentCodesPage(locale i18n.Locale, data MFAEnrollmentCodesData) {
 	</html>
 }
 
-templ RecoveryRepairCodesPage(data RecoveryRepairCodesData) {
+templ RecoveryRepairCodesPage(locale i18n.Locale, data RecoveryRepairCodesData) {
 	<!DOCTYPE html>
-	<html lang="en" class="dark" data-theme="classic">
+	<html lang={ string(i18n.Resolve(string(locale))) } class="dark" data-theme="classic">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-			<title>Gofer - Save New Recovery Codes</title>
+			<title>{ i18n.T(locale, "login.mfa_repair_codes.title") }</title>
 			@AppIcon()
 			<link rel="stylesheet" href={ assetver.URL("/assets/css/output.css") }/>
 			<script src={ assetver.URL("/assets/js/actions.js") }></script>
@@ -539,27 +539,27 @@ templ RecoveryRepairCodesPage(data RecoveryRepairCodesData) {
 				<div class="w-full max-w-lg">
 					<div class="text-center mb-8">
 						<img src={ assetver.URL("/assets/logo.svg") } alt="Gofer" class="h-12 w-auto mx-auto"/>
-						<p class="mt-5 text-xs font-medium uppercase tracking-widest text-success">Replacement authenticator verified</p>
-						<h1 class="mt-2 text-2xl font-semibold">Save fresh recovery codes</h1>
-						<p class="mt-2 text-sm text-muted-foreground">Completing this page replaces the old authenticator and remaining old recovery codes, revokes earlier sessions, and signs you in.</p>
+						<p class="mt-5 text-xs font-medium uppercase tracking-widest text-success">{ i18n.T(locale, "login.mfa_repair_codes.eyebrow") }</p>
+						<h1 class="mt-2 text-2xl font-semibold">{ i18n.T(locale, "login.mfa_repair_codes.heading") }</h1>
+						<p class="mt-2 text-sm text-muted-foreground">{ i18n.T(locale, "login.mfa_repair_codes.description") }</p>
 					</div>
 					if data.ErrorMessage != "" {
 						<div id="recovery-repair-codes-error" role="alert" aria-live="polite" class="mb-4 rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">{ data.ErrorMessage }</div>
 					}
 					if len(data.Codes) > 0 {
 						<div role="alert" class="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3">
-							<p class="text-sm font-medium text-warning">These codes are shown only in this response</p>
-							<p class="mt-1 text-xs text-muted-foreground">Copy them to a password manager or print this page before completing repair.</p>
+							<p class="text-sm font-medium text-warning">{ i18n.T(locale, "login.mfa_repair_codes.only") }</p>
+							<p class="mt-1 text-xs text-muted-foreground">{ i18n.T(locale, "login.mfa_repair_codes.copy") }</p>
 						</div>
-						<div class="mt-4 grid gap-2 rounded-xl border border-border bg-card p-5 sm:grid-cols-2" aria-label="New recovery codes">
+						<div class="mt-4 grid gap-2 rounded-xl border border-border bg-card p-5 sm:grid-cols-2" aria-label={ i18n.T(locale, "login.mfa_repair_codes.aria") }>
 							for _, code := range data.Codes {
 								<code class="rounded-md border border-border bg-background px-3 py-2 text-center font-mono text-sm">{ code }</code>
 							}
 						</div>
 					} else if data.Generated {
 						<div class="rounded-xl border border-border bg-card p-6">
-							<p class="text-sm font-medium">The new recovery codes were already shown</p>
-							<p class="mt-1 text-xs text-muted-foreground">If you did not save them, generate a replacement batch before completing repair.</p>
+							<p class="text-sm font-medium">{ i18n.T(locale, "login.mfa_repair_codes.already") }</p>
+							<p class="mt-1 text-xs text-muted-foreground">{ i18n.T(locale, "login.mfa_repair_codes.regenerate") }</p>
 						</div>
 					}
 					if data.Generated {
@@ -568,27 +568,27 @@ templ RecoveryRepairCodesPage(data RecoveryRepairCodesData) {
 							<input type="hidden" name="batch_id" value={ data.BatchID }/>
 							<label class="flex items-start gap-3 rounded-lg border border-border bg-card p-4 text-sm">
 								<input type="checkbox" name="saved" value="yes" required class="mt-0.5 h-4 w-4 rounded border-input"/>
-								<span>I saved these new recovery codes and understand the old authenticator, old codes, and earlier sessions will be replaced.</span>
+								<span>{ i18n.T(locale, "login.mfa_repair_codes.confirm") }</span>
 							</label>
 							@button.Button(button.Props{Type: button.TypeSubmit, FullWidth: true}) {
-								Complete repair and sign in
+								{ i18n.T(locale, "login.mfa_repair_codes.finish") }
 							}
 						</form>
 						<form method="post" action="/login/recovery/codes" class="mt-2">
 							<input type="hidden" name="action" value="regenerate"/>
 							@button.Button(button.Props{Type: button.TypeSubmit, Variant: button.VariantOutline, FullWidth: true}) {
-								Replace these new recovery codes
+								{ i18n.T(locale, "login.mfa_repair_codes.replace") }
 							}
 						</form>
 					} else {
 						<form method="post" action="/login/recovery/codes" class="mt-4">
 							<input type="hidden" name="action" value="generate"/>
 							@button.Button(button.Props{Type: button.TypeSubmit, FullWidth: true}) {
-								Generate fresh recovery codes
+								{ i18n.T(locale, "login.mfa_repair_codes.generate") }
 							}
 						</form>
 					}
-					<p class="mt-6 text-center text-xs text-muted-foreground">No session exists until repair completes successfully.</p>
+					<p class="mt-6 text-center text-xs text-muted-foreground">{ i18n.T(locale, "login.mfa_repair_codes.footnote") }</p>
 				</div>
 			</main>
 		</body>
