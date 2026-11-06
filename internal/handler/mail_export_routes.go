@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"github.com/cristianadrielbraun/gofer/internal/models"
 	"github.com/cristianadrielbraun/gofer/internal/views"
 )
@@ -83,6 +84,8 @@ func (h *Handler) mailExportJobViews(owner string) ([]views.MailExportJob, error
 }
 
 func (h *Handler) renderMailExportPanel(w http.ResponseWriter, r *http.Request, message string) {
+	ctx, owner := r.Context(), h.userID(r.Context())
+	locale := h.uiLocale(ctx, owner)
 	data, err := h.mailExportPanelData(r, message)
 	if err != nil {
 		log.Printf("mail export: %v", err)
@@ -90,18 +93,20 @@ func (h *Handler) renderMailExportPanel(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = views.MailExportPanel(data).Render(r.Context(), w)
+	_ = views.MailExportPanel(locale, data).Render(ctx, w)
 }
 
 func (h *Handler) renderMailExportJobs(w http.ResponseWriter, r *http.Request) {
-	jobs, err := h.mailExportJobViews(h.userID(r.Context()))
+	ctx, owner := r.Context(), h.userID(r.Context())
+	locale := h.uiLocale(ctx, owner)
+	jobs, err := h.mailExportJobViews(owner)
 	if err != nil {
 		log.Printf("mail export: %v", err)
 		http.Error(w, "could not list exports", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = views.MailExportJobs(jobs).Render(r.Context(), w)
+	_ = views.MailExportJobs(locale, jobs).Render(ctx, w)
 }
 
 func (h *Handler) handleMailExports(w http.ResponseWriter, r *http.Request) {
@@ -123,22 +128,23 @@ func (h *Handler) handleNewMailExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx, owner := r.Context(), h.userID(r.Context())
+	locale := h.uiLocale(ctx, owner)
 	account, found, err := h.mailExportAccount(ctx, owner, r.URL.Query().Get("account"))
 	if err != nil || !found {
-		h.renderMailExportPanel(w, r, "That account is no longer in Gofer.")
+		h.renderMailExportPanel(w, r, i18n.T(locale, "mail.export.account_gone"))
 		return
 	}
 	data := views.MailExportFormData{Account: mailExportAccountView(account)}
 	folders, err := h.mailExportFolders(ctx, owner, account.ID)
 	if err != nil {
 		log.Printf("mail export: list folders: %v", err)
-		data.Message = "The account's folders could not be listed."
+		data.Message = i18n.T(locale, "mail.export.folders_error")
 	}
 	for _, folder := range folders {
 		data.Folders = append(data.Folders, views.MailExportFolder{ID: folder.ID, Path: folder.Path, Role: folder.Role, Messages: folder.Messages})
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = views.MailExportForm(data).Render(ctx, w)
+	_ = views.MailExportForm(locale, data).Render(ctx, w)
 }
 
 func (h *Handler) handleStartMailExport(w http.ResponseWriter, r *http.Request) {
@@ -150,18 +156,19 @@ func (h *Handler) handleStartMailExport(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	ctx, owner := r.Context(), h.userID(r.Context())
+	locale := h.uiLocale(ctx, owner)
 	account, found, err := h.mailExportAccount(ctx, owner, r.PostForm.Get("account"))
 	if err != nil || !found {
-		h.renderMailExportPanel(w, r, "That account is no longer in Gofer.")
+		h.renderMailExportPanel(w, r, i18n.T(locale, "mail.export.account_gone"))
 		return
 	}
 	// An account still waiting for its password can't download anything.
 	savedOnly := r.PostForm.Get("saved_only") == "1" || account.ReconnectPending
 	if _, err := h.createMailExport(ctx, owner, account, r.PostForm["folder"], savedOnly); err != nil {
 		log.Printf("mail export: start: %v", err)
-		message := "The export could not be started."
+		message := i18n.T(locale, "mail.export.start_error")
 		if strings.Contains(err.Error(), "choose at least one folder") {
-			message = "Choose at least one folder to export."
+			message = i18n.T(locale, "mail.export.choose_folder")
 		}
 		h.renderMailExportPanel(w, r, message)
 		return

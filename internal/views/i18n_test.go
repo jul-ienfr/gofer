@@ -61,12 +61,47 @@ func TestThunderbirdImportRendersFrench(t *testing.T) {
 	}
 }
 
+func TestMailExportRendersFrench(t *testing.T) {
+	var panel bytes.Buffer
+	if err := MailExportPanel(i18n.French, MailExportPanelData{}).Render(context.Background(), &panel); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(panel.String(), "Ajoutez un compte de messagerie") {
+		t.Fatalf("French export panel is missing its empty message: %s", panel.String())
+	}
+
+	form := MailExportFormData{
+		Account: MailExportAccount{ID: "account-1", Email: "robin@example.test", Provider: "imap"},
+		Folders: []MailExportFolder{{ID: "folder-1", Path: "Inbox", Role: "inbox", Messages: 3}},
+	}
+	var export bytes.Buffer
+	if err := MailExportForm(i18n.French, form).Render(context.Background(), &export); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Dossiers", "3 messages", "Uniquement les messages enregistrés dans Gofer", "Lancer l"} {
+		if !strings.Contains(export.String(), want) {
+			t.Fatalf("French export form is missing %q", want)
+		}
+	}
+
+	var jobs bytes.Buffer
+	job := MailExportJob{ID: "job-1", Account: "robin@example.test", State: "done", Exported: 1, Started: "6 nov. 15:04"}
+	if err := MailExportJobs(i18n.French, []MailExportJob{job}).Render(context.Background(), &jobs); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Exports", "Export terminé : 1 message", "Télécharger", "Supprimer"} {
+		if !strings.Contains(jobs.String(), want) {
+			t.Fatalf("French export jobs are missing %q", want)
+		}
+	}
+}
+
 func TestProfileTransferRendersFrench(t *testing.T) {
 	var tab bytes.Buffer
 	if err := SettingsExportImportTab(map[string]string{"language": "fr"}).Render(context.Background(), &tab); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"Profil", "Exporter le profil", "Importer un profil"} {
+	for _, want := range []string{"Profil", "Exporter le profil", "Importer un profil", "Messages", "Exporter les messages"} {
 		if !strings.Contains(tab.String(), want) {
 			t.Fatalf("French profile card is missing %q", want)
 		}

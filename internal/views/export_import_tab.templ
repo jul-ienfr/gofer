@@ -28,16 +28,16 @@ templ SettingsExportImportTab(uiSettings map[string]string) {
 		</div>
 		<div class="settings-card bg-card rounded-lg border p-6 space-y-5">
 			<div>
-				<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">Mail</h3>
-				<p class="text-xs text-muted-foreground leading-relaxed">The messages in your accounts. These run in the background, so you can leave this page while they work.</p>
+				<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">{ tr(uiSettings, "mail.card.title") }</h3>
+				<p class="text-xs text-muted-foreground leading-relaxed">{ tr(uiSettings, "mail.card.description") }</p>
 			</div>
-			@dataActionRow("Export mail", "Download an account's folders as mbox files in a ZIP. Most mail apps can open them.", "mail-export-dialog", "", "/api/mail/exports", "Export…", icon.Download(icon.Props{Class: "size-3.5"})) {
+			@dataActionRow(tr(uiSettings, "mail.export.title"), tr(uiSettings, "mail.export.description"), "mail-export-dialog", "", "/api/mail/exports", tr(uiSettings, "mail.export.button"), icon.Download(icon.Props{Class: "size-3.5"})) {
 				@dataJobList("/api/mail/exports/jobs")
 			}
-			@dataActionRow("Import mail", "Add messages from mbox or eml files, or a ZIP of them such as a Gofer export, to one of your accounts.", "mail-import-dialog", "", "/api/mail/imports", "Import…", icon.Upload(icon.Props{Class: "size-3.5"})) {
+			@dataActionRow(tr(uiSettings, "mail.import.title"), tr(uiSettings, "mail.import.description"), "mail-import-dialog", "", "/api/mail/imports", tr(uiSettings, "mail.import.button"), icon.Upload(icon.Props{Class: "size-3.5"})) {
 				@dataJobList("/api/mail/imports/jobs")
 			}
-			@dataActionRow("Copy or move mail between accounts", "Copy folders from one account into another. Moving also deletes them from the first account once their copies are saved.", "mail-transfer-dialog", "", "/api/mail/transfers", "Copy or move…", icon.ArrowRightLeft(icon.Props{Class: "size-3.5"})) {
+			@dataActionRow(tr(uiSettings, "mail.transfer.title"), tr(uiSettings, "mail.transfer.description"), "mail-transfer-dialog", "", "/api/mail/transfers", tr(uiSettings, "mail.transfer.button"), icon.ArrowRightLeft(icon.Props{Class: "size-3.5"})) {
 				@dataJobList("/api/mail/transfers/jobs")
 			}
 		</div>
@@ -50,13 +50,13 @@ templ SettingsExportImportTab(uiSettings map[string]string) {
 		@dataActionDialog("thunderbird-import-dialog", "thunderbird-import-panel", tr(uiSettings, "thunderbird.dialog.title"), "sm:max-w-2xl") {
 			@dataDialogLoading()
 		}
-		@dataActionDialog("mail-export-dialog", "", "Export mail", "sm:max-w-xl") {
+		@dataActionDialog("mail-export-dialog", "", tr(uiSettings, "mail.dialog.export"), "sm:max-w-xl") {
 			@dataDialogLoading()
 		}
-		@dataActionDialog("mail-import-dialog", "", "Import mail", "sm:max-w-2xl") {
+		@dataActionDialog("mail-import-dialog", "", tr(uiSettings, "mail.dialog.import"), "sm:max-w-2xl") {
 			@dataDialogLoading()
 		}
-		@dataActionDialog("mail-transfer-dialog", "", "Copy or move mail between accounts", "sm:max-w-2xl") {
+		@dataActionDialog("mail-transfer-dialog", "", tr(uiSettings, "mail.dialog.transfer"), "sm:max-w-2xl") {
 			@dataDialogLoading()
 		}
 	</div>

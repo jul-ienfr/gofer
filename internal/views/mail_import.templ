@@ -9,6 +9,7 @@ import (
 	"github.com/cristianadrielbraun/gofer/components/icon"
 	"github.com/cristianadrielbraun/gofer/components/radio"
 	"github.com/cristianadrielbraun/gofer/components/selectbox"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 )
 
 type MailImportAccount struct {
@@ -128,7 +129,7 @@ templ MailImportReview(data MailImportReviewData) {
 								"hx-include": "this",
 							},
 						})
-						@mailExportAccountSummary(account.MailExportAccount)
+						@mailExportAccountSummary(i18n.English, account.MailExportAccount)
 						if account.Problem != "" {
 							<span class="shrink-0 text-xs text-muted-foreground">{ account.Problem }</span>
 						}

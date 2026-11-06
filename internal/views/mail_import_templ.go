@@ -17,6 +17,7 @@ import (
 	"github.com/cristianadrielbraun/gofer/components/icon"
 	"github.com/cristianadrielbraun/gofer/components/radio"
 	"github.com/cristianadrielbraun/gofer/components/selectbox"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 )
 
 type MailImportAccount struct {
@@ -146,7 +147,7 @@ func MailImportUploadForm(message string) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(message)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 87, Col: 85}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 88, Col: 85}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -204,7 +205,7 @@ func MailImportReview(data MailImportReviewData) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs("/api/mail/imports/" + data.ID + "/start")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 95, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 96, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -246,7 +247,7 @@ func MailImportReview(data MailImportReviewData) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(strings.Join(data.Files, ", "))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 103, Col: 83}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 104, Col: 83}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -259,7 +260,7 @@ func MailImportReview(data MailImportReviewData) templ.Component {
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(mailImportSourcesSummary(data))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 105, Col: 37}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 106, Col: 37}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -273,7 +274,7 @@ func MailImportReview(data MailImportReviewData) templ.Component {
 				var templ_7745c5c3_Var13 string
 				templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(" Exported from " + data.ExportedFrom + " by Gofer.")
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 107, Col: 60}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 108, Col: 60}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 				if templ_7745c5c3_Err != nil {
@@ -292,7 +293,7 @@ func MailImportReview(data MailImportReviewData) templ.Component {
 				var templ_7745c5c3_Var14 string
 				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(data.Message)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 112, Col: 90}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 113, Col: 90}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 				if templ_7745c5c3_Err != nil {
@@ -333,7 +334,7 @@ func MailImportReview(data MailImportReviewData) templ.Component {
 				var templ_7745c5c3_Var17 string
 				templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(account.Email)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 117, Col: 191}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 118, Col: 191}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 				if templ_7745c5c3_Err != nil {
@@ -359,7 +360,7 @@ func MailImportReview(data MailImportReviewData) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = mailExportAccountSummary(account.MailExportAccount).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = mailExportAccountSummary(i18n.English, account.MailExportAccount).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -371,7 +372,7 @@ func MailImportReview(data MailImportReviewData) templ.Component {
 					var templ_7745c5c3_Var18 string
 					templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(account.Problem)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 133, Col: 77}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 134, Col: 77}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 					if templ_7745c5c3_Err != nil {
@@ -450,7 +451,7 @@ func MailImportReview(data MailImportReviewData) templ.Component {
 			var templ_7745c5c3_Var22 string
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs("/api/mail/imports/" + data.ID + "/delete")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 151, Col: 106}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 152, Col: 106}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 			if templ_7745c5c3_Err != nil {
@@ -534,7 +535,7 @@ func mailImportSourceRow(source MailImportSource, folders []MailImportFolder) te
 		var templ_7745c5c3_Var26 string
 		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(source.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 163, Col: 114}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 164, Col: 114}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 		if templ_7745c5c3_Err != nil {
@@ -547,7 +548,7 @@ func mailImportSourceRow(source MailImportSource, folders []MailImportFolder) te
 		var templ_7745c5c3_Var27 string
 		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(source.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 165, Col: 69}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 166, Col: 69}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 		if templ_7745c5c3_Err != nil {
@@ -560,7 +561,7 @@ func mailImportSourceRow(source MailImportSource, folders []MailImportFolder) te
 		var templ_7745c5c3_Var28 string
 		templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(mailExportCount(source.Messages, "message", "messages"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 166, Col: 110}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 167, Col: 110}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 		if templ_7745c5c3_Err != nil {
@@ -586,7 +587,7 @@ func mailImportSourceRow(source MailImportSource, folders []MailImportFolder) te
 		var templ_7745c5c3_Var30 string
 		templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs("new:" + strconv.Itoa(source.Index))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 172, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 173, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 		if templ_7745c5c3_Err != nil {
@@ -599,7 +600,7 @@ func mailImportSourceRow(source MailImportSource, folders []MailImportFolder) te
 		var templ_7745c5c3_Var31 string
 		templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(source.NewName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 173, Col: 26}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 174, Col: 26}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 		if templ_7745c5c3_Err != nil {
@@ -622,7 +623,7 @@ func mailImportSourceRow(source MailImportSource, folders []MailImportFolder) te
 		var templ_7745c5c3_Var32 string
 		templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs("New folder for " + source.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 176, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 177, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 		if templ_7745c5c3_Err != nil {
@@ -749,7 +750,7 @@ func mailImportJobRow(job MailImportJob) templ.Component {
 		var templ_7745c5c3_Var36 string
 		templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(job.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 221, Col: 109}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 222, Col: 109}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 		if templ_7745c5c3_Err != nil {
@@ -762,7 +763,7 @@ func mailImportJobRow(job MailImportJob) templ.Component {
 		var templ_7745c5c3_Var37 string
 		templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(job.State)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 221, Col: 146}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 222, Col: 146}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 		if templ_7745c5c3_Err != nil {
@@ -775,7 +776,7 @@ func mailImportJobRow(job MailImportJob) templ.Component {
 		var templ_7745c5c3_Var38 string
 		templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(job.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 224, Col: 80}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 225, Col: 80}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 		if templ_7745c5c3_Err != nil {
@@ -788,7 +789,7 @@ func mailImportJobRow(job MailImportJob) templ.Component {
 		var templ_7745c5c3_Var39 string
 		templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(mailImportJobStatus(job))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 225, Col: 80}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 226, Col: 80}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 		if templ_7745c5c3_Err != nil {
@@ -837,7 +838,7 @@ func mailImportJobRow(job MailImportJob) templ.Component {
 				var templ_7745c5c3_Var43 string
 				templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs("/api/mail/imports/" + job.ID + "/review")
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 231, Col: 115}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 232, Col: 115}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 				if templ_7745c5c3_Err != nil {
@@ -882,7 +883,7 @@ func mailImportJobRow(job MailImportJob) templ.Component {
 			var templ_7745c5c3_Var46 string
 			templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs("/api/mail/imports/" + job.ID + "/delete")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 233, Col: 108}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 234, Col: 108}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 			if templ_7745c5c3_Err != nil {
@@ -918,7 +919,7 @@ func mailImportJobRow(job MailImportJob) templ.Component {
 			var templ_7745c5c3_Var49 string
 			templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs("/api/mail/imports/" + job.ID + "/cancel")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 235, Col: 108}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 236, Col: 108}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 			if templ_7745c5c3_Err != nil {
@@ -954,7 +955,7 @@ func mailImportJobRow(job MailImportJob) templ.Component {
 			var templ_7745c5c3_Var52 string
 			templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinStringErrs("/api/mail/imports/" + job.ID + "/resume")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 237, Col: 115}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 238, Col: 115}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
 			if templ_7745c5c3_Err != nil {
@@ -989,7 +990,7 @@ func mailImportJobRow(job MailImportJob) templ.Component {
 			var templ_7745c5c3_Var55 string
 			templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs("/api/mail/imports/" + job.ID + "/delete")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 238, Col: 108}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 239, Col: 108}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
 			if templ_7745c5c3_Err != nil {
@@ -1025,7 +1026,7 @@ func mailImportJobRow(job MailImportJob) templ.Component {
 			var templ_7745c5c3_Var58 string
 			templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs("/api/mail/imports/" + job.ID + "/delete")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 240, Col: 108}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 241, Col: 108}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
 			if templ_7745c5c3_Err != nil {
@@ -1048,7 +1049,7 @@ func mailImportJobRow(job MailImportJob) templ.Component {
 			var templ_7745c5c3_Var59 string
 			templ_7745c5c3_Var59, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(mailImportProgressStyle(job))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 246, Col: 99}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 247, Col: 99}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var59))
 			if templ_7745c5c3_Err != nil {
@@ -1067,7 +1068,7 @@ func mailImportJobRow(job MailImportJob) templ.Component {
 			var templ_7745c5c3_Var60 string
 			templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs(job.Error)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 250, Col: 50}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 251, Col: 50}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var60))
 			if templ_7745c5c3_Err != nil {
@@ -1086,7 +1087,7 @@ func mailImportJobRow(job MailImportJob) templ.Component {
 			var templ_7745c5c3_Var61 string
 			templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(mailExportCount(job.Failed, "message", "messages"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 254, Col: 88}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 255, Col: 88}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var61))
 			if templ_7745c5c3_Err != nil {
@@ -1104,7 +1105,7 @@ func mailImportJobRow(job MailImportJob) templ.Component {
 				var templ_7745c5c3_Var62 string
 				templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs(skipped)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 257, Col: 19}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 258, Col: 19}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var62))
 				if templ_7745c5c3_Err != nil {
@@ -1271,7 +1272,7 @@ func mailFolderTargetSelect(name, label string, folders []MailImportFolder, sele
 							var templ_7745c5c3_Var69 string
 							templ_7745c5c3_Var69, templ_7745c5c3_Err = templ.JoinStringErrs(folder.Path)
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 318, Col: 19}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_import.templ`, Line: 319, Col: 19}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var69))
 							if templ_7745c5c3_Err != nil {
