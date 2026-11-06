@@ -1,7 +1,7 @@
 package i18n
 
 // Login strings live in their own catalogs because the sign-in page has no
-// user settings to read; it negotiates a locale from Accept-Language.
+// user settings to read; it uses the language cookie or Accept-Language.
 var loginEnglish = map[string]string{
 	"login.title":              "Gofer - Sign In",
 	"login.tagline":            "A self-hosted email client",
@@ -20,6 +20,15 @@ var loginEnglish = map[string]string{
 	"login.recovery":           "Lost access? Use the local Gofer recovery command to reset your password.",
 	"login.invitation":         "Have an invitation?",
 	"login.setup_account":      "Set up your account",
+
+	"login.mfa.title":               "Gofer - Additional verification",
+	"login.mfa.heading":             "Complete additional verification",
+	"login.mfa.description":         "Enter the code from your authenticator app to finish signing in.",
+	"login.mfa.primary_description": "Enter your authenticator app code to finish signing in.",
+	"login.mfa.code_label":          "Authenticator app code",
+	"login.mfa.verify":              "Verify and sign in",
+	"login.mfa.restart":             "Restart sign-in",
+	"login.mfa.recovery":            "Use a recovery code instead",
 }
 
 var loginFrench = map[string]string{
@@ -40,6 +49,15 @@ var loginFrench = map[string]string{
 	"login.recovery":           "Accès perdu ? Utilisez la commande de récupération locale de Gofer pour réinitialiser votre mot de passe.",
 	"login.invitation":         "Vous avez une invitation ?",
 	"login.setup_account":      "Configurer votre compte",
+
+	"login.mfa.title":               "Gofer - Vérification supplémentaire",
+	"login.mfa.heading":             "Terminez la vérification supplémentaire",
+	"login.mfa.description":         "Saisissez le code de votre application d'authentification pour terminer la connexion.",
+	"login.mfa.primary_description": "Saisissez le code de votre application d'authentification pour terminer la connexion.",
+	"login.mfa.code_label":          "Code de l'application d'authentification",
+	"login.mfa.verify":              "Vérifier et se connecter",
+	"login.mfa.restart":             "Recommencer la connexion",
+	"login.mfa.recovery":            "Utiliser un code de récupération",
 }
 
 func init() {

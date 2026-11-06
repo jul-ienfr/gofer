@@ -214,13 +214,13 @@ type LoginMFAFactors struct {
 	HasTOTP       bool
 }
 
-templ LoginMFAContinuationPage(errorMessage string, factors LoginMFAFactors) {
+templ LoginMFAContinuationPage(locale i18n.Locale, errorMessage string, factors LoginMFAFactors) {
 	<!DOCTYPE html>
-	<html lang="en" class="dark" data-theme="classic">
+	<html lang={ string(i18n.Resolve(string(locale))) } class="dark" data-theme="classic">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-			<title>Gofer - Additional verification</title>
+			<title>{ i18n.T(locale, "login.mfa.title") }</title>
 			@AppIcon()
 			<link rel="stylesheet" href={ assetver.URL("/assets/css/output.css") }/>
 			<script src={ assetver.URL("/assets/js/actions.js") }></script>
@@ -230,11 +230,11 @@ templ LoginMFAContinuationPage(errorMessage string, factors LoginMFAFactors) {
 				<div class="w-full max-w-sm">
 					<div class="text-center">
 						<img src={ assetver.URL("/assets/logo.svg") } alt="Gofer" class="h-12 w-auto mx-auto"/>
-						<h1 class="mt-8 text-2xl font-semibold">Complete additional verification</h1>
-						<p class="mt-3 text-sm text-muted-foreground">Enter the code from your authenticator app to finish signing in.</p>
+						<h1 class="mt-8 text-2xl font-semibold">{ i18n.T(locale, "login.mfa.heading") }</h1>
+						<p class="mt-3 text-sm text-muted-foreground">{ i18n.T(locale, "login.mfa.description") }</p>
 					</div>
 					if factors.PrimarySignIn != "" {
-						<p role="status" class="mt-6 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-center text-sm font-medium text-emerald-800 dark:text-emerald-200">{ factors.PrimarySignIn } <span class="block mt-1 font-normal">Enter your authenticator app code to finish signing in.</span></p>
+						<p role="status" class="mt-6 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-center text-sm font-medium text-emerald-800 dark:text-emerald-200">{ factors.PrimarySignIn } <span class="block mt-1 font-normal">{ i18n.T(locale, "login.mfa.primary_description") }</span></p>
 					}
 					if errorMessage != "" {
 						<div id="login-mfa-error" role="alert" aria-live="polite" class="mt-6 rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -244,7 +244,7 @@ templ LoginMFAContinuationPage(errorMessage string, factors LoginMFAFactors) {
 					if factors.HasTOTP {
 						<form method="post" action="/login/mfa" class="mt-6 space-y-4">
 							<div class="space-y-2">
-								<label for="login-mfa-code" class="block text-center text-sm font-medium">Authenticator app code</label>
+								<label for="login-mfa-code" class="block text-center text-sm font-medium">{ i18n.T(locale, "login.mfa.code_label") }</label>
 								<input
 									id="login-mfa-code"
 									name="code"
@@ -264,17 +264,17 @@ templ LoginMFAContinuationPage(errorMessage string, factors LoginMFAFactors) {
 								/>
 							</div>
 							@button.Button(button.Props{Type: button.TypeSubmit, FullWidth: true}) {
-								Verify and sign in
+								{ i18n.T(locale, "login.mfa.verify") }
 							}
 						</form>
 					}
 					<div class="mt-4">
 						@button.Button(button.Props{Variant: button.VariantOutline, FullWidth: true, Href: "/login"}) {
-							Restart sign-in
+							{ i18n.T(locale, "login.mfa.restart") }
 						}
 					</div>
 					<div class="mt-4 text-center">
-						<a href="/login/mfa/recovery" class="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground">Use a recovery code instead</a>
+						<a href="/login/mfa/recovery" class="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground">{ i18n.T(locale, "login.mfa.recovery") }</a>
 					</div>
 				</div>
 			</main>

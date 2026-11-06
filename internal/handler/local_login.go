@@ -345,7 +345,7 @@ func (h *Handler) renderLoginMFAContinuationPage(w http.ResponseWriter, r *http.
 	case auth.AuthenticationMethodFederatedOIDC:
 		primarySignIn = h.auth.OIDCLoginName() + " sign-in successful."
 	}
-	component := views.LoginMFAContinuationPage(message, views.LoginMFAFactors{Username: factors.Username, HasTOTP: factors.HasTOTP, PrimarySignIn: primarySignIn})
+	component := views.LoginMFAContinuationPage(loginLocale(r), message, views.LoginMFAFactors{Username: factors.Username, HasTOTP: factors.HasTOTP, PrimarySignIn: primarySignIn})
 	if management {
 		component = views.ManagementMFAContinuationPage(message)
 	}

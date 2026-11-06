@@ -120,7 +120,7 @@ func TestLoginPageShowsConfiguredOIDCProviderWithoutMailboxAccess(t *testing.T) 
 
 func TestLoginMFAContinuationPageUsesOnlyLocalResources(t *testing.T) {
 	var output bytes.Buffer
-	if err := LoginMFAContinuationPage("That code is invalid.", LoginMFAFactors{HasTOTP: true}).Render(t.Context(), &output); err != nil {
+	if err := LoginMFAContinuationPage(i18n.English, "That code is invalid.", LoginMFAFactors{HasTOTP: true}).Render(t.Context(), &output); err != nil {
 		t.Fatalf("LoginMFAContinuationPage().Render() error = %v", err)
 	}
 	html := output.String()
@@ -136,6 +136,24 @@ func TestLoginMFAContinuationPageUsesOnlyLocalResources(t *testing.T) {
 	}
 	if strings.Contains(html, "https://") {
 		t.Fatalf("MFA continuation page loads a remote resource: %q", html)
+	}
+}
+
+func TestLoginMFAContinuationPageRendersFrenchLocale(t *testing.T) {
+	var output bytes.Buffer
+	if err := LoginMFAContinuationPage(i18n.French, "", LoginMFAFactors{HasTOTP: true}).Render(t.Context(), &output); err != nil {
+		t.Fatal(err)
+	}
+	html := output.String()
+	for _, required := range []string{
+		`<html lang="fr"`, "Terminez la vérification supplémentaire",
+		"Code de l&#39;application d&#39;authentification",
+		"Vérifier et se connecter", "Recommencer la connexion",
+		"Utiliser un code de récupération",
+	} {
+		if !strings.Contains(html, required) {
+			t.Fatalf("French MFA page missing %q", required)
+		}
 	}
 }
 
@@ -243,7 +261,7 @@ func TestRequiredMFAEnrollmentPagesRemainSessionlessAndLocal(t *testing.T) {
 func TestLoginMFAConfirmationEscapesProviderAndKeepsVerificationRequired(t *testing.T) {
 	{
 		var output bytes.Buffer
-		err := LoginMFAContinuationPage("", LoginMFAFactors{
+		err := LoginMFAContinuationPage(i18n.English, "", LoginMFAFactors{
 			PrimarySignIn: "<script>provider</script> sign-in successful.",
 			HasTOTP:       true,
 		}).Render(t.Context(), &output)
