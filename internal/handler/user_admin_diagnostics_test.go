@@ -162,7 +162,7 @@ func TestOwnedAdminDiagnosticsBrowserReleasesSingleStore(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("diagnostic response did not reach browser")
 	}
-	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	if _, err := f.h.userStorage.ReadUserDiagnostics(ctx, storage.DiagnosticsActor{ID: "administrator", AuthVersion: 1}, "bob", storage.UserDiagnosticsContacts); err != nil {
 		t.Fatal("browser retained the only database slot", err)

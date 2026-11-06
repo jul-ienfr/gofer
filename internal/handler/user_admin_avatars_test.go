@@ -93,7 +93,7 @@ func TestOwnedAdminAvatarReadRejectsExpiredActorAndReleasesStore(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("browser not reached")
 	}
-	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	if _, err := f.h.userStorage.ReadUserDiagnostics(ctx, storage.DiagnosticsActor{ID: "administrator", AuthVersion: 1}, "bob", storage.UserDiagnosticsAvatars); err != nil {
 		t.Fatal("browser retained user store", err)

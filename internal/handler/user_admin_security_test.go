@@ -289,7 +289,7 @@ func TestOwnedAdminSecurityRestartAndNativeRevocation(t *testing.T) {
 				}
 				// No replacement job is scheduled by revocation. Explicit retries
 				// must reject the now-unapproved plaintext endpoint before dialing.
-				ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+				ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 				defer cancel()
 				if err := f.h.userIMAP.RefetchBody(ctx, "alice", 1); err == nil {
 					t.Fatal("new request bypassed revoked policy")

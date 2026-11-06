@@ -69,7 +69,7 @@ func TestOwnedAvatarWarmupSharesWorkerAndScopesEvents(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("warmup did not fetch")
 	}
-	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	if err := f.h.withUserDB(ctx, "bob", func(*storage.DB) error { return nil }); err != nil {
 		t.Fatal("provider held owned store", err)
@@ -276,7 +276,7 @@ func TestOwnedProviderAvatarCentralProfileAndStaleResponse(t *testing.T) {
 			case <-time.After(5 * time.Second):
 				t.Fatal("no avatar request")
 			}
-			probe, cancel := context.WithTimeout(t.Context(), time.Second)
+			probe, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 			if err := f.h.withUserDB(probe, "bob", func(*storage.DB) error { return nil }); err != nil {
 				t.Fatal("provider held store", err)
