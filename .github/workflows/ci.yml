@@ -22,8 +22,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # macOS 14 is deprecated and its hosted pool is being drained.
-        os: [ubuntu-latest, macos-15, windows-latest]
+        # The arm64 macOS pool is repeatedly drained; use the Intel image.
+        os: [ubuntu-latest, macos-15-intel, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
