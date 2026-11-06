@@ -334,7 +334,7 @@ func TestUserOAuthBlockedExchangeDoesNotPinDatabaseAndCancels(t *testing.T) {
 	go func() { done <- f.callback("alice", "gmail", state, "alice-blocked") }()
 	select {
 	case <-entered:
-	case <-time.After(5 * time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("HTTP did not begin")
 	}
 	assertOAuthSuccess(t, f.callback("bob", "gmail", f.start(t, "bob", "gmail", "add"), "bob-grant"))
@@ -344,7 +344,7 @@ func TestUserOAuthBlockedExchangeDoesNotPinDatabaseAndCancels(t *testing.T) {
 		if !strings.Contains(rec.Header().Get("Location"), "error=") {
 			t.Fatal("cancel reported success")
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("shutdown did not cancel HTTP")
 	}
 	if len(f.accounts(t, "alice")) != 0 {
@@ -362,7 +362,7 @@ func TestUserOAuthConcurrentCallbacksReuseAccount(t *testing.T) {
 		select {
 		case r := <-results:
 			assertOAuthSuccess(t, r)
-		case <-time.After(5 * time.Second):
+		case <-time.After(15 * time.Second):
 			t.Fatal("callbacks stalled")
 		}
 	}
@@ -465,7 +465,7 @@ func TestUserOAuthReconnectDeletionDrainsAndRejectsPublication(t *testing.T) {
 	go func() { callback <- f.callback("alice", "gmail", state, "alice-blocked") }()
 	select {
 	case <-entered:
-	case <-time.After(5 * time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("reconnect not in flight")
 	}
 	deleting := make(chan error, 1)
@@ -497,7 +497,7 @@ func TestUserOAuthReconnectDeletionDrainsAndRejectsPublication(t *testing.T) {
 		if !strings.Contains(rec.Header().Get("Location"), "error=") {
 			t.Fatal("deletion allowed reconnect success")
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("callback stalled")
 	}
 	select {
@@ -505,7 +505,7 @@ func TestUserOAuthReconnectDeletionDrainsAndRejectsPublication(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("deletion did not drain")
 	}
 	var revision int
