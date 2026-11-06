@@ -640,6 +640,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	h.registerProfileTransferRoutes(func(pattern string, handler http.HandlerFunc) {
 		mux.HandleFunc(pattern, handler)
 	})
+	h.registerThunderbirdImportRoutes(func(pattern string, handler http.HandlerFunc) {
+		mux.HandleFunc(pattern, handler)
+	})
 	h.registerMailExportRoutes(func(pattern string, handler http.HandlerFunc) {
 		mux.HandleFunc(pattern, handler)
 	})

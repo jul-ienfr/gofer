@@ -319,6 +319,7 @@ func (h *Handler) RegisterUserStorageRoutes(ctx context.Context, mux *http.Serve
 	if option.Accounts != nil {
 		routed.registerUserSignatures(private)
 		routed.registerProfileTransferRoutes(private)
+		routed.registerThunderbirdImportRoutes(private)
 		if option.IMAP != nil {
 			routed.StartMailExports(ctx)
 			routed.registerMailExportRoutes(private)

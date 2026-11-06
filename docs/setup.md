@@ -21,6 +21,14 @@ iCloud is an IMAP/SMTP account with Apple's servers filled in. Apple doesn't let
 
 Configure Calendar under **Settings → Accounts**: enable it for an account, discover calendars, and select which ones to sync. Google and Outlook use the account's existing OAuth connection; reconnect older accounts to grant Calendar access if needed. Generic accounts can connect a CalDAV server using an HTTPS URL and server credentials, which may require an app password. iCloud accounts connect to iCloud's CalDAV server with the account's app-specific password.
 
+## thunderbird import
+
+**Settings → Export and import → Import Thunderbird accounts** reads the `prefs.js` of a Thunderbird profile, or a ZIP that contains it. In Thunderbird, open **Help → More Troubleshooting Information → Profile Folder** and choose `prefs.js`. A ZIP is limited to 32 MB; if your export is larger, extract `prefs.js` from it and upload that instead.
+
+Gofer adds the IMAP accounts, their identities, their SMTP servers, and their signatures; signatures can be left out in the preview. It never reads `logins.json` or `key4.db`, so no password or sign-in token is imported: each account is created with sync off and waits for **Reconnect** in Accounts. POP3, NNTP, and RSS accounts, local folders, filters, calendars, contacts, and messages are not imported. Accounts that use an unencrypted connection are listed in the preview but skipped, since Gofer requires TLS or STARTTLS.
+
+Gmail and Outlook accounts use Gofer's own sign-in when it is configured on the installation; otherwise they are added over IMAP and need an app password.
+
 ## deployment precautions
 
 For server deployments, use personal or managed authentication, serve the application through an HTTPS reverse proxy, and configure `GOFER_ADDR` and `GOFER_BASE_URL` for your deployment. The listener binds to loopback by default. Set `GOFER_TRUSTED_PROXY_CIDRS` only for your actual proxy peers; use `GOFER_ALLOWED_CIDRS` when you need to restrict client networks.

@@ -520,8 +520,12 @@ type profileAccountPlan struct {
 }
 
 func (h *Handler) profileAccountPlans(file *profileFile, existing map[string]profileExistingAccount) map[string]profileAccountPlan {
-	plans := make(map[string]profileAccountPlan, len(file.Accounts))
-	for _, account := range file.Accounts {
+	return h.profileAccountPlansFor(file.Accounts, existing)
+}
+
+func (h *Handler) profileAccountPlansFor(accounts []profileAccount, existing map[string]profileExistingAccount) map[string]profileAccountPlan {
+	plans := make(map[string]profileAccountPlan, len(accounts))
+	for _, account := range accounts {
 		current, connected := existing[profileAccountKey(account)]
 		switch {
 		case connected:

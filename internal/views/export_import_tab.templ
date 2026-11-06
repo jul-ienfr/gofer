@@ -21,6 +21,13 @@ templ SettingsExportImportTab() {
 		</div>
 		<div class="settings-card bg-card rounded-lg border p-6 space-y-5">
 			<div>
+				<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">Thunderbird</h3>
+				<p class="text-xs text-muted-foreground leading-relaxed">Bring your account setup over from Thunderbird. Passwords and mail are not included.</p>
+			</div>
+			@dataActionRow("Import Thunderbird accounts", "Add the accounts, identities and servers found in a Thunderbird prefs.js. They start with sync off until you reconnect them.", "thunderbird-import-dialog", "thunderbird-import-panel", "/api/thunderbird/import/upload", "Import…", icon.Upload(icon.Props{Class: "size-3.5"}))
+		</div>
+		<div class="settings-card bg-card rounded-lg border p-6 space-y-5">
+			<div>
 				<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">Mail</h3>
 				<p class="text-xs text-muted-foreground leading-relaxed">The messages in your accounts. These run in the background, so you can leave this page while they work.</p>
 			</div>
@@ -38,6 +45,9 @@ templ SettingsExportImportTab() {
 			@ProfileExportForm()
 		}
 		@dataActionDialog("profile-import-dialog", "profile-import-panel", "Import profile", "sm:max-w-2xl") {
+			@dataDialogLoading()
+		}
+		@dataActionDialog("thunderbird-import-dialog", "thunderbird-import-panel", "Import Thunderbird accounts", "sm:max-w-2xl") {
 			@dataDialogLoading()
 		}
 		@dataActionDialog("mail-export-dialog", "", "Export mail", "sm:max-w-xl") {
