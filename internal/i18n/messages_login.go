@@ -29,6 +29,13 @@ var loginEnglish = map[string]string{
 	"login.mfa.verify":              "Verify and sign in",
 	"login.mfa.restart":             "Restart sign-in",
 	"login.mfa.recovery":            "Use a recovery code instead",
+
+	"login.recovery_code.title":       "Gofer - Use a Recovery Code",
+	"login.recovery_code.heading":     "Use a recovery code",
+	"login.recovery_code.description": "Enter one of the recovery codes you saved during setup. A successful code starts required authenticator repair before Gofer grants access.",
+	"login.recovery_code.label":       "Recovery code",
+	"login.recovery_code.submit":      "Continue to authenticator repair",
+	"login.recovery_code.back":        "Use an authenticator code",
 }
 
 var loginFrench = map[string]string{
@@ -58,6 +65,13 @@ var loginFrench = map[string]string{
 	"login.mfa.verify":              "Vérifier et se connecter",
 	"login.mfa.restart":             "Recommencer la connexion",
 	"login.mfa.recovery":            "Utiliser un code de récupération",
+
+	"login.recovery_code.title":       "Gofer - Utiliser un code de récupération",
+	"login.recovery_code.heading":     "Utiliser un code de récupération",
+	"login.recovery_code.description": "Saisissez l'un des codes de récupération enregistrés lors de la configuration. Un code valide lance la réparation obligatoire de l'authentificateur avant que Gofer n'accorde l'accès.",
+	"login.recovery_code.label":       "Code de récupération",
+	"login.recovery_code.submit":      "Continuer vers la réparation de l'authentificateur",
+	"login.recovery_code.back":        "Utiliser un code d'authentification",
 }
 
 func init() {

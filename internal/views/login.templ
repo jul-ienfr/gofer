@@ -282,13 +282,13 @@ templ LoginMFAContinuationPage(locale i18n.Locale, errorMessage string, factors 
 	</html>
 }
 
-templ RecoveryCodeLoginPage(errorMessage string) {
+templ RecoveryCodeLoginPage(locale i18n.Locale, errorMessage string) {
 	<!DOCTYPE html>
-	<html lang="en" class="dark" data-theme="classic">
+	<html lang={ string(i18n.Resolve(string(locale))) } class="dark" data-theme="classic">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-			<title>Gofer - Use a Recovery Code</title>
+			<title>{ i18n.T(locale, "login.recovery_code.title") }</title>
 			@AppIcon()
 			<link rel="stylesheet" href={ assetver.URL("/assets/css/output.css") }/>
 			<script src={ assetver.URL("/assets/js/actions.js") }></script>
@@ -298,15 +298,15 @@ templ RecoveryCodeLoginPage(errorMessage string) {
 				<div class="w-full max-w-sm">
 					<div class="text-center">
 						<img src={ assetver.URL("/assets/logo.svg") } alt="Gofer" class="h-12 w-auto mx-auto"/>
-						<h1 class="mt-8 text-2xl font-semibold">Use a recovery code</h1>
-						<p class="mt-3 text-sm text-muted-foreground">Enter one of the recovery codes you saved during setup. A successful code starts required authenticator repair before Gofer grants access.</p>
+						<h1 class="mt-8 text-2xl font-semibold">{ i18n.T(locale, "login.recovery_code.heading") }</h1>
+						<p class="mt-3 text-sm text-muted-foreground">{ i18n.T(locale, "login.recovery_code.description") }</p>
 					</div>
 					if errorMessage != "" {
 						<div id="recovery-code-error" role="alert" aria-live="polite" class="mt-6 rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">{ errorMessage }</div>
 					}
 					<form method="post" action="/login/mfa/recovery" class="mt-6 space-y-4">
 						<div class="space-y-2">
-							<label for="recovery-code" class="text-sm font-medium">Recovery code</label>
+							<label for="recovery-code" class="text-sm font-medium">{ i18n.T(locale, "login.recovery_code.label") }</label>
 							<input
 								id="recovery-code"
 								name="code"
@@ -325,12 +325,12 @@ templ RecoveryCodeLoginPage(errorMessage string) {
 							/>
 						</div>
 						@button.Button(button.Props{Type: button.TypeSubmit, FullWidth: true}) {
-							Continue to authenticator repair
+							{ i18n.T(locale, "login.recovery_code.submit") }
 						}
 					</form>
 					<div class="mt-4">
 						@button.Button(button.Props{Variant: button.VariantOutline, FullWidth: true, Href: "/login/mfa"}) {
-							Use an authenticator code
+							{ i18n.T(locale, "login.recovery_code.back") }
 						}
 					</div>
 				</div>

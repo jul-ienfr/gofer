@@ -157,9 +157,27 @@ func TestLoginMFAContinuationPageRendersFrenchLocale(t *testing.T) {
 	}
 }
 
+func TestRecoveryCodeLoginPageRendersFrenchLocale(t *testing.T) {
+	var output bytes.Buffer
+	if err := RecoveryCodeLoginPage(i18n.French, "").Render(t.Context(), &output); err != nil {
+		t.Fatal(err)
+	}
+	html := output.String()
+	for _, required := range []string{
+		`<html lang="fr"`, "Utiliser un code de récupération",
+		"Code de récupération",
+		"Continuer vers la réparation de l&#39;authentificateur",
+		"Utiliser un code d&#39;authentification",
+	} {
+		if !strings.Contains(html, required) {
+			t.Fatalf("French recovery-code page missing %q", required)
+		}
+	}
+}
+
 func TestRecoveryLoginAndRepairPagesAreAccessibleLocalAndExplicit(t *testing.T) {
 	var recovery bytes.Buffer
-	if err := RecoveryCodeLoginPage("That code is invalid.").Render(t.Context(), &recovery); err != nil {
+	if err := RecoveryCodeLoginPage(i18n.English, "That code is invalid.").Render(t.Context(), &recovery); err != nil {
 		t.Fatal(err)
 	}
 	for _, required := range []string{

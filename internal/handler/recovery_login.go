@@ -324,7 +324,7 @@ func (h *Handler) renderCurrentRecoveryRepairCodes(w http.ResponseWriter, r *htt
 
 func (h *Handler) renderRecoveryCodeLoginPage(w http.ResponseWriter, r *http.Request, status int, message string) {
 	var page bytes.Buffer
-	if err := views.RecoveryCodeLoginPage(message).Render(r.Context(), &page); err != nil {
+	if err := views.RecoveryCodeLoginPage(loginLocale(r), message).Render(r.Context(), &page); err != nil {
 		log.Printf("render recovery-code login page: %v", err)
 		http.Error(w, "failed to render account recovery", http.StatusInternalServerError)
 		return
