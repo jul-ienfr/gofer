@@ -4149,9 +4149,26 @@ func (h *Handler) handleSaveUISettings(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "save failed", http.StatusInternalServerError)
 		return
 	}
+	if language, ok := updates["language"]; ok {
+		h.setLanguageCookie(w, language)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+}
+
+const languageCookieName = "gofer_lang"
+
+func (h *Handler) setLanguageCookie(w http.ResponseWriter, language string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     languageCookieName,
+		Value:    language,
+		Path:     "/",
+		MaxAge:   365 * 24 * 60 * 60,
+		HttpOnly: true,
+		Secure:   h.auth.Config().SecureCookies,
+		SameSite: http.SameSiteLaxMode,
+	})
 }
 
 func normalizeLanguageSetting(updates map[string]string) {

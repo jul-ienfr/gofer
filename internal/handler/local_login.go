@@ -243,6 +243,17 @@ func (h *Handler) renderTypedLoginPage(w http.ResponseWriter, r *http.Request, u
 	h.renderLoginPage(w, r, status, message, identifier)
 }
 
+// loginLocale prefers the language last chosen in this browser, then the
+// browser's Accept-Language header.
+func loginLocale(r *http.Request) i18n.Locale {
+	if cookie, err := r.Cookie(languageCookieName); err == nil {
+		if locale, ok := i18n.Normalize(cookie.Value); ok {
+			return locale
+		}
+	}
+	return i18n.Match(r.Header.Get("Accept-Language"))
+}
+
 // renderLoginPage shows the username step, or, with a username, the ways it
 // can sign in.
 func (h *Handler) renderLoginPage(w http.ResponseWriter, r *http.Request, status int, message, identifier string) {
@@ -250,7 +261,7 @@ func (h *Handler) renderLoginPage(w http.ResponseWriter, r *http.Request, status
 		ShowGoogle: h.auth.HasGoogleLogin(), ShowMicrosoft: h.auth.HasMicrosoftLogin(), OIDCName: h.auth.OIDCLoginName(),
 		ErrorMessage: message, Identifier: identifier, Personal: h.auth.IsPersonal(),
 		MethodsShown: identifier != "",
-		Locale:       i18n.Match(r.Header.Get("Accept-Language")),
+		Locale:       loginLocale(r),
 	}
 	if data.MethodsShown {
 		hasPasskey, err := h.auth.HasPasskeyLogin(r.Context(), identifier, h.auth.Config().BaseURL, loginSource(r))

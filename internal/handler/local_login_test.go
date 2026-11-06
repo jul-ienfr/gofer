@@ -127,6 +127,40 @@ func TestLoginPageUsesAcceptLanguage(t *testing.T) {
 	}
 }
 
+func TestLoginPagePrefersLanguageCookie(t *testing.T) {
+	h, _, _ := newLocalLoginHandler(t, auth.UserStatusActive, false, false, false, false)
+	req := httptest.NewRequest(http.MethodGet, "/login", nil)
+	req.AddCookie(&http.Cookie{Name: languageCookieName, Value: "fr"})
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	rec := httptest.NewRecorder()
+
+	h.renderLoginPage(rec, req, http.StatusOK, "", "")
+
+	body := rec.Body.String()
+	for _, want := range []string{`<html lang="fr"`, "Mot de passe"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("login page did not use the language cookie: missing %q", want)
+		}
+	}
+}
+
+func TestSetLanguageCookie(t *testing.T) {
+	h, _, _ := newLocalLoginHandler(t, auth.UserStatusActive, false, false, false, false)
+	rec := httptest.NewRecorder()
+
+	h.setLanguageCookie(rec, "fr")
+
+	cookies := rec.Result().Cookies()
+	if len(cookies) != 1 {
+		t.Fatalf("Set-Cookie count = %d", len(cookies))
+	}
+	cookie := cookies[0]
+	if cookie.Name != languageCookieName || cookie.Value != "fr" || cookie.Path != "/" ||
+		!cookie.HttpOnly || !cookie.Secure || cookie.SameSite != http.SameSiteLaxMode {
+		t.Fatalf("language cookie = %+v", cookie)
+	}
+}
+
 func TestLocalLoginSuccessSetsSessionAndUsesSafeReturnTarget(t *testing.T) {
 	handler, manager, _ := newLocalLoginHandler(t, auth.UserStatusActive, false, false, true, false)
 	returnCookieRecorder := httptest.NewRecorder()

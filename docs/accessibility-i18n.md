@@ -178,7 +178,7 @@ Current status:
 
 - English (`en`) and French (`fr`) catalogs live in `internal/i18n`. English is the source catalog; a parity test requires every key in both catalogs and rejects empty values.
 - Each user chooses the interface language in **Settings → Regional → Interface language**. The choice is stored as `language` in the user's UI settings and applied to authenticated pages through `<html lang>`. A missing or unknown stored value falls back to English.
-- The unauthenticated login page negotiates its language from the browser's `Accept-Language` header. There is no language preference to load before sign-in, so a signed-out page may differ from the language chosen inside the account.
+- The unauthenticated login page uses the `gofer_lang` cookie set when a signed-in user saves the interface language, then the browser's `Accept-Language` header. The cookie is HTTP-only, SameSite=Lax, and expires after one year.
 - The settings navigation, section headings, page title, Regional tab, and the main login screen are translated. The rest of the interface, including account setup, MFA and recovery screens, and the security settings partials, is still English.
 - Mail, contacts, and Calendar content is displayed in its original language, independent of the interface language.
 - Dates and times use the browser and Go formatting paths already present in the application; they have not been audited for every locale.
