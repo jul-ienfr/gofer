@@ -23,11 +23,11 @@ github.com/golang-jwt/jwt/v5,v5.3.1,MIT,https://github.com/golang-jwt/jwt/blob/v
 github.com/google/go-tpm,v0.9.8,Apache-2.0,https://github.com/google/go-tpm/blob/v0.9.8/LICENSE
 github.com/google/uuid,v1.6.0,BSD-3-Clause,https://github.com/google/uuid/blob/v1.6.0/LICENSE
 github.com/joho/godotenv,v1.5.1,MIT,https://github.com/joho/godotenv/blob/v1.5.1/LICENCE
-github.com/klauspost/compress,v1.20.1,Apache-2.0,https://github.com/klauspost/compress/blob/v1.20.1/LICENSE
-github.com/klauspost/compress,v1.20.1,BSD-3-Clause,https://github.com/klauspost/compress/blob/v1.20.1/LICENSE
-github.com/klauspost/compress,v1.20.1,MIT,https://github.com/klauspost/compress/blob/v1.20.1/LICENSE
-github.com/klauspost/compress/internal/snapref,v1.20.1,BSD-3-Clause,https://github.com/klauspost/compress/blob/v1.20.1/internal/snapref/LICENSE
-github.com/klauspost/compress/zstd/internal/xxhash,v1.20.1,MIT,https://github.com/klauspost/compress/blob/v1.20.1/zstd/internal/xxhash/LICENSE.txt
+github.com/klauspost/compress,v1.20.3,Apache-2.0,https://github.com/klauspost/compress/blob/v1.20.3/LICENSE
+github.com/klauspost/compress,v1.20.3,BSD-3-Clause,https://github.com/klauspost/compress/blob/v1.20.3/LICENSE
+github.com/klauspost/compress,v1.20.3,MIT,https://github.com/klauspost/compress/blob/v1.20.3/LICENSE
+github.com/klauspost/compress/internal/snapref,v1.20.3,BSD-3-Clause,https://github.com/klauspost/compress/blob/v1.20.3/internal/snapref/LICENSE
+github.com/klauspost/compress/zstd/internal/xxhash,v1.20.3,MIT,https://github.com/klauspost/compress/blob/v1.20.3/zstd/internal/xxhash/LICENSE.txt
 github.com/philhofer/fwd,v1.2.0,MIT,https://github.com/philhofer/fwd/blob/v1.2.0/LICENSE.md
 github.com/pquerna/otp,v1.5.0,Apache-2.0,https://github.com/pquerna/otp/blob/v1.5.0/LICENSE
 github.com/remyoudompheng/bigfft,v0.0.0-20230129092748-24d4a6f8daec,BSD-3-Clause,https://github.com/remyoudompheng/bigfft/blob/24d4a6f8daec/LICENSE

@@ -2357,7 +2357,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ================================================================================
-github.com/klauspost/compress v1.20.1
+github.com/klauspost/compress v1.20.3
 License: Apache-2.0, BSD-3-Clause, MIT
 https://pkg.go.dev/github.com/klauspost/compress
 
@@ -2668,7 +2668,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 ================================================================================
-github.com/klauspost/compress/internal/snapref v1.20.1
+github.com/klauspost/compress/internal/snapref v1.20.3
 License: BSD-3-Clause
 https://pkg.go.dev/github.com/klauspost/compress/internal/snapref
 
@@ -2702,7 +2702,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ================================================================================
-github.com/klauspost/compress/zstd/internal/xxhash v1.20.1
+github.com/klauspost/compress/zstd/internal/xxhash v1.20.3
 License: MIT
 https://pkg.go.dev/github.com/klauspost/compress/zstd/internal/xxhash
 
