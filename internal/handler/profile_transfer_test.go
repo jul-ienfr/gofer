@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http/httptest"
 	"path/filepath"
 	"slices"
@@ -12,6 +14,7 @@ import (
 	"time"
 
 	"github.com/cristianadrielbraun/gofer/internal/config"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"github.com/cristianadrielbraun/gofer/internal/models"
 	"github.com/cristianadrielbraun/gofer/internal/providers"
 	"github.com/cristianadrielbraun/gofer/internal/storage"
@@ -397,6 +400,60 @@ func TestParseProfileRejectsOtherFiles(t *testing.T) {
 	}
 	if _, err := parseProfile([]byte(`{"format":"gofer-profile","version":1}`)); err != nil {
 		t.Fatalf("parseProfile() rejected an empty profile: %v", err)
+	}
+}
+
+func TestProfilePreviewRouteUsesFrench(t *testing.T) {
+	source := newProfileTestHandler(t)
+	seedProfileSource(t, source)
+	data := exportProfileForTest(t, source, true)
+
+	target := newProfileTestHandler(t)
+	if err := target.db.SetUISettings(t.Context(), "default", map[string]string{"language": "fr"}); err != nil {
+		t.Fatal(err)
+	}
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("profile", "profile.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := part.Write(data); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest("POST", "/api/profile/import/preview", &body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	recorder := httptest.NewRecorder()
+	target.handlePreviewProfileImport(recorder, thunderbirdRequest(request))
+	html := recorder.Body.String()
+	for _, want := range []string{"Préférences", "1 signature", "1 contact", "Comptes", "16 octobre 2026", "Annuler", "Importer"} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("French preview is missing %q: %s", want, html)
+		}
+	}
+	for _, unwanted := range []string{"Preferences", "Review import", "Exported October"} {
+		if strings.Contains(html, unwanted) {
+			t.Fatalf("French preview still contains %q: %s", unwanted, html)
+		}
+	}
+}
+
+func TestProfileErrorsFollowLocale(t *testing.T) {
+	tests := []struct {
+		err  error
+		want string
+	}{
+		{errProfileNotProfile, "Ce fichier n'est pas un profil Gofer."},
+		{errProfileDamaged, "Ce fichier de profil est endommagé."},
+		{errProfileNewer, "Ce profil a été exporté par une version plus récente de Gofer. Mettez Gofer à jour pour l'importer."},
+	}
+	for _, test := range tests {
+		if got := profileErrorMessage(i18n.French, test.err); got != test.want {
+			t.Errorf("profileErrorMessage(%v) = %q, want %q", test.err, got, test.want)
+		}
 	}
 }
 

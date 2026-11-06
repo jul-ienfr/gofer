@@ -60,3 +60,51 @@ func TestThunderbirdImportRendersFrench(t *testing.T) {
 		}
 	}
 }
+
+func TestProfileTransferRendersFrench(t *testing.T) {
+	var tab bytes.Buffer
+	if err := SettingsExportImportTab(map[string]string{"language": "fr"}).Render(context.Background(), &tab); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Profil", "Exporter le profil", "Importer un profil"} {
+		if !strings.Contains(tab.String(), want) {
+			t.Fatalf("French profile card is missing %q", want)
+		}
+	}
+
+	var export bytes.Buffer
+	if err := ProfileExportForm(map[string]string{"language": "fr"}).Render(context.Background(), &export); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Inclure les contacts", "Exporter le profil"} {
+		if !strings.Contains(export.String(), want) {
+			t.Fatalf("French export form is missing %q", want)
+		}
+	}
+
+	var upload bytes.Buffer
+	if err := ProfileImportUploadForm(i18n.French, "").Render(context.Background(), &upload); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Fichier de profil", "Vérifier l"} {
+		if !strings.Contains(upload.String(), want) {
+			t.Fatalf("French upload form is missing %q", want)
+		}
+	}
+
+	var result bytes.Buffer
+	data := ProfileImportResultData{
+		Preferences: true,
+		Signatures:  1,
+		Contacts:    2,
+		Accounts:    []string{"robin@example.test"},
+	}
+	if err := ProfileImportResult(i18n.French, data).Render(context.Background(), &result); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Profil importé.", "1 signature ajoutée.", "2 contacts ajoutés.", "1 compte ajouté"} {
+		if !strings.Contains(result.String(), want) {
+			t.Fatalf("French result is missing %q", want)
+		}
+	}
+}

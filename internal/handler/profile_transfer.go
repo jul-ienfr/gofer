@@ -390,29 +390,35 @@ func profileLocalContacts(ctx context.Context, db *storage.DB, owner string) ([]
 }
 
 // parseProfile reads and checks an exported profile.
+var (
+	errProfileNotProfile = errors.New("This file is not a Gofer profile.")
+	errProfileDamaged    = errors.New("This profile file is damaged.")
+	errProfileNewer      = errors.New("This profile was exported by a newer version of Gofer. Update Gofer to import it.")
+)
+
 func parseProfile(data []byte) (*profileFile, error) {
 	var file profileFile
 	if err := json.Unmarshal(data, &file); err != nil {
-		return nil, errors.New("This file is not a Gofer profile.")
+		return nil, errProfileNotProfile
 	}
 	if file.Format != profileFormat {
-		return nil, errors.New("This file is not a Gofer profile.")
+		return nil, errProfileNotProfile
 	}
 	if file.Version < 1 {
-		return nil, errors.New("This profile file is damaged.")
+		return nil, errProfileDamaged
 	}
 	if file.Version > profileVersion {
-		return nil, errors.New("This profile was exported by a newer version of Gofer. Update Gofer to import it.")
+		return nil, errProfileNewer
 	}
 	refs := make(map[string]bool, len(file.Accounts))
 	for _, account := range file.Accounts {
 		if !profileAccountRefPattern.MatchString(account.Ref) || profileAccountRefPattern.FindString(account.Ref) != account.Ref || refs[account.Ref] {
-			return nil, errors.New("This profile file is damaged.")
+			return nil, errProfileDamaged
 		}
 		refs[account.Ref] = true
 		// An account with no mail goes by its login instead of an address.
 		if strings.TrimSpace(account.EmailAddress) == "" && (account.Provider != providers.ProviderDAV || strings.TrimSpace(account.Username) == "") {
-			return nil, errors.New("This profile file is damaged.")
+			return nil, errProfileDamaged
 		}
 	}
 	return &file, nil
