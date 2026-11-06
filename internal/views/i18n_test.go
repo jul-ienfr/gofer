@@ -96,6 +96,47 @@ func TestMailExportRendersFrench(t *testing.T) {
 	}
 }
 
+func TestMailImportRendersFrench(t *testing.T) {
+	var upload bytes.Buffer
+	if err := MailImportUploadForm(i18n.French, "").Render(context.Background(), &upload); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Fichiers", "Importer et vérifier", "plusieurs fichiers"} {
+		if !strings.Contains(upload.String(), want) {
+			t.Fatalf("French import upload form is missing %q", want)
+		}
+	}
+
+	review := MailImportReviewData{
+		ID:        "import-1",
+		Files:     []string{"mailbox.mbox"},
+		AccountID: "account-1",
+		Accounts:  []MailImportAccount{{MailExportAccount: MailExportAccount{ID: "account-1", Email: "robin@example.test", Provider: "imap"}}},
+		Folders:   []MailImportFolder{{ID: "folder-1", Path: "Inbox"}},
+		Sources:   []MailImportSource{{Index: 0, Name: "Inbox", Messages: 2, Target: "folder-1"}},
+	}
+	var reviewHTML bytes.Buffer
+	if err := MailImportReview(i18n.French, review).Render(context.Background(), &reviewHTML); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Dans le compte", "Destination des messages", "2 messages dans 1 dossier", "Lancer l"} {
+		if !strings.Contains(reviewHTML.String(), want) {
+			t.Fatalf("French import review is missing %q", want)
+		}
+	}
+
+	var jobs bytes.Buffer
+	job := MailImportJob{ID: "import-1", Title: "mailbox.mbox", State: "done", Imported: 2, Started: "6 nov. 15:04"}
+	if err := MailImportJobs(i18n.French, []MailImportJob{job}).Render(context.Background(), &jobs); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Imports", "Import terminé : 2 messages", "Retirer"} {
+		if !strings.Contains(jobs.String(), want) {
+			t.Fatalf("French import jobs are missing %q", want)
+		}
+	}
+}
+
 func TestProfileTransferRendersFrench(t *testing.T) {
 	var tab bytes.Buffer
 	if err := SettingsExportImportTab(map[string]string{"language": "fr"}).Render(context.Background(), &tab); err != nil {

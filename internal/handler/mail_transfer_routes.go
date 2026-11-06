@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/cristianadrielbraun/gofer/internal/config"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"github.com/cristianadrielbraun/gofer/internal/storage"
 
 	"github.com/cristianadrielbraun/gofer/internal/models"
@@ -68,7 +69,7 @@ func (h *Handler) mailTransferFormData(r *http.Request, values url.Values, messa
 	writable := map[string]models.Account{}
 	for _, account := range live {
 		view := mailExportAccountView(account)
-		sourceProblem, targetProblem := mailTransferSourceProblem(account), mailImportAccountProblem(account)
+		sourceProblem, targetProblem := mailTransferSourceProblem(account), mailImportAccountProblem(i18n.English, account)
 		data.Sources = append(data.Sources, views.MailImportAccount{MailExportAccount: view, Problem: sourceProblem})
 		if !account.Hidden {
 			data.Targets = append(data.Targets, views.MailImportAccount{MailExportAccount: view, Problem: targetProblem})
@@ -280,7 +281,7 @@ func (h *Handler) handleStartMailTransfer(w http.ResponseWriter, r *http.Request
 		return
 	}
 	target, foundTarget, err := h.mailExportAccount(ctx, owner, r.PostForm.Get("to"))
-	if err != nil || !foundTarget || mailImportAccountProblem(target) != "" {
+	if err != nil || !foundTarget || mailImportAccountProblem(i18n.English, target) != "" {
 		h.renderMailTransferPanel(w, r, r.PostForm, "Choose the account the mail goes into.")
 		return
 	}
@@ -373,7 +374,7 @@ func (h *Handler) handleMessagesToAccountDialog(w http.ResponseWriter, r *http.R
 	} else {
 		data.Target, data.Folder = target.Email, folder.Path
 		data.ToLocal = target.Provider == providers.ProviderLocal
-		if problem := mailImportAccountProblem(target); problem != "" {
+		if problem := mailImportAccountProblem(i18n.English, target); problem != "" {
 			data.Problem = target.Email + ": " + problem
 		}
 	}
@@ -420,7 +421,7 @@ func (h *Handler) handleMessagesToAccount(w http.ResponseWriter, r *http.Request
 		http.Error(w, "That folder can't take mail from another account.", http.StatusBadRequest)
 		return
 	}
-	if problem := mailImportAccountProblem(target); problem != "" {
+	if problem := mailImportAccountProblem(i18n.English, target); problem != "" {
 		http.Error(w, target.Email+": "+problem, http.StatusBadRequest)
 		return
 	}

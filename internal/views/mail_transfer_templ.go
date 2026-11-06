@@ -16,6 +16,7 @@ import (
 	"github.com/cristianadrielbraun/gofer/components/icon"
 	"github.com/cristianadrielbraun/gofer/components/radio"
 	"github.com/cristianadrielbraun/gofer/components/selectbox"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 )
 
 type MailTransferFolder struct {
@@ -134,7 +135,7 @@ func mailTransferAccountSelect(name, label string, accounts []MailImportAccount,
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 72, Col: 96}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 73, Col: 96}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -237,7 +238,7 @@ func mailTransferAccountSelect(name, label string, accounts []MailImportAccount,
 							var templ_7745c5c3_Var9 string
 							templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(mailTransferAccountLabel(account))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 96, Col: 42}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 97, Col: 42}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 							if templ_7745c5c3_Err != nil {
@@ -396,7 +397,7 @@ func MailTransferForm(data MailTransferFormData) templ.Component {
 					var templ_7745c5c3_Var14 string
 					templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs("Each message is deleted from " + data.SourceEmail + " once its copy is saved. Deleted messages go to its Trash, so you can get them back until it's emptied; messages moved from Trash are deleted for good.")
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 153, Col: 217}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 154, Col: 217}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 					if templ_7745c5c3_Err != nil {
@@ -419,7 +420,7 @@ func MailTransferForm(data MailTransferFormData) templ.Component {
 					var templ_7745c5c3_Var15 string
 					templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs("Each message is deleted for good from " + data.SourceEmail + " once its copy is saved, with no copy left in its Trash.")
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 166, Col: 131}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 167, Col: 131}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 					if templ_7745c5c3_Err != nil {
@@ -438,7 +439,7 @@ func MailTransferForm(data MailTransferFormData) templ.Component {
 					var templ_7745c5c3_Var16 string
 					templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(data.Message)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 173, Col: 93}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 174, Col: 93}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 					if templ_7745c5c3_Err != nil {
@@ -573,7 +574,7 @@ func mailTransferFolderRow(folder MailTransferFolder, destination []MailImportFo
 		var templ_7745c5c3_Var21 string
 		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(folder.Path)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 208, Col: 116}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 209, Col: 116}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 		if templ_7745c5c3_Err != nil {
@@ -594,7 +595,7 @@ func mailTransferFolderRow(folder MailTransferFolder, destination []MailImportFo
 		var templ_7745c5c3_Var22 string
 		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(folder.Path)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 212, Col: 70}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 213, Col: 70}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 		if templ_7745c5c3_Err != nil {
@@ -607,7 +608,7 @@ func mailTransferFolderRow(folder MailTransferFolder, destination []MailImportFo
 		var templ_7745c5c3_Var23 string
 		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(mailExportCount(folder.Messages, "message", "messages"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 213, Col: 111}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 214, Col: 111}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 		if templ_7745c5c3_Err != nil {
@@ -617,7 +618,7 @@ func mailTransferFolderRow(folder MailTransferFolder, destination []MailImportFo
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = mailFolderTargetSelect("target:"+folder.ID, "Destination for "+folder.Path, destination, folder.Target, false).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = mailFolderTargetSelect(i18n.English, "target:"+folder.ID, "Destination for "+folder.Path, destination, folder.Target, false).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -633,7 +634,7 @@ func mailTransferFolderRow(folder MailTransferFolder, destination []MailImportFo
 		var templ_7745c5c3_Var25 string
 		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs("new:" + folder.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 220, Col: 29}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 221, Col: 29}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 		if templ_7745c5c3_Err != nil {
@@ -646,7 +647,7 @@ func mailTransferFolderRow(folder MailTransferFolder, destination []MailImportFo
 		var templ_7745c5c3_Var26 string
 		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(folder.NewName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 221, Col: 26}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 222, Col: 26}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 		if templ_7745c5c3_Err != nil {
@@ -669,7 +670,7 @@ func mailTransferFolderRow(folder MailTransferFolder, destination []MailImportFo
 		var templ_7745c5c3_Var27 string
 		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs("New folder for " + folder.Path)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 224, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 225, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 		if templ_7745c5c3_Err != nil {
@@ -788,7 +789,7 @@ func mailTransferJobRow(job MailTransferJob) templ.Component {
 		var templ_7745c5c3_Var31 string
 		templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(job.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 261, Col: 111}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 262, Col: 111}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 		if templ_7745c5c3_Err != nil {
@@ -801,7 +802,7 @@ func mailTransferJobRow(job MailTransferJob) templ.Component {
 		var templ_7745c5c3_Var32 string
 		templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(job.State)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 261, Col: 150}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 262, Col: 150}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 		if templ_7745c5c3_Err != nil {
@@ -814,7 +815,7 @@ func mailTransferJobRow(job MailTransferJob) templ.Component {
 		var templ_7745c5c3_Var33 string
 		templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(job.Source)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 265, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 266, Col: 40}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 		if templ_7745c5c3_Err != nil {
@@ -835,7 +836,7 @@ func mailTransferJobRow(job MailTransferJob) templ.Component {
 		var templ_7745c5c3_Var34 string
 		templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(job.Target)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 267, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 268, Col: 40}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 		if templ_7745c5c3_Err != nil {
@@ -848,7 +849,7 @@ func mailTransferJobRow(job MailTransferJob) templ.Component {
 		var templ_7745c5c3_Var35 string
 		templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(mailTransferJobStatus(job))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 269, Col: 82}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 270, Col: 82}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 		if templ_7745c5c3_Err != nil {
@@ -885,7 +886,7 @@ func mailTransferJobRow(job MailTransferJob) templ.Component {
 			var templ_7745c5c3_Var38 string
 			templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs("/api/mail/transfers/" + job.ID + "/cancel")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 274, Col: 110}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 275, Col: 110}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 			if templ_7745c5c3_Err != nil {
@@ -921,7 +922,7 @@ func mailTransferJobRow(job MailTransferJob) templ.Component {
 			var templ_7745c5c3_Var41 string
 			templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs("/api/mail/transfers/" + job.ID + "/resume")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 276, Col: 117}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 277, Col: 117}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 			if templ_7745c5c3_Err != nil {
@@ -956,7 +957,7 @@ func mailTransferJobRow(job MailTransferJob) templ.Component {
 			var templ_7745c5c3_Var44 string
 			templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs("/api/mail/transfers/" + job.ID + "/delete")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 277, Col: 110}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 278, Col: 110}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 			if templ_7745c5c3_Err != nil {
@@ -992,7 +993,7 @@ func mailTransferJobRow(job MailTransferJob) templ.Component {
 			var templ_7745c5c3_Var47 string
 			templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs("/api/mail/transfers/" + job.ID + "/delete")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 279, Col: 110}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 280, Col: 110}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 			if templ_7745c5c3_Err != nil {
@@ -1015,7 +1016,7 @@ func mailTransferJobRow(job MailTransferJob) templ.Component {
 			var templ_7745c5c3_Var48 string
 			templ_7745c5c3_Var48, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(mailTransferProgressStyle(job))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 285, Col: 101}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 286, Col: 101}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 			if templ_7745c5c3_Err != nil {
@@ -1034,7 +1035,7 @@ func mailTransferJobRow(job MailTransferJob) templ.Component {
 			var templ_7745c5c3_Var49 string
 			templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(job.Error)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 289, Col: 50}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 290, Col: 50}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 			if templ_7745c5c3_Err != nil {
@@ -1053,7 +1054,7 @@ func mailTransferJobRow(job MailTransferJob) templ.Component {
 			var templ_7745c5c3_Var50 string
 			templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(mailExportCount(job.Failed, "message", "messages"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 293, Col: 88}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 294, Col: 88}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 			if templ_7745c5c3_Err != nil {
@@ -1071,7 +1072,7 @@ func mailTransferJobRow(job MailTransferJob) templ.Component {
 				var templ_7745c5c3_Var51 string
 				templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(skipped)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 296, Col: 19}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 297, Col: 19}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 				if templ_7745c5c3_Err != nil {

@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/cristianadrielbraun/gofer/internal/config"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"github.com/cristianadrielbraun/gofer/internal/storage"
 )
 
@@ -115,7 +116,7 @@ func (h *Handler) startMailRuleTransfer(ctx context.Context, owner, sourceID, ta
 	if err != nil {
 		return err
 	}
-	if !found || mailImportAccountProblem(target) != "" {
+	if !found || mailImportAccountProblem(i18n.English, target) != "" {
 		return errMailRuleTransferTarget
 	}
 	mode := mailTransferMove

@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/cristianadrielbraun/gofer/internal/config"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"github.com/cristianadrielbraun/gofer/internal/mail"
 	imapclient "github.com/cristianadrielbraun/gofer/internal/mail/imap"
 	"github.com/cristianadrielbraun/gofer/internal/mail/jmap"
@@ -414,10 +415,10 @@ func suggestMailImportTarget(source *mailImportSource, targets []storage.MailExp
 
 // mailImportAccountProblem says why messages can't be imported into an
 // account, or nothing when they can.
-func mailImportAccountProblem(account models.Account) string {
+func mailImportAccountProblem(locale i18n.Locale, account models.Account) string {
 	switch {
 	case account.ReconnectPending:
-		return "Enter its password first."
+		return i18n.T(locale, "mail.import.password_first")
 	}
 	return ""
 }

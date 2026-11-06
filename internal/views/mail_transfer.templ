@@ -8,6 +8,7 @@ import (
 	"github.com/cristianadrielbraun/gofer/components/icon"
 	"github.com/cristianadrielbraun/gofer/components/radio"
 	"github.com/cristianadrielbraun/gofer/components/selectbox"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 )
 
 type MailTransferFolder struct {
@@ -214,7 +215,7 @@ templ mailTransferFolderRow(folder MailTransferFolder, destination []MailImportF
 			</span>
 		</label>
 		<span class="flex min-w-0 flex-col gap-1.5 sm:w-64 sm:shrink-0">
-			@mailFolderTargetSelect("target:"+folder.ID, "Destination for "+folder.Path, destination, folder.Target, false)
+			@mailFolderTargetSelect(i18n.English, "target:"+folder.ID, "Destination for "+folder.Path, destination, folder.Target, false)
 			<input
 				type="text"
 				name={ "new:" + folder.ID }

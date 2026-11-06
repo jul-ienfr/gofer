@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"github.com/cristianadrielbraun/gofer/internal/models"
 	"github.com/cristianadrielbraun/gofer/internal/views"
 )
@@ -69,18 +70,20 @@ func mailImportTitle(job *mailImportJob) string {
 
 // renderMailImportPanel shows the upload form in the Import mail dialog.
 func (h *Handler) renderMailImportPanel(w http.ResponseWriter, r *http.Request, message string) {
-	renderMailImportUploadError(w, r, message)
+	h.renderMailImportUploadError(w, r, message)
 }
 
 func (h *Handler) renderMailImportJobs(w http.ResponseWriter, r *http.Request) {
-	jobs, err := h.mailImportJobViews(h.userID(r.Context()))
+	ctx, owner := r.Context(), h.userID(r.Context())
+	locale := h.uiLocale(ctx, owner)
+	jobs, err := h.mailImportJobViews(owner)
 	if err != nil {
 		log.Printf("mail import: %v", err)
 		http.Error(w, "could not list imports", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = views.MailImportJobs(jobs).Render(r.Context(), w)
+	_ = views.MailImportJobs(locale, jobs).Render(ctx, w)
 }
 
 func (h *Handler) handleMailImports(w http.ResponseWriter, r *http.Request) {
@@ -97,34 +100,38 @@ func (h *Handler) handleMailImportJobs(w http.ResponseWriter, r *http.Request) {
 	h.renderMailImportJobs(w, r)
 }
 
-func renderMailImportUploadError(w http.ResponseWriter, r *http.Request, message string) {
+func (h *Handler) renderMailImportUploadError(w http.ResponseWriter, r *http.Request, message string) {
+	ctx, owner := r.Context(), h.userID(r.Context())
+	locale := h.uiLocale(ctx, owner)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = views.MailImportUploadForm(message).Render(r.Context(), w)
+	_ = views.MailImportUploadForm(locale, message).Render(ctx, w)
 }
 
 func (h *Handler) handleUploadMailImport(w http.ResponseWriter, r *http.Request) {
 	if !h.mailImportsAvailable(w) {
 		return
 	}
+	ctx, owner := r.Context(), h.userID(r.Context())
+	locale := h.uiLocale(ctx, owner)
 	reader, err := r.MultipartReader()
 	if err != nil {
-		renderMailImportUploadError(w, r, "Choose the files to import.")
+		h.renderMailImportUploadError(w, r, i18n.T(locale, "mail.import.choose_files"))
 		return
 	}
-	job, err := h.saveMailImportUpload(h.userID(r.Context()), reader)
+	job, err := h.saveMailImportUpload(owner, reader)
 	if err != nil {
-		message := "The files could not be uploaded."
+		message := i18n.T(locale, "mail.import.upload_failed")
 		switch {
 		case errors.Is(err, errMailImportNoFiles):
-			message = "Choose the files to import."
+			message = i18n.T(locale, "mail.import.choose_files")
 		case errors.Is(err, errMailImportNoMessages):
-			message = "No messages were found in those files. Choose mbox or eml files, or a ZIP of them."
+			message = i18n.T(locale, "mail.import.no_messages")
 		case errors.Is(err, errMailImportBadZip):
-			message = "The ZIP file could not be read."
+			message = i18n.T(locale, "mail.import.zip_unreadable")
 		default:
 			log.Printf("mail import: upload: %v", err)
 		}
-		renderMailImportUploadError(w, r, message)
+		h.renderMailImportUploadError(w, r, message)
 		return
 	}
 	h.renderMailImportReview(w, r, job, "", "")
@@ -134,6 +141,7 @@ func (h *Handler) handleUploadMailImport(w http.ResponseWriter, r *http.Request)
 // account chosen, or the first account they can go into.
 func (h *Handler) renderMailImportReview(w http.ResponseWriter, r *http.Request, job *mailImportJob, accountID, message string) {
 	ctx := r.Context()
+	locale := h.uiLocale(ctx, job.Owner)
 	accounts, err := h.mailExportAccounts(ctx, job.Owner)
 	if err != nil {
 		log.Printf("mail import: list accounts: %v", err)
@@ -149,7 +157,7 @@ func (h *Handler) renderMailImportReview(w http.ResponseWriter, r *http.Request,
 		if account.IsDeleting {
 			continue
 		}
-		problem := mailImportAccountProblem(account)
+		problem := mailImportAccountProblem(locale, account)
 		data.Accounts = append(data.Accounts, views.MailImportAccount{MailExportAccount: mailExportAccountView(account), Problem: problem})
 		if problem == "" && (account.ID == accountID || (accountID == "" && chosen == nil)) {
 			chosen = &accounts[i]
@@ -163,7 +171,7 @@ func (h *Handler) renderMailImportReview(w http.ResponseWriter, r *http.Request,
 		folders, err := h.mailExportFolders(ctx, job.Owner, chosen.ID)
 		if err != nil {
 			log.Printf("mail import: list folders: %v", err)
-			data.Message = "The account's folders could not be listed."
+			data.Message = i18n.T(locale, "mail.import.folders_error")
 		}
 		targets := mailImportTargets(chosen.Provider, folders)
 		for _, folder := range targets {
@@ -177,16 +185,18 @@ func (h *Handler) renderMailImportReview(w http.ResponseWriter, r *http.Request,
 		}
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = views.MailImportReview(data).Render(ctx, w)
+	_ = views.MailImportReview(locale, data).Render(ctx, w)
 }
 
 func (h *Handler) handleReviewMailImport(w http.ResponseWriter, r *http.Request) {
 	if !h.mailImportsAvailable(w) {
 		return
 	}
-	job, err := h.mailImports.loadOwned(h.userID(r.Context()), r.PathValue("id"))
+	ctx, owner := r.Context(), h.userID(r.Context())
+	locale := h.uiLocale(ctx, owner)
+	job, err := h.mailImports.loadOwned(owner, r.PathValue("id"))
 	if err != nil || job.State != mailJobReview {
-		renderMailImportUploadError(w, r, "That upload is no longer waiting. Upload the files again.")
+		h.renderMailImportUploadError(w, r, i18n.T(locale, "mail.import.upload_gone"))
 		return
 	}
 	h.renderMailImportReview(w, r, job, r.URL.Query().Get("account"), "")
@@ -196,31 +206,32 @@ func (h *Handler) handleStartMailImport(w http.ResponseWriter, r *http.Request) 
 	if !h.mailImportsAvailable(w) {
 		return
 	}
+	ctx, owner := r.Context(), h.userID(r.Context())
+	locale := h.uiLocale(ctx, owner)
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	ctx, owner := r.Context(), h.userID(r.Context())
 	job, err := h.mailImports.loadOwned(owner, r.PathValue("id"))
 	if err != nil || job.State != mailJobReview {
-		renderMailImportUploadError(w, r, "That upload is no longer waiting. Upload the files again.")
+		h.renderMailImportUploadError(w, r, i18n.T(locale, "mail.import.upload_gone"))
 		return
 	}
 	accountID := r.PostForm.Get("account")
 	account, found, err := h.mailExportAccount(ctx, owner, accountID)
-	if err != nil || !found || mailImportAccountProblem(account) != "" {
-		h.renderMailImportReviewInPanel(w, r, job, "", "Choose an account to import into.")
+	if err != nil || !found || mailImportAccountProblem(locale, account) != "" {
+		h.renderMailImportReviewInPanel(w, r, job, "", i18n.T(locale, "mail.import.choose_account"))
 		return
 	}
 	if err := h.startMailImport(ctx, job, account, r.PostForm); err != nil {
-		message := "The import could not be started."
+		message := i18n.T(locale, "mail.import.start_error")
 		switch {
 		case errors.Is(err, errMailImportNoFolderName):
-			message = "Name each new folder."
+			message = i18n.T(locale, "mail.import.name_folders")
 		case errors.Is(err, errMailImportNoTarget):
-			message = "A folder you chose is no longer in the account. Choose again."
+			message = i18n.T(locale, "mail.import.folder_gone")
 		case errors.Is(err, errMailImportNothingChosen):
-			message = "Choose a folder for at least one set of messages."
+			message = i18n.T(locale, "mail.import.choose_folder")
 		default:
 			log.Printf("mail import: start: %v", err)
 		}
