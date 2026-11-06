@@ -137,6 +137,39 @@ func TestMailImportRendersFrench(t *testing.T) {
 	}
 }
 
+func TestMailTransferRendersFrench(t *testing.T) {
+	form := MailTransferPanelData{Form: MailTransferFormData{
+		Sources:     []MailImportAccount{{MailExportAccount: MailExportAccount{ID: "source-1", Email: "robin@example.test"}}, {MailExportAccount: MailExportAccount{ID: "target-1", Email: "juno@example.test"}}},
+		Targets:     []MailImportAccount{{MailExportAccount: MailExportAccount{ID: "target-1", Email: "juno@example.test"}}},
+		SourceID:    "source-1",
+		TargetID:    "target-1",
+		SourceEmail: "robin@example.test",
+		Mode:        "copy",
+		Folders:     []MailTransferFolder{{ID: "folder-1", Path: "Inbox", Messages: 2, Target: "folder-2"}},
+		Destination: []MailImportFolder{{ID: "folder-2", Path: "Archives"}},
+	}}
+	var panel bytes.Buffer
+	if err := MailTransferPanel(i18n.French, form).Render(context.Background(), &panel); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Depuis", "Vers", "Copier", "Déplacer", "Dossiers et destination", "Lancer"} {
+		if !strings.Contains(panel.String(), want) {
+			t.Fatalf("French transfer panel is missing %q", want)
+		}
+	}
+
+	var jobs bytes.Buffer
+	job := MailTransferJob{ID: "transfer-1", Source: "robin@example.test", Target: "juno@example.test", State: "done", Copied: 2, Move: true, Deleted: 1, Started: "6 nov. 15:04"}
+	if err := MailTransferJobs(i18n.French, []MailTransferJob{job}).Render(context.Background(), &jobs); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Transferts", "Copie terminée : 2 messages", "Suppression de robin@example.test : 1 message", "Retirer"} {
+		if !strings.Contains(jobs.String(), want) {
+			t.Fatalf("French transfer jobs are missing %q", want)
+		}
+	}
+}
+
 func TestProfileTransferRendersFrench(t *testing.T) {
 	var tab bytes.Buffer
 	if err := SettingsExportImportTab(map[string]string{"language": "fr"}).Render(context.Background(), &tab); err != nil {

@@ -109,7 +109,7 @@ func (h *Handler) startMailRuleTransfer(ctx context.Context, owner, sourceID, ta
 	if err != nil {
 		return err
 	}
-	if !ok || mailTransferSourceProblem(source) != "" {
+	if !ok || mailTransferSourceProblem(i18n.English, source) != "" {
 		return errMailRuleTransferSource
 	}
 	target, destination, found, err := h.mailTransferDestination(ctx, owner, targetFolderID)
