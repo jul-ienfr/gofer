@@ -137,6 +137,30 @@ func TestMailImportRendersFrench(t *testing.T) {
 	}
 }
 
+func TestMailToAccountDialogRendersFrench(t *testing.T) {
+	data := MailToAccountDialogData{Count: 2, Sources: []string{"robin@example.test"}, Target: "juno@example.test", Folder: "Archives"}
+	var dialog bytes.Buffer
+	if err := MailToAccountDialog(i18n.French, data).Render(context.Background(), &dialog); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Déplacer vers un autre compte", "2 messages iront de robin@example.test vers Archives dans juno@example.test", "Déplacer et supprimer définitivement", "Copier", "arrière-plan"} {
+		if !strings.Contains(dialog.String(), want) {
+			t.Fatalf("French move-to-account dialog is missing %q", want)
+		}
+	}
+
+	problem := MailToAccountDialogData{Problem: "These emails are already in that account."}
+	var failure bytes.Buffer
+	if err := MailToAccountDialog(i18n.French, problem).Render(context.Background(), &failure); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Déplacement impossible", "These emails are already in that account."} {
+		if !strings.Contains(failure.String(), want) {
+			t.Fatalf("French move-to-account failure is missing %q", want)
+		}
+	}
+}
+
 func TestMailTransferRendersFrench(t *testing.T) {
 	form := MailTransferPanelData{Form: MailTransferFormData{
 		Sources:     []MailImportAccount{{MailExportAccount: MailExportAccount{ID: "source-1", Email: "robin@example.test"}}, {MailExportAccount: MailExportAccount{ID: "target-1", Email: "juno@example.test"}}},

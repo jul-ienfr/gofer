@@ -7,6 +7,7 @@ import (
 	"github.com/cristianadrielbraun/gofer/components/dialog"
 	"github.com/cristianadrielbraun/gofer/components/icon"
 	"github.com/cristianadrielbraun/gofer/components/radio"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 )
 
 // MailToAccountDialogData describes emails about to go into a folder of
@@ -24,16 +25,16 @@ type MailToAccountDialogData struct {
 
 // MailToAccountDialog asks before emails go into another account, and
 // whether they then leave the account they're in.
-templ MailToAccountDialog(data MailToAccountDialogData) {
+templ MailToAccountDialog(locale i18n.Locale, data MailToAccountDialogData) {
 	{{ mode := mailToAccountDefaultMode(data) }}
 	@dialog.Dialog(dialog.Props{ID: "mail-to-account-dialog"}) {
 		@dialog.Content(dialog.ContentProps{Class: "sm:max-w-lg", Attributes: templ.Attributes{"data-mail-to-account-dialog": ""}}) {
 			@dialog.Header() {
 				@dialog.Title() {
 					if data.Problem != "" {
-						Can't move these emails there
+						{ i18n.T(locale, "mail.to_account.problem_title") }
 					} else {
-						Move to another account?
+						{ i18n.T(locale, "mail.to_account.title") }
 					}
 				}
 			}
@@ -44,21 +45,21 @@ templ MailToAccountDialog(data MailToAccountDialogData) {
 					<div class="flex items-start gap-2.5 rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
 						@icon.TriangleAlert(icon.Props{Class: "mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400"})
 						<p>
-							{ mailToAccountSummary(data) }
+							{ mailToAccountSummary(locale, data) }
 						</p>
 					</div>
-					<div class="space-y-2" role="radiogroup" aria-label="Move or copy" data-mail-to-account-modes>
-						@mailToAccountMode("move", "Move", "Each email is copied to "+data.Target+", then deleted from "+strings.Join(data.Sources, " and ")+" into its Trash, so you can get it back until Trash is emptied.", mode)
-						@mailToAccountMode("move-delete", "Move and delete permanently", "Each email is copied to "+data.Target+", then deleted from "+strings.Join(data.Sources, " and ")+" for good, with no copy left in its Trash.", mode)
-						@mailToAccountMode("copy", "Copy", strings.Join(data.Sources, " and ")+" keeps the emails, and "+data.Target+" gets a copy.", mode)
+					<div class="space-y-2" role="radiogroup" aria-label={ i18n.T(locale, "mail.to_account.mode_group") } data-mail-to-account-modes>
+						@mailToAccountMode(locale, "move", i18n.T(locale, "mail.to_account.move"), i18n.Tf(locale, "mail.to_account.move_desc", data.Target, mailToAccountSources(locale, data.Sources)), mode)
+						@mailToAccountMode(locale, "move-delete", i18n.T(locale, "mail.to_account.move_delete"), i18n.Tf(locale, "mail.to_account.move_delete_desc", data.Target, mailToAccountSources(locale, data.Sources)), mode)
+						@mailToAccountMode(locale, "copy", i18n.T(locale, "mail.to_account.copy"), i18n.Tf(locale, "mail.to_account.copy_desc", mailToAccountSources(locale, data.Sources), data.Target), mode)
 					</div>
-					<p class="text-xs text-muted-foreground">This runs in the background. You can follow it in Settings, under Export and import.</p>
+					<p class="text-xs text-muted-foreground">{ i18n.T(locale, "mail.to_account.background") }</p>
 				</div>
 			}
 			@dialog.Footer() {
 				@dialog.Close() {
 					@button.Button(button.Props{Variant: button.VariantOutline, Class: "h-8 px-3 text-xs"}) {
-						Cancel
+						{ i18n.T(locale, "mail.action.cancel") }
 					}
 				}
 				if data.Problem == "" {
@@ -66,7 +67,7 @@ templ MailToAccountDialog(data MailToAccountDialogData) {
 						Class:      "h-8 px-3 text-xs",
 						Attributes: templ.Attributes{"data-mail-to-account-confirm": "", "data-on-click": onAction("confirmMessagesToAccount")},
 					}) {
-						{ mailToAccountModeButton(mode) }
+						{ mailToAccountModeButton(locale, mode) }
 					}
 				}
 			}
@@ -74,14 +75,14 @@ templ MailToAccountDialog(data MailToAccountDialogData) {
 	}
 }
 
-templ mailToAccountMode(value, label, detail, selected string) {
+templ mailToAccountMode(locale i18n.Locale, value, label, detail, selected string) {
 	<label class="flex items-start gap-2.5 text-sm text-foreground">
 		<span class="mt-0.5 flex shrink-0">
 			@radio.Radio(radio.Props{
 				Name:       "mail-to-account-mode",
 				Value:      value,
 				Checked:    value == selected,
-				Attributes: templ.Attributes{"data-mail-to-account-mode": value, "data-mail-to-account-button": mailToAccountModeButton(value), "data-on-change": onAction("chooseMessagesToAccountMode", actionElement)},
+				Attributes: templ.Attributes{"data-mail-to-account-mode": value, "data-mail-to-account-button": mailToAccountModeButton(locale, value), "data-on-change": onAction("chooseMessagesToAccountMode", actionElement)},
 			})
 		</span>
 		<span>
@@ -101,22 +102,28 @@ func mailToAccountDefaultMode(data MailToAccountDialogData) string {
 }
 
 // mailToAccountModeButton is the confirm button's label for a choice.
-func mailToAccountModeButton(mode string) string {
+func mailToAccountModeButton(locale i18n.Locale, mode string) string {
 	switch mode {
 	case "move-delete":
-		return "Move and delete"
+		return i18n.T(locale, "mail.to_account.button_move_delete")
 	case "copy":
-		return "Copy"
+		return i18n.T(locale, "mail.to_account.button_copy")
 	}
-	return "Move"
+	return i18n.T(locale, "mail.to_account.button_move")
 }
 
-func mailToAccountSummary(data MailToAccountDialogData) string {
-	emails := mailExportCount(data.Count, "email", "emails")
-	if data.Count <= 0 {
-		emails = "These emails"
-	} else if data.Count == 1 {
-		emails = "This email"
+func mailToAccountSources(locale i18n.Locale, sources []string) string {
+	return strings.Join(sources, " "+i18n.T(locale, "mail.to_account.and")+" ")
+}
+
+func mailToAccountSummary(locale i18n.Locale, data MailToAccountDialogData) string {
+	sources := mailToAccountSources(locale, data.Sources)
+	switch {
+	case data.Count <= 0:
+		return i18n.Tf(locale, "mail.to_account.summary_none", sources, data.Folder, data.Target)
+	case data.Count == 1:
+		return i18n.Tf(locale, "mail.to_account.summary_one", sources, data.Folder, data.Target)
+	default:
+		return i18n.Tf(locale, "mail.to_account.summary_many", mailLocaleCount(locale, data.Count, "mail.count.message_one", "mail.count.message_other"), sources, data.Folder, data.Target)
 	}
-	return emails + " will go from " + strings.Join(data.Sources, " and ") + " to " + data.Folder + " in " + data.Target + ", a different account."
 }

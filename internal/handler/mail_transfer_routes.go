@@ -368,6 +368,7 @@ func (h *Handler) handleMessagesToAccountDialog(w http.ResponseWriter, r *http.R
 		return
 	}
 	ctx, owner := r.Context(), h.userID(r.Context())
+	locale := h.uiLocale(ctx, owner)
 	query := r.URL.Query()
 	data := views.MailToAccountDialogData{}
 	data.Count, _ = strconv.Atoi(query.Get("count"))
@@ -376,11 +377,11 @@ func (h *Handler) handleMessagesToAccountDialog(w http.ResponseWriter, r *http.R
 		log.Printf("mail transfer: find folder: %v", err)
 	}
 	if !found {
-		data.Problem = "That folder can't take mail from another account."
+		data.Problem = i18n.T(locale, "mail.to_account.folder_cannot_take")
 	} else {
 		data.Target, data.Folder = target.Email, folder.Path
 		data.ToLocal = target.Provider == providers.ProviderLocal
-		if problem := mailImportAccountProblem(i18n.English, target); problem != "" {
+		if problem := mailImportAccountProblem(locale, target); problem != "" {
 			data.Problem = target.Email + ": " + problem
 		}
 	}
@@ -394,16 +395,16 @@ func (h *Handler) handleMessagesToAccountDialog(w http.ResponseWriter, r *http.R
 				continue
 			}
 			data.Sources = append(data.Sources, account.Email)
-			if problem := mailTransferSourceProblem(i18n.English, account); problem != "" && data.Problem == "" {
+			if problem := mailTransferSourceProblem(locale, account); problem != "" && data.Problem == "" {
 				data.Problem = account.Email + ": " + problem
 			}
 		}
 	}
 	if len(data.Sources) == 0 && data.Problem == "" {
-		data.Problem = "These emails are already in that account."
+		data.Problem = i18n.T(locale, "mail.to_account.already_there")
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = views.MailToAccountDialog(data).Render(ctx, w)
+	_ = views.MailToAccountDialog(locale, data).Render(ctx, w)
 }
 
 // handleMessagesToAccount copies or moves messages chosen in the message
@@ -413,21 +414,22 @@ func (h *Handler) handleMessagesToAccount(w http.ResponseWriter, r *http.Request
 	if !h.mailTransfersAvailable(w) {
 		return
 	}
+	ctx, owner := r.Context(), h.userID(r.Context())
+	locale := h.uiLocale(ctx, owner)
 	var payload struct {
 		messageBulkRequest
 		Mode string `json:"mode"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<20)).Decode(&payload); err != nil || len(payload.Targets) == 0 {
-		http.Error(w, "No emails were chosen.", http.StatusBadRequest)
+		http.Error(w, i18n.T(locale, "mail.to_account.no_emails"), http.StatusBadRequest)
 		return
 	}
-	ctx, owner := r.Context(), h.userID(r.Context())
 	target, destination, found, err := h.mailTransferDestination(ctx, owner, payload.FolderID)
 	if err != nil || !found {
-		http.Error(w, "That folder can't take mail from another account.", http.StatusBadRequest)
+		http.Error(w, i18n.T(locale, "mail.to_account.folder_cannot_take"), http.StatusBadRequest)
 		return
 	}
-	if problem := mailImportAccountProblem(i18n.English, target); problem != "" {
+	if problem := mailImportAccountProblem(locale, target); problem != "" {
 		http.Error(w, target.Email+": "+problem, http.StatusBadRequest)
 		return
 	}
@@ -453,7 +455,7 @@ func (h *Handler) handleMessagesToAccount(w http.ResponseWriter, r *http.Request
 	bySource := map[string]map[string][]int64{}
 	for _, info := range infos {
 		if info.AccountID == target.ID {
-			http.Error(w, "Some of these emails are already in "+target.Email+". Move them separately.", http.StatusBadRequest)
+			http.Error(w, i18n.Tf(locale, "mail.to_account.some_already_there", target.Email), http.StatusBadRequest)
 			return
 		}
 		if bySource[info.AccountID] == nil {
