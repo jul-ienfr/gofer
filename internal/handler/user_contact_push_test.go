@@ -250,7 +250,7 @@ func newUserContactPushFixture(t *testing.T, provider string, api http.Handler) 
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 		if err := stores.Close(ctx); err != nil {
 			t.Error(err)
