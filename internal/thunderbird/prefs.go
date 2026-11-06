@@ -24,6 +24,7 @@ type Profile struct {
 }
 
 type Warning struct {
+	Code    string
 	Account string
 	Message string
 }
@@ -460,7 +461,7 @@ func buildProfile(prefs map[string]prefValue) (*Profile, error) {
 func buildAccount(prefs map[string]prefValue, ref string, smtpServers map[string]SMTPServer) (*Account, []Warning) {
 	serverRef := stringPref(prefs, "mail.account."+ref+".server")
 	if serverRef == "" {
-		return nil, []Warning{{Message: "An account in the file has no server settings and was skipped."}}
+		return nil, []Warning{{Code: "no_server", Message: "An account in the file has no server settings and was skipped."}}
 	}
 	server := buildServer(prefs, serverRef)
 	if strings.EqualFold(server.Type, "none") {
@@ -475,7 +476,7 @@ func buildAccount(prefs map[string]prefValue, ref string, smtpServers map[string
 		identities = append(identities, identity)
 	}
 	if len(identities) == 0 {
-		return nil, []Warning{{Message: "An account in the file has no email address and was skipped."}}
+		return nil, []Warning{{Code: "no_email", Message: "An account in the file has no email address and was skipped."}}
 	}
 	return &Account{Ref: ref, Server: server, Identities: identities}, nil
 }

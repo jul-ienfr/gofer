@@ -55,7 +55,7 @@ templ SettingsPage(accounts []models.Account, syncSettings models.SyncSettings, 
 				} else if activeTab == "advanced" {
 					@SettingsAdvancedTab(uiSettings)
 				} else if activeTab == "export-import" {
-					@SettingsExportImportTab()
+					@SettingsExportImportTab(uiSettings)
 				} else if activeTab == "about" {
 					@SettingsAboutTab(buildinfo.Get())
 				}

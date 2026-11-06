@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/cristianadrielbraun/gofer/internal/auth"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"github.com/cristianadrielbraun/gofer/internal/providers"
 	"github.com/cristianadrielbraun/gofer/internal/thunderbird"
 )
@@ -64,7 +65,7 @@ func thunderbirdRequest(req *http.Request) *http.Request {
 
 func TestThunderbirdImportAddsAccountWaitingForReconnect(t *testing.T) {
 	h := newProfileTestHandler(t)
-	items, warnings := h.thunderbirdAccounts(parseThunderbirdTestProfile(t, thunderbirdTestPrefs))
+	items, warnings := h.thunderbirdAccounts(i18n.English, parseThunderbirdTestProfile(t, thunderbirdTestPrefs))
 	if len(items) != 1 || len(warnings) != 1 || !strings.Contains(warnings[0], "POP3") {
 		t.Fatalf("items = %+v, warnings = %v", items, warnings)
 	}
@@ -152,8 +153,8 @@ func TestThunderbirdPreviewMarksPlaintextAccountUnsupported(t *testing.T) {
 		`user_pref("mail.server.server1.socketType", 2);`, `user_pref("mail.server.server1.socketType", 0);`,
 		`user_pref("mail.smtpserver.smtp1.socketType", 3);`, `user_pref("mail.smtpserver.smtp1.socketType", 0);`,
 	).Replace(thunderbirdTestPrefs)
-	items, _ := h.thunderbirdAccounts(parseThunderbirdTestProfile(t, prefs))
-	views := h.thunderbirdAccountViews(items, nil)
+	items, _ := h.thunderbirdAccounts(i18n.English, parseThunderbirdTestProfile(t, prefs))
+	views := h.thunderbirdAccountViews(i18n.English, items, nil)
 	if len(views) != 1 || views[0].Status != "unsupported" || !strings.Contains(views[0].Warning, "unencrypted") {
 		t.Fatalf("views = %+v", views)
 	}
@@ -173,7 +174,7 @@ func TestThunderbirdPreviewMarksPlaintextAccountUnsupported(t *testing.T) {
 func TestThunderbirdImportFindsSMTPOnAnIdentity(t *testing.T) {
 	h := newProfileTestHandler(t)
 	prefs := strings.Replace(thunderbirdTestPrefs, `user_pref("mail.identity.id1.smtpServer", "smtp1");`, "", 1)
-	items, _ := h.thunderbirdAccounts(parseThunderbirdTestProfile(t, prefs))
+	items, _ := h.thunderbirdAccounts(i18n.English, parseThunderbirdTestProfile(t, prefs))
 	if len(items) != 1 || items[0].account.SMTPHost != "smtp.example.test" || items[0].account.SMTPPort != 587 {
 		t.Fatalf("items = %+v", items)
 	}
@@ -181,7 +182,7 @@ func TestThunderbirdImportFindsSMTPOnAnIdentity(t *testing.T) {
 
 func TestThunderbirdImportCanSkipSignatures(t *testing.T) {
 	h := newProfileTestHandler(t)
-	items, _ := h.thunderbirdAccounts(parseThunderbirdTestProfile(t, thunderbirdTestPrefs))
+	items, _ := h.thunderbirdAccounts(i18n.English, parseThunderbirdTestProfile(t, thunderbirdTestPrefs))
 	result, err := h.importThunderbirdAccounts(t.Context(), "default", items, map[string]bool{items[0].account.Ref: true}, false)
 	if err != nil {
 		t.Fatalf("importThunderbirdAccounts() error = %v", err)
@@ -211,7 +212,7 @@ func TestThunderbirdGmailFallsBackToIMAPWithoutSignIn(t *testing.T) {
 	h := newProfileTestHandler(t)
 	prefs := strings.Replace(thunderbirdTestPrefs, "imap.example.test", "imap.gmail.com", 1)
 	prefs = strings.Replace(prefs, "smtp.example.test", "smtp.gmail.com", 1)
-	items, _ := h.thunderbirdAccounts(parseThunderbirdTestProfile(t, prefs))
+	items, _ := h.thunderbirdAccounts(i18n.English, parseThunderbirdTestProfile(t, prefs))
 	if len(items) != 1 || items[0].account.Provider != providers.ProviderIMAP {
 		t.Fatalf("items = %+v", items)
 	}
@@ -293,9 +294,46 @@ func TestThunderbirdPreviewRouteListsAccounts(t *testing.T) {
 	}
 }
 
+func TestThunderbirdPreviewRouteUsesFrench(t *testing.T) {
+	h := newProfileTestHandler(t)
+	if err := h.db.SetUISettings(t.Context(), "default", map[string]string{"language": "fr"}); err != nil {
+		t.Fatal(err)
+	}
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("thunderbird", "prefs.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := part.Write([]byte(thunderbirdTestPrefs)); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/thunderbird/import/preview", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	recorder := httptest.NewRecorder()
+	h.handleThunderbirdPreviewImport(recorder, thunderbirdRequest(req))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	html := recorder.Body.String()
+	for _, want := range []string{"Comptes", "Prêt à importer", "2 signatures", "Annuler", "Importer"} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("preview missing %q: %s", want, html)
+		}
+	}
+	for _, unwanted := range []string{"Ready to import", "Cancel", "Review import"} {
+		if strings.Contains(html, unwanted) {
+			t.Fatalf("preview leaked English %q: %s", unwanted, html)
+		}
+	}
+}
+
 func TestThunderbirdImportRouteCreatesAccount(t *testing.T) {
 	h := newProfileTestHandler(t)
-	items, _ := h.thunderbirdAccounts(parseThunderbirdTestProfile(t, thunderbirdTestPrefs))
+	items, _ := h.thunderbirdAccounts(i18n.English, parseThunderbirdTestProfile(t, thunderbirdTestPrefs))
 	form := url.Values{"prefs": {thunderbirdTestPrefs}, "account": {items[0].account.Ref}, "signatures": {"1"}}
 	req := httptest.NewRequest(http.MethodPost, "/api/thunderbird/import", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

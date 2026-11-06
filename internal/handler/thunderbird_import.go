@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/cristianadrielbraun/gofer/internal/config"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"github.com/cristianadrielbraun/gofer/internal/mail/message"
 	mailtransport "github.com/cristianadrielbraun/gofer/internal/mail/transport"
 	"github.com/cristianadrielbraun/gofer/internal/providers"
@@ -27,6 +28,12 @@ const (
 	thunderbirdFormMaxBytes   = thunderbird.MaxPrefsBytes + (512 << 10)
 )
 
+var (
+	errThunderbirdZipRead    = errors.New("thunderbird: zip could not be read")
+	errThunderbirdZipNoPrefs = errors.New("thunderbird: zip has no prefs.js")
+	errThunderbirdZipEntry   = errors.New("thunderbird: zip prefs.js could not be read")
+)
+
 func (h *Handler) registerThunderbirdImportRoutes(register func(string, http.HandlerFunc)) {
 	register("GET /api/thunderbird/import/upload", h.handleThunderbirdImportUpload)
 	register("POST /api/thunderbird/import/preview", h.handleThunderbirdPreviewImport)
@@ -34,19 +41,22 @@ func (h *Handler) registerThunderbirdImportRoutes(register func(string, http.Han
 }
 
 func (h *Handler) handleThunderbirdImportUpload(w http.ResponseWriter, r *http.Request) {
+	locale := h.uiLocale(r.Context(), h.userID(r.Context()))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = views.ThunderbirdImportUploadForm("").Render(r.Context(), w)
+	_ = views.ThunderbirdImportUploadForm(locale, "").Render(r.Context(), w)
 }
 
-func renderThunderbirdImportError(w http.ResponseWriter, r *http.Request, message string) {
+func renderThunderbirdImportError(w http.ResponseWriter, r *http.Request, locale i18n.Locale, message string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = views.ThunderbirdImportUploadForm(message).Render(r.Context(), w)
+	_ = views.ThunderbirdImportUploadForm(locale, message).Render(r.Context(), w)
 }
 
 func (h *Handler) handleThunderbirdPreviewImport(w http.ResponseWriter, r *http.Request) {
+	ctx, owner := r.Context(), h.userID(r.Context())
+	locale := h.uiLocale(ctx, owner)
 	r.Body = http.MaxBytesReader(w, r.Body, thunderbirdUploadMaxBytes+(256<<10))
 	if err := r.ParseMultipartForm(4 << 20); err != nil {
-		renderThunderbirdImportError(w, r, "Choose a prefs.js file or a ZIP of up to 32 MB.")
+		renderThunderbirdImportError(w, r, locale, i18n.T(locale, "thunderbird.error.choose_file"))
 		return
 	}
 	if r.MultipartForm != nil {
@@ -54,34 +64,34 @@ func (h *Handler) handleThunderbirdPreviewImport(w http.ResponseWriter, r *http.
 	}
 	upload, header, err := r.FormFile("thunderbird")
 	if err != nil {
-		renderThunderbirdImportError(w, r, "Choose a prefs.js file.")
+		renderThunderbirdImportError(w, r, locale, i18n.T(locale, "thunderbird.error.choose_prefs"))
 		return
 	}
 	defer upload.Close()
 	data, err := io.ReadAll(io.LimitReader(upload, thunderbirdUploadMaxBytes+1))
 	if err != nil || len(data) > thunderbirdUploadMaxBytes {
-		renderThunderbirdImportError(w, r, "Choose a prefs.js file or a ZIP of up to 32 MB.")
+		renderThunderbirdImportError(w, r, locale, i18n.T(locale, "thunderbird.error.choose_file"))
 		return
 	}
 	prefs, err := thunderbirdPrefsFromUpload(header.Filename, data)
 	if err != nil {
-		renderThunderbirdImportError(w, r, thunderbirdErrorMessage(err))
+		renderThunderbirdImportError(w, r, locale, thunderbirdErrorMessage(locale, err))
 		return
 	}
 	profile, err := thunderbird.Parse(prefs)
 	if err != nil {
-		renderThunderbirdImportError(w, r, thunderbirdErrorMessage(err))
+		renderThunderbirdImportError(w, r, locale, thunderbirdErrorMessage(locale, err))
 		return
 	}
-	ctx, owner := r.Context(), h.userID(r.Context())
-	items, warnings := h.thunderbirdAccounts(profile)
+	items, warnings := h.thunderbirdAccounts(locale, profile)
 	existing, err := h.profileExistingAccounts(ctx, owner)
 	if err != nil {
-		userAccountError(w, r, err)
+		log.Printf("thunderbird preview: %v", err)
+		renderThunderbirdImportError(w, r, locale, i18n.T(locale, "thunderbird.error.import_failed"))
 		return
 	}
 	preview := views.ThunderbirdImportPreviewData{Prefs: string(prefs), Warnings: warnings}
-	preview.Accounts = h.thunderbirdAccountViews(items, existing)
+	preview.Accounts = h.thunderbirdAccountViews(locale, items, existing)
 	for i := range items {
 		if preview.Accounts[i].Status == string(profileImportNew) {
 			preview.Signatures += len(items[i].signatures)
@@ -89,55 +99,63 @@ func (h *Handler) handleThunderbirdPreviewImport(w http.ResponseWriter, r *http.
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	_ = views.ThunderbirdImportPreview(preview).Render(ctx, w)
+	_ = views.ThunderbirdImportPreview(locale, preview).Render(ctx, w)
 }
 
 func (h *Handler) handleThunderbirdImport(w http.ResponseWriter, r *http.Request) {
+	ctx, owner := r.Context(), h.userID(r.Context())
+	locale := h.uiLocale(ctx, owner)
 	r.Body = http.MaxBytesReader(w, r.Body, thunderbirdFormMaxBytes)
 	body, err := io.ReadAll(io.LimitReader(r.Body, thunderbirdFormMaxBytes+1))
 	if err != nil || len(body) > thunderbirdFormMaxBytes {
-		renderThunderbirdImportError(w, r, "The uploaded file could not be read.")
+		renderThunderbirdImportError(w, r, locale, i18n.T(locale, "thunderbird.error.read"))
 		return
 	}
 	values, err := url.ParseQuery(string(body))
 	if err != nil {
-		renderThunderbirdImportError(w, r, "The uploaded file could not be read.")
+		renderThunderbirdImportError(w, r, locale, i18n.T(locale, "thunderbird.error.read"))
 		return
 	}
 	profile, err := thunderbird.Parse([]byte(values.Get("prefs")))
 	if err != nil {
-		renderThunderbirdImportError(w, r, thunderbirdErrorMessage(err))
+		renderThunderbirdImportError(w, r, locale, thunderbirdErrorMessage(locale, err))
 		return
 	}
-	items, _ := h.thunderbirdAccounts(profile)
+	items, _ := h.thunderbirdAccounts(locale, profile)
 	selected := map[string]bool{}
 	for _, ref := range values["account"] {
 		selected[ref] = true
 	}
 	withSignatures := len(values["signatures"]) > 0
-	ctx, owner := r.Context(), h.userID(r.Context())
 	result, err := h.importThunderbirdAccounts(ctx, owner, items, selected, withSignatures)
 	if err != nil {
-		userAccountError(w, r, err)
+		log.Printf("thunderbird import: %v", err)
+		renderThunderbirdImportError(w, r, locale, i18n.T(locale, "thunderbird.error.import_failed"))
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	_ = views.ThunderbirdImportResult(views.ThunderbirdImportResultData{
+	_ = views.ThunderbirdImportResult(locale, views.ThunderbirdImportResultData{
 		Added: result.Added, Failed: result.Failed, Skipped: result.Skipped, Signatures: result.Signatures,
 	}).Render(ctx, w)
 }
 
-func thunderbirdErrorMessage(err error) string {
+func thunderbirdErrorMessage(locale i18n.Locale, err error) string {
 	switch {
 	case errors.Is(err, thunderbird.ErrTooLarge):
-		return "The prefs.js file is larger than 16 MB."
+		return i18n.T(locale, "thunderbird.error.prefs_too_large")
 	case errors.Is(err, thunderbird.ErrNotPrefs):
-		return "This file is not a Thunderbird prefs.js file."
+		return i18n.T(locale, "thunderbird.error.not_prefs")
 	case errors.Is(err, thunderbird.ErrNoAccounts):
-		return "No mail accounts were found in this file."
+		return i18n.T(locale, "thunderbird.error.no_accounts")
+	case errors.Is(err, errThunderbirdZipRead):
+		return i18n.T(locale, "thunderbird.error.zip_read")
+	case errors.Is(err, errThunderbirdZipNoPrefs):
+		return i18n.T(locale, "thunderbird.error.zip_no_prefs")
+	case errors.Is(err, errThunderbirdZipEntry):
+		return i18n.T(locale, "thunderbird.error.zip_entry")
 	}
-	return err.Error()
+	return i18n.T(locale, "thunderbird.error.import_failed")
 }
 
 func thunderbirdPrefsFromUpload(name string, data []byte) ([]byte, error) {
@@ -157,7 +175,7 @@ func isZipArchive(data []byte) bool {
 func thunderbirdPrefsFromZip(data []byte) ([]byte, error) {
 	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
-		return nil, errors.New("This ZIP file could not be read.")
+		return nil, errThunderbirdZipRead
 	}
 	var found *zip.File
 	var foundPath string
@@ -174,14 +192,14 @@ func thunderbirdPrefsFromZip(data []byte) ([]byte, error) {
 		}
 	}
 	if found == nil {
-		return nil, errors.New("This ZIP file does not contain a prefs.js file.")
+		return nil, errThunderbirdZipNoPrefs
 	}
 	if found.UncompressedSize64 > thunderbird.MaxPrefsBytes {
 		return nil, thunderbird.ErrTooLarge
 	}
 	entry, err := found.Open()
 	if err != nil {
-		return nil, errors.New("The prefs.js file in this ZIP could not be read.")
+		return nil, errThunderbirdZipEntry
 	}
 	defer entry.Close()
 	prefs, err := io.ReadAll(io.LimitReader(entry, thunderbird.MaxPrefsBytes+1))
@@ -197,35 +215,35 @@ type thunderbirdAccount struct {
 	warning    string
 }
 
-func (h *Handler) thunderbirdAccounts(profile *thunderbird.Profile) ([]thunderbirdAccount, []string) {
+func (h *Handler) thunderbirdAccounts(locale i18n.Locale, profile *thunderbird.Profile) ([]thunderbirdAccount, []string) {
 	var items []thunderbirdAccount
 	var warnings []string
 	seen := map[string]bool{}
 	for _, warning := range profile.Warnings {
-		warnings = append(warnings, warning.Message)
+		warnings = append(warnings, thunderbirdProfileWarning(locale, warning))
 	}
 	for _, source := range profile.Accounts {
 		email := profile.AccountEmail(source)
 		label := email
 		if label == "" {
-			label = "An account"
+			label = i18n.T(locale, "thunderbird.account_fallback")
 		}
 		serverType := strings.ToLower(strings.TrimSpace(source.Server.Type))
 		switch serverType {
 		case "imap":
 		case "":
 			if strings.TrimSpace(source.Server.Host) == "" {
-				warnings = append(warnings, label+": its server settings are missing and it was skipped.")
+				warnings = append(warnings, i18n.Tf(locale, "thunderbird.warning.no_server", label))
 				continue
 			}
 		case "none":
 			continue
 		default:
-			warnings = append(warnings, fmt.Sprintf("%s: %s accounts are not supported by Gofer.", label, strings.ToUpper(serverType)))
+			warnings = append(warnings, i18n.Tf(locale, "thunderbird.warning.unsupported_type", label, strings.ToUpper(serverType)))
 			continue
 		}
 		if email == "" {
-			warnings = append(warnings, "An account in the file has no email address and was skipped.")
+			warnings = append(warnings, i18n.T(locale, "thunderbird.warning.no_email"))
 			continue
 		}
 		if len(source.Identities) == 0 {
@@ -233,7 +251,7 @@ func (h *Handler) thunderbirdAccounts(profile *thunderbird.Profile) ([]thunderbi
 		}
 		key := strings.ToLower(email)
 		if seen[key] {
-			warnings = append(warnings, label+": it appears more than once in the file, so the later account was skipped.")
+			warnings = append(warnings, i18n.Tf(locale, "thunderbird.warning.duplicate", label))
 			continue
 		}
 		seen[key] = true
@@ -246,13 +264,13 @@ func (h *Handler) thunderbirdAccounts(profile *thunderbird.Profile) ([]thunderbi
 			if h.profileProviderAvailable(providers.ProviderGmail) {
 				provider = providers.ProviderGmail
 			} else {
-				warning = label + ": Google sign-in is not set up on this installation, so it is imported over IMAP; use an app password."
+				warning = i18n.Tf(locale, "thunderbird.warning.gmail_no_oauth", label)
 			}
 		case thunderbirdOutlookHost(host):
 			if h.profileProviderAvailable(providers.ProviderOutlook) {
 				provider = providers.ProviderOutlook
 			} else {
-				warning = label + ": Microsoft sign-in is not set up on this installation, so it is imported over IMAP; use an app password."
+				warning = i18n.Tf(locale, "thunderbird.warning.outlook_no_oauth", label)
 			}
 		}
 
@@ -291,7 +309,7 @@ func (h *Handler) thunderbirdAccounts(profile *thunderbird.Profile) ([]thunderbi
 				converted.SMTPUsername = email
 			}
 		} else {
-			warning = joinThunderbirdWarning(warning, label+": no outgoing server was found; add one in Accounts to send mail.")
+			warning = joinThunderbirdWarning(warning, i18n.Tf(locale, "thunderbird.warning.no_smtp", label))
 		}
 
 		signatureRefs := make([]string, len(source.Identities))
@@ -372,7 +390,17 @@ func (h *Handler) thunderbirdAccounts(profile *thunderbird.Profile) ([]thunderbi
 	return items, warnings
 }
 
-func (h *Handler) thunderbirdAccountViews(items []thunderbirdAccount, existing map[string]profileExistingAccount) []views.ThunderbirdImportAccount {
+func thunderbirdProfileWarning(locale i18n.Locale, warning thunderbird.Warning) string {
+	switch warning.Code {
+	case "no_server":
+		return i18n.T(locale, "thunderbird.warning.account_no_server")
+	case "no_email":
+		return i18n.T(locale, "thunderbird.warning.account_no_email")
+	}
+	return warning.Message
+}
+
+func (h *Handler) thunderbirdAccountViews(locale i18n.Locale, items []thunderbirdAccount, existing map[string]profileExistingAccount) []views.ThunderbirdImportAccount {
 	accounts := make([]profileAccount, len(items))
 	for i := range items {
 		accounts[i] = items[i].account
@@ -382,9 +410,9 @@ func (h *Handler) thunderbirdAccountViews(items []thunderbirdAccount, existing m
 	for _, item := range items {
 		status := string(plans[item.account.Ref].Status)
 		warning := item.warning
-		if reason := thunderbirdPlaintextReason(item.account); reason != "" {
+		if thunderbirdPlaintext(item.account) {
 			status = string(profileImportUnsupported)
-			warning = joinThunderbirdWarning(warning, reason)
+			warning = joinThunderbirdWarning(warning, i18n.T(locale, "thunderbird.warning.plaintext"))
 		}
 		var needs []string
 		if status == string(profileImportNew) {
@@ -424,7 +452,7 @@ func (h *Handler) importThunderbirdAccounts(ctx context.Context, owner string, i
 	plans := h.profileAccountPlansFor(accounts, existing)
 	eligible := make(map[string]bool, len(items))
 	for _, item := range items {
-		if selected[item.account.Ref] && plans[item.account.Ref].Status == profileImportNew && thunderbirdPlaintextReason(item.account) == "" {
+		if selected[item.account.Ref] && plans[item.account.Ref].Status == profileImportNew && !thunderbirdPlaintext(item.account) {
 			eligible[item.account.Ref] = true
 		}
 	}
@@ -472,14 +500,11 @@ func thunderbirdPrimarySMTP(account thunderbird.Account) *thunderbird.SMTPServer
 	return nil
 }
 
-func thunderbirdPlaintextReason(account profileAccount) string {
+func thunderbirdPlaintext(account profileAccount) bool {
 	if account.Provider != providers.ProviderIMAP {
-		return ""
+		return false
 	}
-	if account.IMAPTLSMode == mailtransport.TLSModePlaintext || account.SMTPTLSMode == mailtransport.TLSModePlaintext {
-		return "This account uses an unencrypted connection, and Gofer requires TLS or STARTTLS."
-	}
-	return ""
+	return account.IMAPTLSMode == mailtransport.TLSModePlaintext || account.SMTPTLSMode == mailtransport.TLSModePlaintext
 }
 
 func thunderbirdTLSMode(socketType, port int) string {

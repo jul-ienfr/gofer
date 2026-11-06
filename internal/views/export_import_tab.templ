@@ -9,7 +9,7 @@ import (
 // The Export and import tab lists each action as a short row; an action that
 // takes choices opens a dialog for them. Mail jobs are listed under the
 // action that started them, and refresh when one starts.
-templ SettingsExportImportTab() {
+templ SettingsExportImportTab(uiSettings map[string]string) {
 	<div class="mt-6 space-y-6">
 		<div class="settings-card bg-card rounded-lg border p-6 space-y-5">
 			<div>
@@ -22,9 +22,9 @@ templ SettingsExportImportTab() {
 		<div class="settings-card bg-card rounded-lg border p-6 space-y-5">
 			<div>
 				<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">Thunderbird</h3>
-				<p class="text-xs text-muted-foreground leading-relaxed">Bring your account setup over from Thunderbird. Passwords and mail are not included.</p>
+				<p class="text-xs text-muted-foreground leading-relaxed">{ tr(uiSettings, "thunderbird.card.description") }</p>
 			</div>
-			@dataActionRow("Import Thunderbird accounts", "Add the accounts, identities and servers found in a Thunderbird prefs.js. They start with sync off until you reconnect them.", "thunderbird-import-dialog", "thunderbird-import-panel", "/api/thunderbird/import/upload", "Import…", icon.Upload(icon.Props{Class: "size-3.5"}))
+			@dataActionRow(tr(uiSettings, "thunderbird.card.action"), tr(uiSettings, "thunderbird.card.action_description"), "thunderbird-import-dialog", "thunderbird-import-panel", "/api/thunderbird/import/upload", tr(uiSettings, "thunderbird.card.button"), icon.Upload(icon.Props{Class: "size-3.5"}))
 		</div>
 		<div class="settings-card bg-card rounded-lg border p-6 space-y-5">
 			<div>
@@ -47,7 +47,7 @@ templ SettingsExportImportTab() {
 		@dataActionDialog("profile-import-dialog", "profile-import-panel", "Import profile", "sm:max-w-2xl") {
 			@dataDialogLoading()
 		}
-		@dataActionDialog("thunderbird-import-dialog", "thunderbird-import-panel", "Import Thunderbird accounts", "sm:max-w-2xl") {
+		@dataActionDialog("thunderbird-import-dialog", "thunderbird-import-panel", tr(uiSettings, "thunderbird.dialog.title"), "sm:max-w-2xl") {
 			@dataDialogLoading()
 		}
 		@dataActionDialog("mail-export-dialog", "", "Export mail", "sm:max-w-xl") {

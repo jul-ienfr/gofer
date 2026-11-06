@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"github.com/cristianadrielbraun/gofer/internal/models"
 )
 
@@ -33,6 +34,29 @@ func TestSettingsLayoutFallsBackToEnglish(t *testing.T) {
 	for _, want := range []string{`<html lang="en"`, "Regional", "Interface language", `value="en"`} {
 		if !strings.Contains(html, want) {
 			t.Fatalf("English settings page is missing %q", want)
+		}
+	}
+}
+
+func TestThunderbirdImportRendersFrench(t *testing.T) {
+	var upload bytes.Buffer
+	if err := ThunderbirdImportUploadForm(i18n.French, "").Render(context.Background(), &upload); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"prefs.js de Thunderbird", "Vérifier l", "Aide"} {
+		if !strings.Contains(upload.String(), want) {
+			t.Fatalf("French upload form is missing %q", want)
+		}
+	}
+
+	var result bytes.Buffer
+	data := ThunderbirdImportResultData{Added: []string{"robin@example.test"}, Signatures: 2}
+	if err := ThunderbirdImportResult(i18n.French, data).Render(context.Background(), &result); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"import Thunderbird est terminé.", "1 compte ajouté", "2 signatures ajoutées", "Aller aux comptes"} {
+		if !strings.Contains(result.String(), want) {
+			t.Fatalf("French result is missing %q", want)
 		}
 	}
 }

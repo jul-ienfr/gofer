@@ -124,7 +124,7 @@ func SettingsPage(accounts []models.Account, syncSettings models.SyncSettings, a
 				return templ_7745c5c3_Err
 			}
 		} else if activeTab == "export-import" {
-			templ_7745c5c3_Err = SettingsExportImportTab().Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = SettingsExportImportTab(uiSettings).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

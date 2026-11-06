@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"github.com/cristianadrielbraun/gofer/internal/storage"
 )
 
@@ -46,4 +47,14 @@ func (h *Handler) securityUISettings(ctx context.Context, owner string) (map[str
 		return nil
 	})
 	return settings, err
+}
+
+// uiLocale returns the owner's interface language, falling back to English when
+// preferences cannot be read.
+func (h *Handler) uiLocale(ctx context.Context, owner string) i18n.Locale {
+	settings, err := h.securityUISettings(ctx, owner)
+	if err != nil {
+		return i18n.English
+	}
+	return i18n.Resolve(settings["language"])
 }
