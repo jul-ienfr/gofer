@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-06
 
-**Status**: Draft
+**Status**: Implemented (commit `73d1de36`)
 
 **Input**: User description: "Localize the Export and Import settings tab in English and French" (scoped to the Thunderbird import experience)
 
