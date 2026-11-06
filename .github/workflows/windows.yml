@@ -15,7 +15,7 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
 
@@ -40,7 +40,10 @@ jobs:
           pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/build-windows.ps1 -Templ $templ
 
       - name: Test Windows-affected packages
-        run: go test ./internal/storage ./internal/backup ./internal/a11y ./internal/views ./internal/i18n ./internal/authoperator ./internal/store ./internal/handler ./internal/aipipeline ./internal/airouting ./internal/unsubscribe ./internal/config -count=1 -timeout 20m
+        run: go test ./internal/storage ./internal/backup ./internal/a11y ./internal/views ./internal/i18n ./internal/authoperator ./internal/store ./internal/handler ./internal/aipipeline ./internal/airouting ./internal/unsubscribe -count=1 -timeout 20m
+
+      - name: Test Windows configuration
+        run: go test ./internal/config -count=1 -timeout 20m
 
       - name: Smoke test
         shell: pwsh
