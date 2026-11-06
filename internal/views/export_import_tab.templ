@@ -45,19 +45,19 @@ templ SettingsExportImportTab(uiSettings map[string]string) {
 			@ProfileExportForm(uiSettings)
 		}
 		@dataActionDialog("profile-import-dialog", "profile-import-panel", tr(uiSettings, "profile.dialog.import"), "sm:max-w-2xl") {
-			@dataDialogLoading()
+			@dataDialogLoading(tr(uiSettings, "common.loading"))
 		}
 		@dataActionDialog("thunderbird-import-dialog", "thunderbird-import-panel", tr(uiSettings, "thunderbird.dialog.title"), "sm:max-w-2xl") {
-			@dataDialogLoading()
+			@dataDialogLoading(tr(uiSettings, "common.loading"))
 		}
 		@dataActionDialog("mail-export-dialog", "", tr(uiSettings, "mail.dialog.export"), "sm:max-w-xl") {
-			@dataDialogLoading()
+			@dataDialogLoading(tr(uiSettings, "common.loading"))
 		}
 		@dataActionDialog("mail-import-dialog", "", tr(uiSettings, "mail.dialog.import"), "sm:max-w-2xl") {
-			@dataDialogLoading()
+			@dataDialogLoading(tr(uiSettings, "common.loading"))
 		}
 		@dataActionDialog("mail-transfer-dialog", "", tr(uiSettings, "mail.dialog.transfer"), "sm:max-w-2xl") {
-			@dataDialogLoading()
+			@dataDialogLoading(tr(uiSettings, "common.loading"))
 		}
 	</div>
 }
@@ -160,7 +160,7 @@ templ ProfileExportForm(uiSettings map[string]string) {
 	</form>
 }
 
-templ dataDialogLoading() {
+templ dataDialogLoading(label string) {
 	@dataDialogScroll("pb-6") {
 		<p class="text-xs text-muted-foreground">Loading…</p>
 	}

@@ -367,4 +367,7 @@ var french = map[string]string{
 	"mail.to_account.already_there":      "Ces messages sont déjà dans ce compte.",
 	"mail.to_account.some_already_there": "Certains de ces messages sont déjà dans %s. Déplacez-les séparément.",
 	"mail.to_account.no_emails":          "Aucun message n'a été choisi.",
+	"mail.to_account.source_unreadable":  "L'un des comptes de ces messages ne peut pas être lu pour le moment.",
+	"mail.to_account.send_failed":        "Les messages n'ont pas pu être envoyés vers l'autre compte.",
+	"common.loading":                     "Chargement…",
 }

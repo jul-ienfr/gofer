@@ -467,8 +467,8 @@ func (h *Handler) handleMessagesToAccount(w http.ResponseWriter, r *http.Request
 	sources := map[string]models.Account{}
 	for accountID := range bySource {
 		source, ok, err := h.mailExportAccount(ctx, owner, accountID)
-		if err != nil || !ok || mailTransferSourceProblem(i18n.English, source) != "" {
-			http.Error(w, "One of the accounts these emails are in can't be read right now.", http.StatusBadRequest)
+		if err != nil || !ok || mailTransferSourceProblem(locale, source) != "" {
+			http.Error(w, i18n.T(locale, "mail.to_account.source_unreadable"), http.StatusBadRequest)
 			return
 		}
 		sources[accountID] = source
@@ -478,7 +478,7 @@ func (h *Handler) handleMessagesToAccount(w http.ResponseWriter, r *http.Request
 		job, err := h.mailTransferMessages(ctx, owner, sources[accountID], target, destination, ids, mode)
 		if err != nil {
 			log.Printf("mail transfer: start from the message list: %v", err)
-			http.Error(w, "The emails could not be sent to the other account.", http.StatusInternalServerError)
+			http.Error(w, i18n.T(locale, "mail.to_account.send_failed"), http.StatusInternalServerError)
 			return
 		}
 		started = append(started, job.ID)

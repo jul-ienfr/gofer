@@ -366,4 +366,7 @@ var english = map[string]string{
 	"mail.to_account.already_there":      "These emails are already in that account.",
 	"mail.to_account.some_already_there": "Some of these emails are already in %s. Move them separately.",
 	"mail.to_account.no_emails":          "No emails were chosen.",
+	"mail.to_account.source_unreadable":  "One of the accounts these emails are in can't be read right now.",
+	"mail.to_account.send_failed":        "The emails could not be sent to the other account.",
+	"common.loading":                     "Loading…",
 }
