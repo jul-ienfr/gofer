@@ -65,6 +65,19 @@ func Resolve(raw string) Locale {
 	return English
 }
 
+// Match returns the first supported locale named in an Accept-Language
+// header. Browsers list their preferences in order; unsupported tags are
+// skipped.
+func Match(header string) Locale {
+	for _, part := range strings.Split(header, ",") {
+		tag := strings.TrimSpace(strings.SplitN(part, ";", 2)[0])
+		if locale, ok := Normalize(tag); ok {
+			return locale
+		}
+	}
+	return English
+}
+
 // T returns the translation for key, falling back to English and then the key.
 func T(locale Locale, key string) string {
 	return text(locale, key)

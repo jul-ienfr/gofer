@@ -108,6 +108,25 @@ func responseCookie(recorder *httptest.ResponseRecorder, name string, positiveMa
 	return nil
 }
 
+func TestLoginPageUsesAcceptLanguage(t *testing.T) {
+	h, _, _ := newLocalLoginHandler(t, auth.UserStatusActive, false, false, false, false)
+	req := httptest.NewRequest(http.MethodGet, "/login", nil)
+	req.Header.Set("Accept-Language", "fr-CA,fr;q=0.9,en;q=0.8")
+	rec := httptest.NewRecorder()
+
+	h.renderLoginPage(rec, req, http.StatusOK, "", "")
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("renderLoginPage() status = %d", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{`<html lang="fr"`, "Nom d&#39;utilisateur", "Mot de passe"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("French login page missing %q", want)
+		}
+	}
+}
+
 func TestLocalLoginSuccessSetsSessionAndUsesSafeReturnTarget(t *testing.T) {
 	handler, manager, _ := newLocalLoginHandler(t, auth.UserStatusActive, false, false, true, false)
 	returnCookieRecorder := httptest.NewRecorder()

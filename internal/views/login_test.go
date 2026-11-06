@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 )
 
 func TestLoginPageUsesAccessibleLocalPasswordForm(t *testing.T) {
@@ -32,6 +34,22 @@ func TestLoginPageUsesAccessibleLocalPasswordForm(t *testing.T) {
 	}
 	if strings.Contains(html, "https://") || strings.Contains(html, "/auth/google") || strings.Contains(html, "/auth/microsoft") {
 		t.Fatalf("local-only login page contains external/provider content: %q", html)
+	}
+}
+
+func TestLoginPageRendersFrenchLocale(t *testing.T) {
+	var output bytes.Buffer
+	if err := LoginPage(LoginPageData{Locale: i18n.French}).Render(t.Context(), &output); err != nil {
+		t.Fatalf("LoginPage().Render() error = %v", err)
+	}
+	html := output.String()
+	for _, required := range []string{
+		`<html lang="fr"`, "Un client de messagerie auto-hébergé",
+		"Nom d&#39;utilisateur", "Mot de passe", "Mot de passe oublié ?", "Continuer",
+	} {
+		if !strings.Contains(html, required) {
+			t.Fatalf("French login page missing %q", required)
+		}
 	}
 }
 

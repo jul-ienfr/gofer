@@ -14,6 +14,7 @@ import (
 
 	"github.com/cristianadrielbraun/gofer/internal/auth"
 	"github.com/cristianadrielbraun/gofer/internal/httpguard"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"github.com/cristianadrielbraun/gofer/internal/views"
 )
 
@@ -249,6 +250,7 @@ func (h *Handler) renderLoginPage(w http.ResponseWriter, r *http.Request, status
 		ShowGoogle: h.auth.HasGoogleLogin(), ShowMicrosoft: h.auth.HasMicrosoftLogin(), OIDCName: h.auth.OIDCLoginName(),
 		ErrorMessage: message, Identifier: identifier, Personal: h.auth.IsPersonal(),
 		MethodsShown: identifier != "",
+		Locale:       i18n.Match(r.Header.Get("Accept-Language")),
 	}
 	if data.MethodsShown {
 		hasPasskey, err := h.auth.HasPasskeyLogin(r.Context(), identifier, h.auth.Config().BaseURL, loginSource(r))

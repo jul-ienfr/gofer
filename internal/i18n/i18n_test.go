@@ -26,6 +26,23 @@ func TestNormalizeAndResolve(t *testing.T) {
 	}
 }
 
+func TestMatch(t *testing.T) {
+	for _, test := range []struct {
+		header string
+		want   Locale
+	}{
+		{"fr-CA,fr;q=0.9,en;q=0.8", French},
+		{"de-DE,de;q=0.9,fr;q=0.7", French},
+		{"en-GB,en;q=0.9", English},
+		{"de", English},
+		{"", English},
+	} {
+		if got := Match(test.header); got != test.want {
+			t.Fatalf("Match(%q) = %q; want %q", test.header, got, test.want)
+		}
+	}
+}
+
 func TestCatalogParity(t *testing.T) {
 	for _, locale := range Supported() {
 		catalog, ok := messages[locale]
