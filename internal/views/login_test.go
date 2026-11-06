@@ -236,7 +236,7 @@ func TestRecoveryLoginAndRepairPagesAreAccessibleLocalAndExplicit(t *testing.T) 
 
 func TestRequiredMFAEnrollmentPagesRemainSessionlessAndLocal(t *testing.T) {
 	var enrollment bytes.Buffer
-	if err := MFAEnrollmentPage(MFAEnrollmentData{
+	if err := MFAEnrollmentPage(i18n.English, MFAEnrollmentData{
 		QRCodeDataURL: "data:image/png;base64,cXItZGF0YQ==", ManualKey: "ABCD EFGH",
 		Algorithm: "SHA1", Digits: 6, Period: 30, ErrorMessage: "Try again.",
 	}).Render(t.Context(), &enrollment); err != nil {
@@ -257,7 +257,7 @@ func TestRequiredMFAEnrollmentPagesRemainSessionlessAndLocal(t *testing.T) {
 	}
 
 	var codes bytes.Buffer
-	if err := MFAEnrollmentCodesPage(MFAEnrollmentCodesData{
+	if err := MFAEnrollmentCodesPage(i18n.English, MFAEnrollmentCodesData{
 		BatchID: "batch-id", Codes: []string{"AAAA-BBBB-CCCC-DDDD-EEEE-FFFF"}, Generated: true,
 	}).Render(t.Context(), &codes); err != nil {
 		t.Fatal(err)
@@ -273,6 +273,40 @@ func TestRequiredMFAEnrollmentPagesRemainSessionlessAndLocal(t *testing.T) {
 	}
 	if strings.Contains(codes.String(), "https://") {
 		t.Fatalf("required MFA recovery page loads a remote resource: %q", codes.String())
+	}
+}
+
+func TestMFAEnrollmentPagesRenderFrenchLocale(t *testing.T) {
+	var enrollment bytes.Buffer
+	if err := MFAEnrollmentPage(i18n.French, MFAEnrollmentData{
+		ManualKey: "ABCD EFGH", Algorithm: "SHA1", Digits: 6, Period: 30,
+	}).Render(t.Context(), &enrollment); err != nil {
+		t.Fatal(err)
+	}
+	for _, required := range []string{
+		`<html lang="fr"`, "Configurer un authentificateur",
+		"Clé de configuration manuelle", "Code du nouvel authentificateur",
+		"période de 30 secondes",
+	} {
+		if !strings.Contains(enrollment.String(), required) {
+			t.Fatalf("French MFA enrollment page missing %q", required)
+		}
+	}
+
+	var codes bytes.Buffer
+	if err := MFAEnrollmentCodesPage(i18n.French, MFAEnrollmentCodesData{
+		BatchID: "batch-id", Codes: []string{"AAAA-BBBB"}, Generated: true,
+	}).Render(t.Context(), &codes); err != nil {
+		t.Fatal(err)
+	}
+	for _, required := range []string{
+		`<html lang="fr"`, "Enregistrez vos codes de récupération",
+		"Ces codes ne sont affichés que dans cette réponse",
+		"Terminer la configuration et se connecter",
+	} {
+		if !strings.Contains(codes.String(), required) {
+			t.Fatalf("French MFA codes page missing %q", required)
+		}
 	}
 }
 

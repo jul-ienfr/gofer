@@ -224,7 +224,7 @@ func (h *Handler) renderCurrentMFAEnrollmentCodes(w http.ResponseWriter, r *http
 
 func (h *Handler) renderMFAEnrollmentPage(w http.ResponseWriter, r *http.Request, status int, data views.MFAEnrollmentData) {
 	var page bytes.Buffer
-	if err := views.MFAEnrollmentPage(data).Render(r.Context(), &page); err != nil {
+	if err := views.MFAEnrollmentPage(loginLocale(r), data).Render(r.Context(), &page); err != nil {
 		log.Printf("render required MFA enrollment page: %v", err)
 		http.Error(w, "failed to render MFA enrollment", http.StatusInternalServerError)
 		return
@@ -234,7 +234,7 @@ func (h *Handler) renderMFAEnrollmentPage(w http.ResponseWriter, r *http.Request
 
 func (h *Handler) renderMFAEnrollmentCodesPage(w http.ResponseWriter, r *http.Request, status int, data views.MFAEnrollmentCodesData) {
 	var page bytes.Buffer
-	if err := views.MFAEnrollmentCodesPage(data).Render(r.Context(), &page); err != nil {
+	if err := views.MFAEnrollmentCodesPage(loginLocale(r), data).Render(r.Context(), &page); err != nil {
 		log.Printf("render required MFA recovery-code page: %v", err)
 		http.Error(w, "failed to render recovery codes", http.StatusInternalServerError)
 		return
