@@ -88,6 +88,16 @@ var loginEnglish = map[string]string{
 	"login.mfa_repair_codes.replace":     "Replace these new recovery codes",
 	"login.mfa_repair_codes.generate":    "Generate fresh recovery codes",
 	"login.mfa_repair_codes.footnote":    "No session exists until repair completes successfully.",
+
+	"setup.personal.title":       "Gofer - Personal setup",
+	"setup.personal.heading":     "Protect your personal Gofer",
+	"setup.personal.description": "One profile for all your mailboxes. Existing mail and settings stay with this profile.",
+	"setup.personal.name":        "Name",
+	"setup.personal.username":    "Sign-in username",
+	"setup.personal.password":    "Password",
+	"setup.personal.confirm":     "Confirm password",
+	"setup.personal.note":        "You can add a passkey or turn on two-factor authentication in Security right after setup.",
+	"setup.personal.finish":      "Finish setup",
 }
 
 var loginFrench = map[string]string{
@@ -176,6 +186,16 @@ var loginFrench = map[string]string{
 	"login.mfa_repair_codes.replace":     "Remplacer ces nouveaux codes de récupération",
 	"login.mfa_repair_codes.generate":    "Générer de nouveaux codes de récupération",
 	"login.mfa_repair_codes.footnote":    "Aucune session n'existe tant que la réparation n'est pas terminée.",
+
+	"setup.personal.title":       "Gofer - Configuration personnelle",
+	"setup.personal.heading":     "Protégez votre Gofer personnel",
+	"setup.personal.description": "Un seul profil pour toutes vos boîtes aux lettres. Les messages et réglages existants restent attachés à ce profil.",
+	"setup.personal.name":        "Nom",
+	"setup.personal.username":    "Nom d'utilisateur de connexion",
+	"setup.personal.password":    "Mot de passe",
+	"setup.personal.confirm":     "Confirmer le mot de passe",
+	"setup.personal.note":        "Vous pourrez ajouter une clé d'accès ou activer l'authentification à deux facteurs dans Sécurité juste après la configuration.",
+	"setup.personal.finish":      "Terminer la configuration",
 }
 
 func init() {

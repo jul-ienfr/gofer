@@ -4,7 +4,26 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 )
+
+func TestPersonalSetupPageRendersFrenchLocale(t *testing.T) {
+	var output bytes.Buffer
+	if err := PersonalSetupPage(i18n.French, PersonalSetupData{Name: "Ada", Username: "ada"}).Render(t.Context(), &output); err != nil {
+		t.Fatal(err)
+	}
+	html := output.String()
+	for _, required := range []string{
+		`<html lang="fr"`, "Protégez votre Gofer personnel",
+		"Nom d&#39;utilisateur de connexion", "Confirmer le mot de passe",
+		"Terminer la configuration",
+	} {
+		if !strings.Contains(html, required) {
+			t.Fatalf("French personal setup page missing %q", required)
+		}
+	}
+}
 
 func TestSetupTokenPageIsAccessibleLocalAndEscapesErrors(t *testing.T) {
 	var output bytes.Buffer

@@ -72,7 +72,7 @@ func (h *Handler) handlePersonalSetup(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	var page bytes.Buffer
-	if err := views.PersonalSetupPage(data).Render(r.Context(), &page); err != nil {
+	if err := views.PersonalSetupPage(loginLocale(r), data).Render(r.Context(), &page); err != nil {
 		h.writeSetupServiceFailure(w)
 		return
 	}
