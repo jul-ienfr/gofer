@@ -6,12 +6,13 @@ import (
 	"testing"
 
 	"github.com/a-h/templ"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 )
 
 func TestInvitationEnrollmentPageIsPurposeSpecificAndEscapesErrors(t *testing.T) {
 	var output bytes.Buffer
 	message := `<script>alert("token")</script>`
-	if err := InvitationEnrollmentPage(InvitationEnrollmentData{
+	if err := InvitationEnrollmentPage(i18n.English, InvitationEnrollmentData{
 		Message: message, GoogleLoginAvailable: true,
 	}).Render(t.Context(), &output); err != nil {
 		t.Fatalf("InvitationEnrollmentPage.Render() error = %v", err)
@@ -43,7 +44,7 @@ func TestInvitationEnrollmentPageIsPurposeSpecificAndEscapesErrors(t *testing.T)
 func TestCredentialRedemptionPageContainsNoInvitationOrFederatedEnrollment(t *testing.T) {
 	var output bytes.Buffer
 	message := `<script>alert("reset")</script>`
-	if err := CredentialRedemptionPage(CredentialRedemptionData{Message: message}).Render(t.Context(), &output); err != nil {
+	if err := CredentialRedemptionPage(i18n.English, CredentialRedemptionData{Message: message}).Render(t.Context(), &output); err != nil {
 		t.Fatalf("CredentialRedemptionPage.Render() error = %v", err)
 	}
 	html := output.String()
@@ -62,6 +63,36 @@ func TestCredentialRedemptionPageContainsNoInvitationOrFederatedEnrollment(t *te
 	} {
 		if strings.Contains(html, forbidden) {
 			t.Fatalf("credential redemption page contains %q", forbidden)
+		}
+	}
+}
+
+func TestEnrollmentAndRedemptionPagesRenderFrenchLocale(t *testing.T) {
+	var invite bytes.Buffer
+	if err := InvitationEnrollmentPage(i18n.French, InvitationEnrollmentData{GoogleLoginAvailable: true}).Render(t.Context(), &invite); err != nil {
+		t.Fatal(err)
+	}
+	for _, required := range []string{
+		`<html lang="fr"`, "Acceptez votre invitation Gofer",
+		"Jeton d&#39;invitation", "Créer un mot de passe",
+		"Accepter l&#39;invitation avec un mot de passe",
+	} {
+		if !strings.Contains(invite.String(), required) {
+			t.Fatalf("French invitation page missing %q", required)
+		}
+	}
+
+	var reset bytes.Buffer
+	if err := CredentialRedemptionPage(i18n.French, CredentialRedemptionData{}).Render(t.Context(), &reset); err != nil {
+		t.Fatal(err)
+	}
+	for _, required := range []string{
+		`<html lang="fr"`, "Réinitialisez votre mot de passe Gofer",
+		"Jeton de réinitialisation", "Nouveau mot de passe",
+		"Réinitialiser le mot de passe",
+	} {
+		if !strings.Contains(reset.String(), required) {
+			t.Fatalf("French reset page missing %q", required)
 		}
 	}
 }

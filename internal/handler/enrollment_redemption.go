@@ -191,7 +191,7 @@ func (h *Handler) renderPasswordTokenCompletion(w http.ResponseWriter, r *http.R
 
 func (h *Handler) renderInvitationEnrollmentPage(w http.ResponseWriter, r *http.Request, status int, message string) {
 	var page bytes.Buffer
-	if err := views.InvitationEnrollmentPage(views.InvitationEnrollmentData{
+	if err := views.InvitationEnrollmentPage(loginLocale(r), views.InvitationEnrollmentData{
 		Message: message, GoogleLoginAvailable: h.auth.HasGoogleLogin(),
 	}).Render(r.Context(), &page); err != nil {
 		log.Printf("render invitation enrollment page: %v", err)
@@ -203,7 +203,7 @@ func (h *Handler) renderInvitationEnrollmentPage(w http.ResponseWriter, r *http.
 
 func (h *Handler) renderCredentialRedemptionPage(w http.ResponseWriter, r *http.Request, status int, message string) {
 	var page bytes.Buffer
-	if err := views.CredentialRedemptionPage(views.CredentialRedemptionData{Message: message}).Render(r.Context(), &page); err != nil {
+	if err := views.CredentialRedemptionPage(loginLocale(r), views.CredentialRedemptionData{Message: message}).Render(r.Context(), &page); err != nil {
 		log.Printf("render credential redemption page: %v", err)
 		http.Error(w, "failed to render password reset form", http.StatusInternalServerError)
 		return
