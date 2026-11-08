@@ -168,11 +168,11 @@ func (h *Handler) handlePasswordTokenSubmit(
 }
 
 func (h *Handler) handleInvitationEnrollmentComplete(w http.ResponseWriter, r *http.Request) {
-	h.renderPasswordTokenCompletion(w, r, views.InvitationEnrollmentCompletePage())
+	h.renderPasswordTokenCompletion(w, r, views.InvitationEnrollmentCompletePage(loginLocale(r)))
 }
 
 func (h *Handler) handleCredentialRedemptionComplete(w http.ResponseWriter, r *http.Request) {
-	h.renderPasswordTokenCompletion(w, r, views.CredentialRedemptionCompletePage())
+	h.renderPasswordTokenCompletion(w, r, views.CredentialRedemptionCompletePage(loginLocale(r)))
 }
 
 func (h *Handler) renderPasswordTokenCompletion(w http.ResponseWriter, r *http.Request, component templ.Component) {

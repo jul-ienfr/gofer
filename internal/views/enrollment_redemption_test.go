@@ -95,6 +95,19 @@ func TestEnrollmentAndRedemptionPagesRenderFrenchLocale(t *testing.T) {
 			t.Fatalf("French reset page missing %q", required)
 		}
 	}
+
+	var complete bytes.Buffer
+	if err := InvitationEnrollmentCompletePage(i18n.French).Render(t.Context(), &complete); err != nil {
+		t.Fatal(err)
+	}
+	for _, required := range []string{
+		`<html lang="fr"`, "Invitation acceptée",
+		"Votre invitation a été utilisée", "Retour à la connexion",
+	} {
+		if !strings.Contains(complete.String(), required) {
+			t.Fatalf("French invitation completion page missing %q", required)
+		}
+	}
 }
 
 func TestPasswordTokenCompletionPagesArePurposeSpecificAndLocal(t *testing.T) {
@@ -103,8 +116,8 @@ func TestPasswordTokenCompletionPagesArePurposeSpecificAndLocal(t *testing.T) {
 		component templ.Component
 		want      string
 	}{
-		{name: "invitation", component: InvitationEnrollmentCompletePage(), want: "Invitation accepted"},
-		{name: "reset", component: CredentialRedemptionCompletePage(), want: "Password reset"},
+		{name: "invitation", component: InvitationEnrollmentCompletePage(i18n.English), want: "Invitation accepted"},
+		{name: "reset", component: CredentialRedemptionCompletePage(i18n.English), want: "Password reset"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

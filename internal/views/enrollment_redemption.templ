@@ -208,17 +208,17 @@ templ CredentialRedemptionPage(locale i18n.Locale, data CredentialRedemptionData
 	</html>
 }
 
-templ InvitationEnrollmentCompletePage() {
-	@passwordTokenCompletePage("Invitation accepted", "Your invitation has been consumed and your Gofer account is ready. Sign in with your new password.")
+templ InvitationEnrollmentCompletePage(locale i18n.Locale) {
+	@passwordTokenCompletePage(locale, i18n.T(locale, "setup.invite.complete_title"), i18n.T(locale, "setup.invite.complete_message"))
 }
 
-templ CredentialRedemptionCompletePage() {
-	@passwordTokenCompletePage("Password reset", "Your reset token has been consumed. Sign in with your new password.")
+templ CredentialRedemptionCompletePage(locale i18n.Locale) {
+	@passwordTokenCompletePage(locale, i18n.T(locale, "setup.reset.complete_title"), i18n.T(locale, "setup.reset.complete_message"))
 }
 
-templ passwordTokenCompletePage(title string, message string) {
+templ passwordTokenCompletePage(locale i18n.Locale, title string, message string) {
 	<!DOCTYPE html>
-	<html lang="en" class="dark" data-theme="classic">
+	<html lang={ string(i18n.Resolve(string(locale))) } class="dark" data-theme="classic">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -237,7 +237,7 @@ templ passwordTokenCompletePage(title string, message string) {
 					</div>
 					<div class="mt-8">
 						@button.Button(button.Props{Href: "/login", FullWidth: true}) {
-							Back to sign in
+							{ i18n.T(locale, "setup.complete.back") }
 						}
 					</div>
 				</div>
