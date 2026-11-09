@@ -28,7 +28,7 @@ func TestPersonalSetupPageRendersFrenchLocale(t *testing.T) {
 func TestSetupTokenPageIsAccessibleLocalAndEscapesErrors(t *testing.T) {
 	var output bytes.Buffer
 	message := `<script>alert("setup")</script>`
-	if err := SetupTokenPage(SetupTokenData{Message: message}).Render(t.Context(), &output); err != nil {
+	if err := SetupTokenPage(i18n.English, SetupTokenData{Message: message}).Render(t.Context(), &output); err != nil {
 		t.Fatalf("SetupTokenPage.Render() error = %v", err)
 	}
 	html := output.String()
@@ -47,6 +47,21 @@ func TestSetupTokenPageIsAccessibleLocalAndEscapesErrors(t *testing.T) {
 	}
 }
 
+func TestSetupTokenPageRendersFrenchLocale(t *testing.T) {
+	var output bytes.Buffer
+	if err := SetupTokenPage(i18n.French, SetupTokenData{}).Render(t.Context(), &output); err != nil {
+		t.Fatal(err)
+	}
+	html := output.String()
+	for _, required := range []string{
+		`<html lang="fr"`, "Configurer Gofer", "Jeton de configuration",
+		"Continuer en toute sécurité", "n&#39;est pas enregistré dans le stockage du navigateur",
+	} {
+		if !strings.Contains(html, required) {
+			t.Fatalf("French setup token page missing %q", required)
+		}
+	}
+}
 func TestSetupOwnerPageIsAccessibleAndLocal(t *testing.T) {
 	var output bytes.Buffer
 	if err := SetupOwnerPage(SetupOwnerData{

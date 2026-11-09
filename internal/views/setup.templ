@@ -2,6 +2,7 @@ package views
 
 import (
 	"github.com/cristianadrielbraun/gofer/internal/assetver"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"fmt"
 
 	"github.com/cristianadrielbraun/gofer/components/button"
@@ -98,13 +99,13 @@ func setupOwnerDescription(helpID, errorID string, hasError bool) string {
 	return helpID + " " + errorID
 }
 
-templ SetupTokenPage(data SetupTokenData) {
+templ SetupTokenPage(locale i18n.Locale, data SetupTokenData) {
 	<!DOCTYPE html>
-	<html lang="en" class="dark" data-theme="classic">
+	<html lang={ string(i18n.Resolve(string(locale))) } class="dark" data-theme="classic">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-			<title>Gofer - Initial Setup</title>
+			<title>{ i18n.T(locale, "setup.token.title") }</title>
 			@AppIcon()
 			<link rel="stylesheet" href={ assetver.URL("/assets/css/output.css") }/>
 			<script src={ assetver.URL("/assets/js/actions.js") }></script>
@@ -114,8 +115,8 @@ templ SetupTokenPage(data SetupTokenData) {
 				<div class="w-full max-w-sm">
 					<div class="text-center mb-8">
 						<img src={ assetver.URL("/assets/logo.svg") } alt="Gofer" class="h-12 w-auto mx-auto"/>
-						<h1 class="mt-6 text-2xl font-semibold">Set up Gofer</h1>
-						<p class="mt-2 text-sm text-muted-foreground">Enter the private token shown on the machine running Gofer.</p>
+						<h1 class="mt-6 text-2xl font-semibold">{ i18n.T(locale, "setup.token.heading") }</h1>
+						<p class="mt-2 text-sm text-muted-foreground">{ i18n.T(locale, "setup.token.description") }</p>
 					</div>
 					if data.Message != "" {
 						<div id="setup-token-error" role="alert" aria-live="polite" class="bg-destructive/10 border border-destructive/20 text-destructive rounded-lg px-4 py-3 text-sm mb-6">
@@ -124,7 +125,7 @@ templ SetupTokenPage(data SetupTokenData) {
 					}
 					<form method="post" action="/setup" class="space-y-4">
 						<div class="space-y-2">
-							<label for="setup-token" class="text-sm font-medium">Setup token</label>
+							<label for="setup-token" class="text-sm font-medium">{ i18n.T(locale, "setup.token.token") }</label>
 							<input
 								id="setup-token"
 								name="token"
@@ -142,10 +143,10 @@ templ SetupTokenPage(data SetupTokenData) {
 							/>
 						</div>
 						@button.Button(button.Props{Type: button.TypeSubmit, FullWidth: true}) {
-							Continue securely
+							{ i18n.T(locale, "setup.token.submit") }
 						}
 					</form>
-					<p class="mt-6 text-center text-xs text-muted-foreground">The token is sent only when you submit this form. It is never included in the page URL or saved by Gofer in browser storage.</p>
+					<p class="mt-6 text-center text-xs text-muted-foreground">{ i18n.T(locale, "setup.token.privacy") }</p>
 				</div>
 			</main>
 		</body>

@@ -788,7 +788,7 @@ func setupOwnerTargetValue(mode auth.SetupOwnerMode, userID string) string {
 
 func (h *Handler) renderSetupPage(w http.ResponseWriter, r *http.Request, status int, message string) {
 	var page bytes.Buffer
-	if err := views.SetupTokenPage(views.SetupTokenData{Message: message}).Render(r.Context(), &page); err != nil {
+	if err := views.SetupTokenPage(loginLocale(r), views.SetupTokenData{Message: message}).Render(r.Context(), &page); err != nil {
 		log.Printf("render setup token page: %v", err)
 		h.writeSetupServiceFailure(w)
 		return

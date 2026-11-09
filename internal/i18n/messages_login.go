@@ -131,6 +131,12 @@ var loginEnglish = map[string]string{
 	"setup.reset.complete_title":   "Password reset",
 	"setup.reset.complete_message": "Your reset token has been consumed. Sign in with your new password.",
 	"setup.complete.back":          "Back to sign in",
+	"setup.token.title":            "Gofer - Initial Setup",
+	"setup.token.heading":          "Set up Gofer",
+	"setup.token.description":      "Enter the private token shown on the machine running Gofer.",
+	"setup.token.token":            "Setup token",
+	"setup.token.submit":           "Continue securely",
+	"setup.token.privacy":          "The token is sent only when you submit this form. It is never included in the page URL or saved by Gofer in browser storage.",
 }
 
 var loginFrench = map[string]string{
@@ -262,6 +268,12 @@ var loginFrench = map[string]string{
 	"setup.reset.complete_title":   "Mot de passe réinitialisé",
 	"setup.reset.complete_message": "Votre jeton de réinitialisation a été utilisé. Connectez-vous avec votre nouveau mot de passe.",
 	"setup.complete.back":          "Retour à la connexion",
+	"setup.token.title":            "Gofer - Configuration initiale",
+	"setup.token.heading":          "Configurer Gofer",
+	"setup.token.description":      "Saisissez le jeton privé affiché sur la machine qui exécute Gofer.",
+	"setup.token.token":            "Jeton de configuration",
+	"setup.token.submit":           "Continuer en toute sécurité",
+	"setup.token.privacy":          "Le jeton n'est envoyé qu'à la soumission de ce formulaire. Il ne figure jamais dans l'URL de la page et n'est pas enregistré dans le stockage du navigateur par Gofer.",
 }
 
 func init() {
