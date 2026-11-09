@@ -94,7 +94,7 @@ templ aboutLibraries(bundled, modules []attribution.Library) {
 			<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">{ i18n.T(ctx, "about.libraries.title") }</h3>
 			<p class="text-xs text-muted-foreground leading-relaxed">
 				{ i18n.T(ctx, "about.libraries.description") }
-				<a href="/settings/about/licenses" target="_blank" class="text-primary hover:underline">{ i18n.T(ctx, "about.libraries.licenses") }</a>.
+				<a href="/settings/about/licenses" target="_blank" class="text-primary underline">{ i18n.T(ctx, "about.libraries.licenses") }</a>.
 			</p>
 		</div>
 		<div class="settings-row border-t border-border/60 pt-5">
@@ -194,7 +194,7 @@ templ aboutReleaseStatus(r updatecheck.Result) {
 		<p class="text-muted-foreground">{ i18n.T(ctx, "about.updates.no_releases") }</p>
 	} else if r.Available {
 		<p class="font-medium text-foreground">
-			@messageWithLink(i18n.T(ctx, "about.updates.available"), "{version}", templ.URL(r.Latest.URL), r.Latest.Tag, "text-primary hover:underline")
+			@messageWithLink(i18n.T(ctx, "about.updates.available"), "{version}", templ.URL(r.Latest.URL), r.Latest.Tag, "text-primary underline")
 		</p>
 		if !r.Latest.PublishedAt.IsZero() {
 			<p class="text-xs text-muted-foreground mt-0.5">{ i18n.T(ctx, "about.updates.released", "date", i18n.Dates(ctx).LongMonthDate(r.Latest.PublishedAt.UTC())) }</p>
@@ -222,7 +222,7 @@ templ aboutSourceStatus(r updatecheck.Result) {
 			{ i18n.T(ctx, "about.updates.compared", "base", updatecheck.Base) }
 			{ i18n.N(ctx, "about.updates.newer", r.Behind, "count", i18n.Number(ctx, r.Behind)) }
 			if r.CompareURL != "" {
-				<a href={ templ.URL(r.CompareURL) } target="_blank" rel="noopener noreferrer" class="ml-1 font-normal text-primary hover:underline">{ i18n.T(ctx, "about.updates.see_all") }</a>
+				<a href={ templ.URL(r.CompareURL) } target="_blank" rel="noopener noreferrer" class="ml-1 font-normal text-primary underline">{ i18n.T(ctx, "about.updates.see_all") }</a>
 			}
 		</p>
 		if r.Diverged {

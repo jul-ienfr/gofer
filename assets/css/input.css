@@ -1443,6 +1443,12 @@ input[role="switch"] + .gofer-switch-track::after {
   pointer-events: none;
 }
 
+/* Keep the select-all checkbox a 24px touch target on pointer devices. */
+.mail-select-all-toggle {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
 .mail-active-filter-visible {
   display: flex;
   align-items: center;

@@ -209,7 +209,7 @@ templ MailListHeader(accounts []models.Account, activeFolder string, totalCount 
 				</div>
 			</div>
 			@MailSearchControls(accounts)
-			<div data-mail-active-filter-pills class="mail-active-filter-strip hidden" aria-label={ i18n.T(ctx, "mail.filters.active") }></div>
+			<div data-mail-active-filter-pills class="mail-active-filter-strip hidden" role="group" aria-label={ i18n.T(ctx, "mail.filters.active") }></div>
 		</div>
 	</div>
 }
@@ -538,7 +538,7 @@ templ MailSelectAllControl() {
 				@button.Button(button.Props{
 					Variant:    button.VariantGhost,
 					Size:       button.SizeIcon,
-					Class:      "h-7 w-5 text-muted-foreground hover:bg-transparent dark:hover:bg-transparent",
+					Class:      "h-7 w-6 text-muted-foreground hover:bg-transparent dark:hover:bg-transparent",
 					Attributes: templ.Attributes{"aria-label": i18n.T(ctx, "mail.select.by_state")},
 				}) {
 					@icon.ChevronDown(icon.Props{Class: "size-3.5"})

@@ -1819,7 +1819,7 @@ templ ContactsListPane(contacts []models.Contact, selected *models.Contact, filt
 			</div>
 			// Under the search, as the mail list's active filter strip. It stays in
 			// the page, collapsed, so the pills open and close it smoothly.
-			<div data-contact-active-filter-pills class={ "mail-active-filter-strip contacts-active-filter-strip", templ.KV("hidden", !contactFiltersActive(filters)) } aria-label={ i18n.T(ctx, "mail.filters.active") }>
+			<div data-contact-active-filter-pills class={ "mail-active-filter-strip contacts-active-filter-strip", templ.KV("hidden", !contactFiltersActive(filters)) } role="group" aria-label={ i18n.T(ctx, "mail.filters.active") }>
 				if contactFiltersActive(filters) {
 					<div class="mail-active-filter-visible">
 						if filters.StoredIn != "" {
@@ -2011,7 +2011,7 @@ templ ContactsSelectAllControl() {
 				@button.Button(button.Props{
 					Variant:    button.VariantGhost,
 					Size:       button.SizeIcon,
-					Class:      "h-7 w-5 text-muted-foreground hover:bg-transparent dark:hover:bg-transparent",
+					Class:      "h-7 w-6 text-muted-foreground hover:bg-transparent dark:hover:bg-transparent",
 					Attributes: templ.Attributes{"aria-label": i18n.T(ctx, "contacts.select.label")},
 				}) {
 					@icon.ChevronDown(icon.Props{Class: "size-3.5"})
