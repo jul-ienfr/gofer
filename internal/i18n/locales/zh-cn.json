@@ -6726,5 +6726,6 @@
   "thunderbird.card.action_detail": "上传配置文件导出，检查 Gofer 找到的内容，然后导入。",
   "thunderbird.card.button": "导入",
   "thunderbird.card.description": "从 Thunderbird 配置文件导入账户、签名和设置。",
-  "thunderbird.dialog.title": "从 Thunderbird 导入"
+  "thunderbird.dialog.title": "从 Thunderbird 导入",
+  "app.skip_to_content": "跳到内容"
 }

@@ -6726,5 +6726,6 @@
   "thunderbird.card.action_detail": "Sube la exportación del perfil, revisa lo que encontró Gofer y luego impórtalo.",
   "thunderbird.card.button": "Importar",
   "thunderbird.card.description": "Trae cuentas, firmas y ajustes desde un perfil de Thunderbird.",
-  "thunderbird.dialog.title": "Importar desde Thunderbird"
+  "thunderbird.dialog.title": "Importar desde Thunderbird",
+  "app.skip_to_content": "Ir al contenido"
 }

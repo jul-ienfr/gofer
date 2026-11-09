@@ -50,6 +50,7 @@ templ CalendarLayout(accounts []models.Account, month CalendarMonthData, uiSetti
 			<script src={ assetver.URL("/assets/js/actions.js") }></script>
 		</head>
 		<body class="bg-background text-foreground antialiased surface-desk" data-ui-settings={ uiSettingsJSON(uiSettings) }>
+			@SkipToContent()
 			@CalendarShell(accounts, month, uiSettings)
 			<div id="app-pane-dialogs"></div>
 			@ComposeDialog(accounts)
@@ -660,7 +661,7 @@ templ CalendarOtherSources(account models.Account, loading bool) {
 }
 
 templ CalendarPage(month CalendarMonthData, uiSettings map[string]string) {
-	<div id="main-content" class={ mailPaneLayoutClass(PaneLayout(uiSettings, "calendar")) + " bg-background" } data-mail-pane-layout={ PaneLayout(uiSettings, "calendar") }>
+	<div id="main-content" tabindex="-1" class={ mailPaneLayoutClass(PaneLayout(uiSettings, "calendar")) + " bg-background" } data-mail-pane-layout={ PaneLayout(uiSettings, "calendar") }>
 		@CalendarMainPane(month, uiSettings)
 		@ResizeHandle("maillist")
 		@CalendarAgendaPane(month)

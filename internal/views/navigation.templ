@@ -50,7 +50,7 @@ templ AppNavigationTemplates(uiSettings map[string]string) {
 	</template>
 	for _, mode := range []string{"cards", "table"} {
 		<template id={ "app-navigation-mail-" + mode }>
-			<div id="main-content" class={ mailPaneLayoutClass(PaneLayout(uiSettings, "mail")) } data-mail-pane-layout={ PaneLayout(uiSettings, "mail") }>
+			<div id="main-content" tabindex="-1" class={ mailPaneLayoutClass(PaneLayout(uiSettings, "mail")) } data-mail-pane-layout={ PaneLayout(uiSettings, "mail") }>
 				@MailList(nil, nil, "inbox", nil, -1, -1, 0, PanelSetting(uiSettings, "mail", "mail_list_width", "50%"), uiSettingGet(uiSettings, "sender_display", "name"), mode, uiSettingGet(uiSettings, "mail_list_navigation", "infinite"), models.EmailFilters{})
 				@ResizeHandle("maillist")
 				<div id="mail-view" class="hidden lg:flex flex-1 flex-col min-w-0 bg-background surface-desk" data-mail-reader>
