@@ -9,14 +9,15 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
+	"context"
 	"fmt"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"strings"
 
 	"github.com/cristianadrielbraun/gofer/components/checkbox"
 	"github.com/cristianadrielbraun/gofer/components/icon"
 	"github.com/cristianadrielbraun/gofer/components/radio"
 	"github.com/cristianadrielbraun/gofer/components/selectbox"
-	"github.com/cristianadrielbraun/gofer/internal/i18n"
 )
 
 type MailTransferFolder struct {
@@ -70,7 +71,7 @@ type MailTransferPanelData struct {
 }
 
 // MailTransferPanel is the Copy or move dialog's content.
-func MailTransferPanel(locale i18n.Locale, data MailTransferPanelData) templ.Component {
+func MailTransferPanel(data MailTransferPanelData) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -95,7 +96,7 @@ func MailTransferPanel(locale i18n.Locale, data MailTransferPanelData) templ.Com
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = MailTransferForm(locale, data.Form).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = MailTransferForm(data.Form).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -107,7 +108,7 @@ func MailTransferPanel(locale i18n.Locale, data MailTransferPanelData) templ.Com
 	})
 }
 
-func mailTransferAccountSelect(locale i18n.Locale, name, label string, accounts []MailImportAccount, selected string) templ.Component {
+func mailTransferAccountSelect(name, label string, accounts []MailImportAccount, selected string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -135,7 +136,7 @@ func mailTransferAccountSelect(locale i18n.Locale, name, label string, accounts 
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 73, Col: 96}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 74, Col: 96}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -169,7 +170,7 @@ func mailTransferAccountSelect(locale i18n.Locale, name, label string, accounts 
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = selectbox.Value(selectbox.ValueProps{Placeholder: i18n.T(locale, "mail.transfer.choose_account")}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = selectbox.Value(selectbox.ValueProps{Placeholder: i18n.T(ctx, "transfer.choose_account")}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -238,7 +239,7 @@ func mailTransferAccountSelect(locale i18n.Locale, name, label string, accounts 
 							var templ_7745c5c3_Var9 string
 							templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(mailTransferAccountLabel(account))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 97, Col: 42}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 98, Col: 42}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 							if templ_7745c5c3_Err != nil {
@@ -288,7 +289,7 @@ func mailTransferAccountLabel(account MailImportAccount) string {
 	return label
 }
 
-func MailTransferForm(locale i18n.Locale, data MailTransferFormData) templ.Component {
+func MailTransferForm(data MailTransferFormData) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -349,9 +350,9 @@ func MailTransferForm(locale i18n.Locale, data MailTransferFormData) templ.Compo
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var14 string
-				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.transfer.add_second"))
+				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.move.need_two"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 127, Col: 89}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 128, Col: 84}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 				if templ_7745c5c3_Err != nil {
@@ -366,7 +367,7 @@ func MailTransferForm(locale i18n.Locale, data MailTransferFormData) templ.Compo
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = mailTransferAccountSelect(locale, "from", i18n.T(locale, "mail.transfer.from"), data.Sources, data.SourceID).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = mailTransferAccountSelect("from", i18n.T(ctx, "transfer.move.from"), data.Sources, data.SourceID).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -382,7 +383,7 @@ func MailTransferForm(locale i18n.Locale, data MailTransferFormData) templ.Compo
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = mailTransferAccountSelect(locale, "to", i18n.T(locale, "mail.transfer.to"), data.Targets, data.TargetID).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = mailTransferAccountSelect("to", i18n.T(ctx, "transfer.move.to"), data.Targets, data.TargetID).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -391,9 +392,9 @@ func MailTransferForm(locale i18n.Locale, data MailTransferFormData) templ.Compo
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var15 string
-				templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.transfer.mode_group"))
+				templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.move.mode_label"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 136, Col: 100}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 137, Col: 97}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 				if templ_7745c5c3_Err != nil {
@@ -412,9 +413,9 @@ func MailTransferForm(locale i18n.Locale, data MailTransferFormData) templ.Compo
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var16 string
-				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.transfer.copy"))
+				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "mail.to_account.copy"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 142, Col: 71}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 143, Col: 70}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 				if templ_7745c5c3_Err != nil {
@@ -425,9 +426,9 @@ func MailTransferForm(locale i18n.Locale, data MailTransferFormData) templ.Compo
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var17 string
-				templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.transfer.copy_desc"))
+				templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.move.copy_detail"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 143, Col: 107}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 144, Col: 106}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 				if templ_7745c5c3_Err != nil {
@@ -446,9 +447,9 @@ func MailTransferForm(locale i18n.Locale, data MailTransferFormData) templ.Compo
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var18 string
-				templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.transfer.move"))
+				templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "mail.to_account.move"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 151, Col: 71}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 152, Col: 70}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 				if templ_7745c5c3_Err != nil {
@@ -460,9 +461,9 @@ func MailTransferForm(locale i18n.Locale, data MailTransferFormData) templ.Compo
 				}
 				if data.SourceEmail != "" {
 					var templ_7745c5c3_Var19 string
-					templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Tf(locale, "mail.transfer.move_desc", data.SourceEmail))
+					templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.move.move_detail", "account", data.SourceEmail))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 154, Col: 71}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 155, Col: 80}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 					if templ_7745c5c3_Err != nil {
@@ -482,9 +483,9 @@ func MailTransferForm(locale i18n.Locale, data MailTransferFormData) templ.Compo
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var20 string
-				templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.transfer.move_delete"))
+				templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "mail.to_account.move_delete"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 164, Col: 78}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 165, Col: 77}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 				if templ_7745c5c3_Err != nil {
@@ -496,9 +497,9 @@ func MailTransferForm(locale i18n.Locale, data MailTransferFormData) templ.Compo
 				}
 				if data.SourceEmail != "" {
 					var templ_7745c5c3_Var21 string
-					templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Tf(locale, "mail.transfer.move_delete_desc", data.SourceEmail))
+					templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.move.move_delete_detail", "account", data.SourceEmail))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 167, Col: 78}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 168, Col: 87}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 					if templ_7745c5c3_Err != nil {
@@ -517,7 +518,7 @@ func MailTransferForm(locale i18n.Locale, data MailTransferFormData) templ.Compo
 					var templ_7745c5c3_Var22 string
 					templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(data.Message)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 174, Col: 93}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 175, Col: 93}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 					if templ_7745c5c3_Err != nil {
@@ -539,9 +540,9 @@ func MailTransferForm(locale i18n.Locale, data MailTransferFormData) templ.Compo
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var23 string
-						templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.transfer.no_folders"))
+						templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.move.no_folders"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 178, Col: 91}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 179, Col: 88}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 						if templ_7745c5c3_Err != nil {
@@ -556,14 +557,14 @@ func MailTransferForm(locale i18n.Locale, data MailTransferFormData) templ.Compo
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = checkbox.Checkbox(checkbox.Props{Group: "mail-transfer-folders", GroupParent: true, Checked: true, Attributes: templ.Attributes{"aria-label": i18n.T(locale, "mail.transfer.all_folders")}}).Render(ctx, templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = checkbox.Checkbox(checkbox.Props{Group: "mail-transfer-folders", GroupParent: true, Checked: true, Attributes: templ.Attributes{"aria-label": i18n.T(ctx, "transfer.all_folders")}}).Render(ctx, templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var24 string
-						templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.transfer.folders_where"))
+						templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.move.folders"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 183, Col: 55}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 184, Col: 46}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 						if templ_7745c5c3_Err != nil {
@@ -574,7 +575,7 @@ func MailTransferForm(locale i18n.Locale, data MailTransferFormData) templ.Compo
 							return templ_7745c5c3_Err
 						}
 						for _, folder := range data.Folders {
-							templ_7745c5c3_Err = mailTransferFolderRow(locale, folder, data.Destination).Render(ctx, templ_7745c5c3_Buffer)
+							templ_7745c5c3_Err = mailTransferFolderRow(folder, data.Destination).Render(ctx, templ_7745c5c3_Buffer)
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
@@ -584,9 +585,9 @@ func MailTransferForm(locale i18n.Locale, data MailTransferFormData) templ.Compo
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var25 string
-						templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.transfer.spam_note"))
+						templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.move.spam_trash"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 190, Col: 91}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 191, Col: 89}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 						if templ_7745c5c3_Err != nil {
@@ -641,9 +642,9 @@ func MailTransferForm(locale i18n.Locale, data MailTransferFormData) templ.Compo
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var29 string
-				templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.transfer.start"))
+				templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.move.start"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 198, Col: 126}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 199, Col: 123}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 				if templ_7745c5c3_Err != nil {
@@ -672,7 +673,7 @@ func mailTransferCanStart(data MailTransferFormData) bool {
 	return len(data.Sources) >= 2 && data.SourceID != "" && data.TargetID != "" && data.SourceID != data.TargetID && len(data.Folders) > 0
 }
 
-func mailTransferFolderRow(locale i18n.Locale, folder MailTransferFolder, destination []MailImportFolder) templ.Component {
+func mailTransferFolderRow(folder MailTransferFolder, destination []MailImportFolder) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -700,7 +701,7 @@ func mailTransferFolderRow(locale i18n.Locale, folder MailTransferFolder, destin
 		var templ_7745c5c3_Var31 string
 		templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(folder.Path)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 209, Col: 116}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 210, Col: 116}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 		if templ_7745c5c3_Err != nil {
@@ -721,7 +722,7 @@ func mailTransferFolderRow(locale i18n.Locale, folder MailTransferFolder, destin
 		var templ_7745c5c3_Var32 string
 		templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(folder.Path)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 213, Col: 70}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 214, Col: 70}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 		if templ_7745c5c3_Err != nil {
@@ -732,9 +733,9 @@ func mailTransferFolderRow(locale i18n.Locale, folder MailTransferFolder, destin
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var33 string
-		templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(mailLocaleCount(locale, folder.Messages, "mail.count.message_one", "mail.count.message_other"))
+		templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(mailExportCount(ctx, folder.Messages))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 214, Col: 150}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 215, Col: 93}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 		if templ_7745c5c3_Err != nil {
@@ -744,7 +745,7 @@ func mailTransferFolderRow(locale i18n.Locale, folder MailTransferFolder, destin
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = mailFolderTargetSelect(locale, "target:"+folder.ID, i18n.Tf(locale, "mail.transfer.destination_for", folder.Path), destination, folder.Target, false).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = mailFolderTargetSelect("target:"+folder.ID, i18n.T(ctx, "transfer.move.destination_for", "name", folder.Path), destination, folder.Target, false).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -760,7 +761,7 @@ func mailTransferFolderRow(locale i18n.Locale, folder MailTransferFolder, destin
 		var templ_7745c5c3_Var35 string
 		templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs("new:" + folder.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 221, Col: 29}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 222, Col: 29}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 		if templ_7745c5c3_Err != nil {
@@ -773,7 +774,7 @@ func mailTransferFolderRow(locale i18n.Locale, folder MailTransferFolder, destin
 		var templ_7745c5c3_Var36 string
 		templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(folder.NewName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 222, Col: 26}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 223, Col: 26}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 		if templ_7745c5c3_Err != nil {
@@ -784,9 +785,9 @@ func mailTransferFolderRow(locale i18n.Locale, folder MailTransferFolder, destin
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var37 string
-		templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.transfer.folder_name"))
+		templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.folder_name"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 223, Col: 61}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 224, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 		if templ_7745c5c3_Err != nil {
@@ -807,9 +808,9 @@ func mailTransferFolderRow(locale i18n.Locale, folder MailTransferFolder, destin
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var38 string
-		templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Tf(locale, "mail.transfer.new_folder_for", folder.Path))
+		templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.new_folder_for", "name", folder.Path))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 225, Col: 77}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 226, Col: 76}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 		if templ_7745c5c3_Err != nil {
@@ -836,7 +837,7 @@ func mailTransferFolderRow(locale i18n.Locale, folder MailTransferFolder, destin
 	})
 }
 
-func MailTransferJobs(locale i18n.Locale, jobs []MailTransferJob) templ.Component {
+func MailTransferJobs(jobs []MailTransferJob) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -877,9 +878,9 @@ func MailTransferJobs(locale i18n.Locale, jobs []MailTransferJob) templ.Componen
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var41 string
-			templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.transfer.jobs"))
+			templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.move.jobs"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 244, Col: 125}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 245, Col: 122}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 			if templ_7745c5c3_Err != nil {
@@ -890,7 +891,7 @@ func MailTransferJobs(locale i18n.Locale, jobs []MailTransferJob) templ.Componen
 				return templ_7745c5c3_Err
 			}
 			for _, job := range jobs {
-				templ_7745c5c3_Err = mailTransferJobRow(locale, job).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = mailTransferJobRow(job).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -913,7 +914,7 @@ func mailTransferJobsRunning(jobs []MailTransferJob) bool {
 	return false
 }
 
-func mailTransferJobRow(locale i18n.Locale, job MailTransferJob) templ.Component {
+func mailTransferJobRow(job MailTransferJob) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -941,7 +942,7 @@ func mailTransferJobRow(locale i18n.Locale, job MailTransferJob) templ.Component
 		var templ_7745c5c3_Var43 string
 		templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(job.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 262, Col: 111}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 263, Col: 111}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 		if templ_7745c5c3_Err != nil {
@@ -954,7 +955,7 @@ func mailTransferJobRow(locale i18n.Locale, job MailTransferJob) templ.Component
 		var templ_7745c5c3_Var44 string
 		templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(job.State)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 262, Col: 150}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 263, Col: 150}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 		if templ_7745c5c3_Err != nil {
@@ -967,7 +968,7 @@ func mailTransferJobRow(locale i18n.Locale, job MailTransferJob) templ.Component
 		var templ_7745c5c3_Var45 string
 		templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(job.Source)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 266, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 267, Col: 40}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 		if templ_7745c5c3_Err != nil {
@@ -988,7 +989,7 @@ func mailTransferJobRow(locale i18n.Locale, job MailTransferJob) templ.Component
 		var templ_7745c5c3_Var46 string
 		templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(job.Target)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 268, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 269, Col: 40}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 		if templ_7745c5c3_Err != nil {
@@ -999,9 +1000,9 @@ func mailTransferJobRow(locale i18n.Locale, job MailTransferJob) templ.Component
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var47 string
-		templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(mailTransferJobStatus(locale, job))
+		templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(mailTransferJobStatus(ctx, job))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 270, Col: 90}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 271, Col: 87}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 		if templ_7745c5c3_Err != nil {
@@ -1038,7 +1039,7 @@ func mailTransferJobRow(locale i18n.Locale, job MailTransferJob) templ.Component
 			var templ_7745c5c3_Var50 string
 			templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs("/api/mail/transfers/" + job.ID + "/cancel")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 275, Col: 110}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 276, Col: 110}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 			if templ_7745c5c3_Err != nil {
@@ -1049,9 +1050,9 @@ func mailTransferJobRow(locale i18n.Locale, job MailTransferJob) templ.Component
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var51 string
-			templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.action.cancel"))
+			templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "common.cancel"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 275, Col: 203}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 276, Col: 195}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 			if templ_7745c5c3_Err != nil {
@@ -1087,7 +1088,7 @@ func mailTransferJobRow(locale i18n.Locale, job MailTransferJob) templ.Component
 			var templ_7745c5c3_Var54 string
 			templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs("/api/mail/transfers/" + job.ID + "/resume")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 277, Col: 117}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 278, Col: 117}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
 			if templ_7745c5c3_Err != nil {
@@ -1098,9 +1099,9 @@ func mailTransferJobRow(locale i18n.Locale, job MailTransferJob) templ.Component
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var55 string
-			templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.action.continue"))
+			templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "common.continue"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 277, Col: 212}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 278, Col: 204}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
 			if templ_7745c5c3_Err != nil {
@@ -1135,7 +1136,7 @@ func mailTransferJobRow(locale i18n.Locale, job MailTransferJob) templ.Component
 			var templ_7745c5c3_Var58 string
 			templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs("/api/mail/transfers/" + job.ID + "/delete")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 278, Col: 110}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 279, Col: 110}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
 			if templ_7745c5c3_Err != nil {
@@ -1146,9 +1147,9 @@ func mailTransferJobRow(locale i18n.Locale, job MailTransferJob) templ.Component
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var59 string
-			templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.action.remove"))
+			templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.remove"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 278, Col: 203}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 279, Col: 197}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var59))
 			if templ_7745c5c3_Err != nil {
@@ -1184,7 +1185,7 @@ func mailTransferJobRow(locale i18n.Locale, job MailTransferJob) templ.Component
 			var templ_7745c5c3_Var62 string
 			templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs("/api/mail/transfers/" + job.ID + "/delete")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 280, Col: 110}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 281, Col: 110}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var62))
 			if templ_7745c5c3_Err != nil {
@@ -1195,9 +1196,9 @@ func mailTransferJobRow(locale i18n.Locale, job MailTransferJob) templ.Component
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var63 string
-			templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.action.remove"))
+			templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.remove"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 280, Col: 203}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 281, Col: 197}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var63))
 			if templ_7745c5c3_Err != nil {
@@ -1220,7 +1221,7 @@ func mailTransferJobRow(locale i18n.Locale, job MailTransferJob) templ.Component
 			var templ_7745c5c3_Var64 string
 			templ_7745c5c3_Var64, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(mailTransferProgressStyle(job))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 286, Col: 101}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 287, Col: 101}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var64))
 			if templ_7745c5c3_Err != nil {
@@ -1237,9 +1238,9 @@ func mailTransferJobRow(locale i18n.Locale, job MailTransferJob) templ.Component
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var65 string
-			templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.JoinStringErrs(job.Error)
+			templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Stored(ctx, "jobs.", job.Error))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 290, Col: 50}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 291, Col: 77}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var65))
 			if templ_7745c5c3_Err != nil {
@@ -1256,9 +1257,9 @@ func mailTransferJobRow(locale i18n.Locale, job MailTransferJob) templ.Component
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var66 string
-			templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Tf(locale, "mail.transfer.failed_summary", mailLocaleCount(locale, job.Failed, "mail.count.message_one", "mail.count.message_other")))
+			templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.JoinStringErrs(mailExportCountOf(ctx, "transfer.move.failed_summary", job.Failed))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 294, Col: 176}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 295, Col: 104}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var66))
 			if templ_7745c5c3_Err != nil {
@@ -1276,7 +1277,7 @@ func mailTransferJobRow(locale i18n.Locale, job MailTransferJob) templ.Component
 				var templ_7745c5c3_Var67 string
 				templ_7745c5c3_Var67, templ_7745c5c3_Err = templ.JoinStringErrs(skipped)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 297, Col: 19}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_transfer.templ`, Line: 298, Col: 19}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var67))
 				if templ_7745c5c3_Err != nil {
@@ -1308,43 +1309,43 @@ func mailTransferProgressStyle(job MailTransferJob) templ.SafeCSS {
 	return templ.SafeCSS(fmt.Sprintf("width: %d%%;", percent))
 }
 
-func mailTransferJobStatus(locale i18n.Locale, job MailTransferJob) string {
+func mailTransferJobStatus(ctx context.Context, job MailTransferJob) string {
 	var parts []string
 	switch job.State {
 	case "running":
 		switch {
 		case job.Waiting:
-			parts = append(parts, i18n.T(locale, "mail.transfer.waiting"))
+			parts = append(parts, i18n.T(ctx, "transfer.move.status.waiting"))
 		case job.Folder != "":
-			key := "mail.transfer.copying"
+			key := "transfer.move.status.copying"
 			if job.Move {
-				key = "mail.transfer.moving"
+				key = "transfer.move.status.moving"
 			}
-			parts = append(parts, i18n.Tf(locale, key, job.Folder, mailExportNumber(job.Processed), mailLocaleCount(locale, job.Total, "mail.count.message_one", "mail.count.message_other")))
+			parts = append(parts, i18n.T(ctx, key, "folder", job.Folder, "done", i18n.Number(ctx, job.Processed), "total", mailExportCount(ctx, job.Total)))
 		default:
-			parts = append(parts, i18n.T(locale, "mail.transfer.starting"))
+			parts = append(parts, i18n.T(ctx, "transfer.status.starting"))
 		}
 	case "paused":
-		parts = append(parts, i18n.Tf(locale, "mail.transfer.paused", mailExportNumber(job.Processed), mailLocaleCount(locale, job.Total, "mail.count.message_one", "mail.count.message_other")))
+		parts = append(parts, mailTransferPausedStatus(ctx, job.Processed, job.Total))
 	case "canceled":
-		parts = append(parts, i18n.Tf(locale, "mail.transfer.canceled", mailLocaleCount(locale, job.Copied, "mail.count.message_one", "mail.count.message_other")))
+		parts = append(parts, i18n.T(ctx, "transfer.status.canceled_after", "total", mailExportCount(ctx, job.Copied)))
 	default:
-		parts = append(parts, i18n.Tf(locale, "mail.transfer.copied", mailLocaleCount(locale, job.Copied, "mail.count.message_one", "mail.count.message_other")))
+		parts = append(parts, mailExportCountOf(ctx, "transfer.move.status.copied", job.Copied))
 		if job.Duplicates > 0 {
-			parts = append(parts, i18n.Tf(locale, "mail.transfer.already_there", mailExportNumber(job.Duplicates)))
+			parts = append(parts, mailExportCountOf(ctx, "transfer.status.already_there", job.Duplicates))
 		}
 		if job.Failed > 0 {
-			parts = append(parts, i18n.Tf(locale, "mail.transfer.failed", mailExportNumber(job.Failed)))
+			parts = append(parts, mailExportCountOf(ctx, "transfer.move.status.failed", job.Failed))
 		}
 	}
 	if job.Move && job.Deleted > 0 {
-		key := "mail.transfer.deleted_from"
+		key := "transfer.move.status.deleted"
 		if job.ForGood {
-			key = "mail.transfer.deleted_for_good"
+			key = "transfer.move.status.deleted_for_good"
 		}
-		parts = append(parts, i18n.Tf(locale, key, job.Source, mailLocaleCount(locale, job.Deleted, "mail.count.message_one", "mail.count.message_other")))
+		parts = append(parts, i18n.N(ctx, key, job.Deleted, "count", i18n.Number(ctx, job.Deleted), "account", job.Source))
 	}
-	parts = append(parts, i18n.Tf(locale, "mail.transfer.started", job.Started))
+	parts = append(parts, i18n.T(ctx, "transfer.status.started", "date", job.Started))
 	return strings.Join(parts, " · ")
 }
 

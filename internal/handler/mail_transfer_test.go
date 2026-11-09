@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -225,7 +226,7 @@ func TestMailTransferMovesMessagesBetweenAccounts(t *testing.T) {
 		t.Fatalf("the message that wasn't copied is in %q", where[f.ids["missing"]])
 	}
 
-	if views, err := f.h.mailTransferJobViews("attacker"); err != nil || len(views) != 0 {
+	if views, err := f.h.mailTransferJobViews(context.Background(), "attacker"); err != nil || len(views) != 0 {
 		t.Fatalf("another person sees %d transfers (%v)", len(views), err)
 	}
 	attack := attackerRequest(httptest.NewRequest(http.MethodPost, "/api/mail/transfers", strings.NewReader(form.Encode())))
@@ -271,7 +272,7 @@ func TestMessagesMoveToAnotherAccount(t *testing.T) {
 	req := ownerRequest(httptest.NewRequest(http.MethodGet, "/api/messages/to-account?"+query.Encode(), nil))
 	rec := httptest.NewRecorder()
 	f.h.handleMessagesToAccountDialog(rec, req)
-	for _, want := range []string{"Move to another account?", "2 messages will go from robin@example.test to Inbox in sky@example.test, a different account.", "Move and delete permanently", `value="move" checked`, "data-mail-to-account-confirm"} {
+	for _, want := range []string{"Move to another account?", "2 emails will go from robin@example.test to Inbox in sky@example.test, a different account.", "Move and delete permanently", `value="move" checked`, "data-mail-to-account-confirm"} {
 		if !strings.Contains(rec.Body.String(), want) {
 			t.Fatalf("dialog lacks %q:\n%s", want, rec.Body.String())
 		}

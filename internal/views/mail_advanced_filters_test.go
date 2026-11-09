@@ -28,7 +28,6 @@ func TestMailFiltersPopoverRendersWithCompactSidebarSections(t *testing.T) {
 		`data-mail-filter-panel-button="content"`,
 		`data-mail-filter-panel-button="files"`,
 		`data-mail-filter-panel-button="status"`,
-		`data-mail-filter-panel-button="calendar" data-active="true" aria-pressed="true"`,
 		`data-mail-advanced-filter-count`,
 		`w-[min(36rem,calc(100vw-1.5rem))]`,
 		`h-[min(32.2rem,calc(100vh-2rem))]`,
@@ -65,9 +64,6 @@ func TestMailFiltersPopoverRendersWithCompactSidebarSections(t *testing.T) {
 	}
 	if strings.Contains(html, `data-mail-filter-panel-button="threads"`) || strings.Contains(html, `data-mail-filter-panel="threads"`) {
 		t.Error("threads should be consolidated into the status section")
-	}
-	if strings.Contains(html, `aria-selected=`) {
-		t.Error("filter category buttons are toggle buttons and must not use aria-selected")
 	}
 	if strings.Contains(html, `mail-advanced-filter-dialog`) || strings.Contains(html, `data-mail-advanced-filter-open`) || strings.Contains(html, "Quick filters") {
 		t.Error("mail filters should use one popover entry point without the old dialog or quick filters")

@@ -199,7 +199,9 @@ func exportProfile(ctx context.Context, store *config.AccountStore, db *storage.
 
 	accountRefs := make(map[string]string, len(accounts))
 	for i, account := range accounts {
-		if account.IsDeleting {
+		// Local folders have no sign-in to carry; their mail is backed up
+		// with a mail export instead.
+		if account.IsDeleting || account.Provider == providers.ProviderLocal {
 			continue
 		}
 		ref := "@account:" + strconv.Itoa(i+1) + "@"
@@ -375,7 +377,8 @@ func profileLocalContacts(ctx context.Context, db *storage.DB, owner string) ([]
 	}
 	var contacts []models.Contact
 	for _, row := range listed {
-		if !row.IsManual || row.IsDeleted || len(row.SourceBooks) > 0 {
+		// Imported contacts that only Gofer holds are kept like manual ones.
+		if (!row.IsManual && row.Source != models.ContactOriginImported) || row.IsDeleted || len(row.SourceBooks) > 0 {
 			continue
 		}
 		contact, err := db.GetContact(ctx, owner, row.ID)
@@ -410,6 +413,15 @@ func parseProfile(data []byte) (*profileFile, error) {
 	if file.Version > profileVersion {
 		return nil, errProfileNewer
 	}
+	// Profiles exported before Local folders were left out list them; every
+	// installation has its own, so they are skipped.
+	kept := file.Accounts[:0]
+	for _, account := range file.Accounts {
+		if account.Provider != providers.ProviderLocal {
+			kept = append(kept, account)
+		}
+	}
+	file.Accounts = kept
 	refs := make(map[string]bool, len(file.Accounts))
 	for _, account := range file.Accounts {
 		if !profileAccountRefPattern.MatchString(account.Ref) || profileAccountRefPattern.FindString(account.Ref) != account.Ref || refs[account.Ref] {
@@ -604,12 +616,14 @@ func findProfileContactConflicts(ctx context.Context, db *storage.DB, owner stri
 			if strings.TrimSpace(email) == "" {
 				continue
 			}
-			profile, err := db.FindContactProfileByIdentity(ctx, owner, "email", email)
+			// A profile's contacts come back into Gofer Local; one with the
+			// address elsewhere is another contact.
+			id, err := db.ContactInPlace(ctx, owner, email, "local")
 			if err != nil {
 				return nil, err
 			}
-			if profile != nil {
-				existingID, byEmail = profile.ID, true
+			if id != "" {
+				existingID, byEmail = id, true
 				break
 			}
 		}
@@ -1043,6 +1057,7 @@ func importProfilePreferences(ctx context.Context, db *storage.DB, owner string,
 		if err := db.MergeUISettings(ctx, owner, updates); err != nil {
 			return err
 		}
+		forgetSavedRegional(owner)
 	}
 
 	settings := map[string]string{}

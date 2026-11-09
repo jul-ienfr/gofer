@@ -13,12 +13,14 @@ import (
 	"log"
 	"math"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 	"unicode"
 
 	avatarresolver "github.com/cristianadrielbraun/gofer/internal/avatar"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	mailmessage "github.com/cristianadrielbraun/gofer/internal/mail/message"
 	"github.com/cristianadrielbraun/gofer/internal/models"
 	"github.com/cristianadrielbraun/gofer/internal/providers"
@@ -73,6 +75,9 @@ func previewFromBodyPaths(textPath, htmlPath string) string {
 	return ""
 }
 
+// Initials are the letters an avatar shows when there is no picture.
+func Initials(name string) string { return initials(name) }
+
 func initials(name string) string {
 	parts := strings.Fields(name)
 	if len(parts) >= 2 {
@@ -100,46 +105,29 @@ func firstRune(s string) string {
 	return ""
 }
 
-func formatRelativeDate(t, now time.Time, loc *time.Location) string {
+// formatRelativeDate writes a list date in the request's language and date
+// format: the time today, "Yesterday", or the date.
+func formatRelativeDate(ctx context.Context, t, now time.Time, loc *time.Location) string {
 	if loc == nil {
 		loc = time.Local
 	}
-	t = t.In(loc)
-	now = now.In(loc)
-	tDay := t.Format("2006-01-02")
-	nowDay := now.Format("2006-01-02")
-	yesterday := now.AddDate(0, 0, -1).Format("2006-01-02")
-
-	if tDay == nowDay {
-		return t.Format("3:04 PM")
-	}
-	if tDay == yesterday {
-		return "Yesterday"
-	}
-	if t.Year() == now.Year() {
-		return t.Format("Jan 2")
-	}
-	return t.Format("Jan 2, 2006")
+	return i18n.Dates(ctx).Relative(t.In(loc), now.In(loc))
 }
 
 // formatRelativeDateWithTime is formatRelativeDate with the time added to
 // dates before today, for lists set to always show the time.
-func formatRelativeDateWithTime(t, now time.Time, loc *time.Location) string {
+func formatRelativeDateWithTime(ctx context.Context, t, now time.Time, loc *time.Location) string {
 	if loc == nil {
 		loc = time.Local
 	}
-	date := formatRelativeDate(t, now, loc)
-	if t.In(loc).Format("2006-01-02") == now.In(loc).Format("2006-01-02") {
-		return date
-	}
-	return date + ", " + t.In(loc).Format("3:04 PM")
+	return i18n.Dates(ctx).RelativeWithTime(t.In(loc), now.In(loc))
 }
 
-func formatFullDateTime(t time.Time, loc *time.Location) string {
+func formatFullDateTime(ctx context.Context, t time.Time, loc *time.Location) string {
 	if loc == nil {
 		loc = time.Local
 	}
-	return t.In(loc).Format("Mon, Jan 2, 2006 at 3:04 PM")
+	return i18n.Dates(ctx).WeekdayDateTime(t.In(loc))
 }
 
 func isStarredFolder(folderID string) bool {
@@ -226,6 +214,9 @@ func normalizeSubject(subject string) string {
 type folderRow struct {
 	folder   models.Folder
 	parentID sql.NullString
+	// place is where the user put the folder among the ones next to it
+	// (folder_order.go).
+	place sql.NullInt64
 }
 
 type UpsertFolderInput struct {
@@ -967,6 +958,7 @@ type SyncMessage struct {
 	LabelProvider    string
 	ToRecipients     []Recipient
 	CCRecipients     []Recipient
+	BCCRecipients    []Recipient
 	SizeBytes        int64
 	ListID           string
 	// Arrived marks mail that just came in, as opposed to mail a first or
@@ -1732,6 +1724,11 @@ func (db *DB) UpsertSyncMessages(ctx context.Context, msgs []SyncMessage) error 
 					return fmt.Errorf("insert cc: %w", err)
 				}
 			}
+			for _, r := range m.BCCRecipients {
+				if _, err := recipStmt.ExecContext(ctx, msgID, "bcc", r.Name, r.Email); err != nil {
+					return fmt.Errorf("insert bcc: %w", err)
+				}
+			}
 			if isNew {
 				if err := db.linkMessageThreadTx(ctx, tx, msgID, m.AccountID, messageIDNorm, normalizedSubject, m.Subject, refs, m.DateSent, thread, threadTotals); err != nil {
 					return fmt.Errorf("link thread: %w", err)
@@ -1960,7 +1957,7 @@ func (db *DB) UpsertProviderSyncMessages(ctx context.Context, msgs []ProviderSyn
 			inReplyTo = ids[0]
 		}
 		if m.Subject == "" {
-			m.Subject = "(no subject)"
+			m.Subject = i18n.NoSubject
 		}
 		normalizedSubject := normalizeSubject(m.Subject)
 		hasDateSent := !m.DateSent.IsZero()
@@ -2009,7 +2006,7 @@ func (db *DB) UpsertProviderSyncMessages(ctx context.Context, msgs []ProviderSyn
 				m.InternetMessageID, m.InternetMessageID, m.InternetMessageID, m.InternetMessageID,
 				messageIDNorm, messageIDNorm,
 				m.Subject, m.Subject, m.Subject, m.Subject,
-				normalizedSubject, normalizedSubject, normalizeSubject("(no subject)"), normalizedSubject, normalizedSubject,
+				normalizedSubject, normalizedSubject, normalizeSubject(i18n.NoSubject), normalizedSubject, normalizedSubject,
 				m.FromName, m.FromName, m.FromEmail, m.FromEmail,
 				boolInt(hasDateSent), dateSentDB, dateSentDB,
 				boolInt(hasDateReceived), dateReceivedDB, dateReceivedDB,
@@ -4832,6 +4829,22 @@ func (db *DB) GetAllFolderUnreadCounts(ctx context.Context, userID string) (map[
 	return result, nil
 }
 
+// CountUnreadOutsideSkippedFolders counts the user's unread messages in every
+// folder but Sent, Drafts, Spam and Trash, for the tab title. A message in
+// several folders, such as a Gmail label and All Mail, counts once.
+func (db *DB) CountUnreadOutsideSkippedFolders(ctx context.Context, userID string) (int, error) {
+	var count int
+	err := db.Read().QueryRowContext(ctx,
+		`SELECT COUNT(DISTINCT mfs.message_id)
+		 FROM message_folder_state mfs
+		 JOIN folders f ON mfs.folder_id = f.id
+		 JOIN accounts a ON f.account_id = a.id
+		 WHERE a.user_id = ? AND COALESCE(a.is_deleting, 0) = 0 AND COALESCE(a.email_sync_enabled, 1) = 1
+		   AND COALESCE(f.role, '') NOT IN ('sent', 'drafts', 'spam', 'junk', 'trash')
+		   AND mfs.is_deleted = 0 AND mfs.is_read = 0`, userID).Scan(&count)
+	return count, err
+}
+
 func (db *DB) GetFolderHighestUID(ctx context.Context, folderID string) (uint32, error) {
 	var uid uint32
 	err := db.Read().QueryRowContext(ctx,
@@ -4845,7 +4858,7 @@ func (db *DB) GetFolderHighestUID(ctx context.Context, folderID string) (uint32,
 // a mail list.
 func (db *DB) GetAccountNames(ctx context.Context, userID string) ([]models.Account, error) {
 	rows, err := db.Read().QueryContext(ctx,
-		`SELECT id, email_address, display_name FROM accounts
+		`SELECT id, provider, email_address, display_name FROM accounts
 		 WHERE user_id = ? AND COALESCE(is_deleting, 0) = 0
 		 ORDER BY id`, userID)
 	if err != nil {
@@ -4855,9 +4868,10 @@ func (db *DB) GetAccountNames(ctx context.Context, userID string) ([]models.Acco
 	var accounts []models.Account
 	for rows.Next() {
 		var a models.Account
-		if err := rows.Scan(&a.ID, &a.Email, &a.Name); err != nil {
+		if err := rows.Scan(&a.ID, &a.Provider, &a.Email, &a.Name); err != nil {
 			return nil, fmt.Errorf("scan account name: %w", err)
 		}
+		a.Name = i18n.AccountName(ctx, a.Provider, a.Name)
 		accounts = append(accounts, a)
 	}
 	return accounts, rows.Err()
@@ -4904,6 +4918,7 @@ func (db *DB) GetAccounts(ctx context.Context, userID string) ([]models.Account,
 		if err := rows.Scan(&a.ID, &a.Provider, &a.Email, &a.Name, &a.Color, &a.Initials, &isDeleting, &emailSyncEnabled, &a.EmailSyncError, &a.EmailSyncErrorAt, &a.Hidden, &contactSyncEnabled, &a.ContactSyncProvider, &calendarSyncEnabled, &imapHost, &authMethod, &smtpHost, &a.DAVService, &a.DAVLogin, &a.DAVServer); err != nil {
 			return nil, fmt.Errorf("scan account: %w", err)
 		}
+		a.Name = i18n.AccountName(ctx, a.Provider, a.Name)
 		if providers.IsICloudAccount(a.Provider, authMethod, imapHost) {
 			a.MailService = providers.MailServiceICloud
 		}
@@ -4978,6 +4993,7 @@ func (db *DB) GetAccountsIncludingDeleting(ctx context.Context, userID string) (
 		if err := rows.Scan(&a.ID, &a.Provider, &a.Email, &a.Name, &a.Color, &a.Initials, &isDeleting, &emailSyncEnabled, &a.EmailSyncError, &a.EmailSyncErrorAt, &a.Hidden, &contactSyncEnabled, &a.ContactSyncProvider, &calendarSyncEnabled, &imapHost, &authMethod, &a.DAVService, &a.DAVLogin, &a.DAVServer); err != nil {
 			return nil, fmt.Errorf("scan account: %w", err)
 		}
+		a.Name = i18n.AccountName(ctx, a.Provider, a.Name)
 		if providers.IsICloudAccount(a.Provider, authMethod, imapHost) {
 			a.MailService = providers.MailServiceICloud
 		}
@@ -5018,11 +5034,12 @@ func (db *DB) attachAccountLabels(ctx context.Context, userID string, accounts [
 		return nil
 	}
 	rows, err := db.Read().QueryContext(ctx, `
-		SELECT l.id, l.account_id, l.name, l.color, l.provider_id, l.provider_type, COALESCE(tag_color.value, ''), COALESCE(tag_style.value, '')
+		SELECT l.id, l.account_id, l.name, l.color, l.provider_id, l.provider_type, COALESCE(tag_color.value, ''), COALESCE(tag_style.value, ''), CAST(tag_order.value AS INTEGER)
 		FROM labels l
 		JOIN accounts a ON a.id = l.account_id
 		LEFT JOIN app_settings tag_color ON tag_color.user_id=a.user_id AND tag_color.key='tag_color:' || l.id
 		LEFT JOIN app_settings tag_style ON tag_style.user_id=a.user_id AND tag_style.key='tag_style:' || l.id
+		LEFT JOIN app_settings tag_order ON tag_order.user_id=a.user_id AND tag_order.key='tag_order:' || l.id
 		WHERE a.user_id = ?
 		  AND `+tagVisibilitySQL+`
 		ORDER BY l.account_id, l.name COLLATE NOCASE`, userID)
@@ -5033,11 +5050,14 @@ func (db *DB) attachAccountLabels(ctx context.Context, userID string, accounts [
 
 	labelsByAccount := make(map[string][]models.Label)
 	seen := make(map[string]bool)
+	places := map[string]sql.NullInt64{}
 	for rows.Next() {
 		var label models.Label
-		if err := rows.Scan(&label.ID, &label.AccountID, &label.Name, &label.Color, &label.ProviderID, &label.ProviderType, &label.AppearanceColor, &label.IconStyle); err != nil {
+		var place sql.NullInt64
+		if err := rows.Scan(&label.ID, &label.AccountID, &label.Name, &label.Color, &label.ProviderID, &label.ProviderType, &label.AppearanceColor, &label.IconStyle, &place); err != nil {
 			return fmt.Errorf("scan account label: %w", err)
 		}
+		places[label.ID] = place
 		key := label.AccountID + "\x00" + strings.ToLower(strings.TrimSpace(label.Name))
 		if seen[key] {
 			continue
@@ -5049,7 +5069,9 @@ func (db *DB) attachAccountLabels(ctx context.Context, userID string, accounts [
 		return fmt.Errorf("iterate account labels: %w", err)
 	}
 	for i := range accounts {
-		accounts[i].Labels = labelsByAccount[accounts[i].ID]
+		labels := labelsByAccount[accounts[i].ID]
+		sortByUserOrder(labels, func(l models.Label) sql.NullInt64 { return places[l.ID] })
+		accounts[i].Labels = labels
 	}
 	return nil
 }
@@ -5078,13 +5100,17 @@ func (db *DB) attachCalendarSources(ctx context.Context, userID string, accounts
 	}
 	byAccount := make(map[string][]models.AccountCalendarSource)
 	for _, source := range sources {
-		byAccount[source.AccountID] = append(byAccount[source.AccountID], models.AccountCalendarSource{
+		view := models.AccountCalendarSource{
 			ID: source.ID, Name: source.Name, Color: source.Color, IsHidden: source.IsHidden,
 			Provider: source.Provider, Undeletable: source.UndeletableReason(),
 			AccessRole: source.AccessRole, CreatedInGofer: source.CreatedInGofer,
 			SyncState: source.SyncState, SyncAttempt: source.SyncAttempt, SyncError: source.SyncError,
 			LastSyncedAt: calendarTimestamp(source.LastSuccessAt), NextAttemptAt: calendarTimestamp(source.NextAttemptAt),
-		})
+		}
+		if source.Provider == CalendarSourceProviderICS {
+			view.SubscriptionURL, view.RefreshMinutes = source.RemoteID, source.RefreshMinutes
+		}
+		byAccount[source.AccountID] = append(byAccount[source.AccountID], view)
 	}
 	others, err := db.ListUnselectedCalendarSources(ctx, userID)
 	if err != nil {
@@ -5110,12 +5136,13 @@ func calendarTimestamp(at *time.Time) string {
 
 func (db *DB) getFolders(ctx context.Context, accountID string) ([]models.Folder, error) {
 	rows, err := db.Read().QueryContext(ctx,
-		`SELECT f.id, f.name, f.icon, f.role, f.unread_count, f.parent_id, COALESCE(appearance.value, ''), COALESCE(icon_appearance.value, ''), COALESCE(style_appearance.value, '')
+		`SELECT f.id, f.name, f.icon, f.role, f.unread_count, f.parent_id, COALESCE(appearance.value, ''), COALESCE(icon_appearance.value, ''), COALESCE(style_appearance.value, ''), CAST(folder_order.value AS INTEGER)
 		 FROM folders f
 		 JOIN accounts a ON a.id = f.account_id
 		 LEFT JOIN app_settings appearance ON appearance.user_id = a.user_id AND appearance.key = 'folder_color:' || f.id
 		 LEFT JOIN app_settings icon_appearance ON icon_appearance.user_id = a.user_id AND icon_appearance.key = 'folder_icon:' || f.id
 		 LEFT JOIN app_settings style_appearance ON style_appearance.user_id = a.user_id AND style_appearance.key = 'folder_icon_style:' || f.id
+		 LEFT JOIN app_settings folder_order ON folder_order.user_id = a.user_id AND folder_order.key = 'folder_order:' || f.id
 		 WHERE f.account_id = ?
 		   AND COALESCE(f.discovery_state, 'active') = 'active'
 		   AND COALESCE(f.selectable, 1) = 1
@@ -5134,11 +5161,12 @@ func (db *DB) getFolders(ctx context.Context, accountID string) ([]models.Folder
 	for rows.Next() {
 		var fr folderRow
 		var role string
-		if err := rows.Scan(&fr.folder.ID, &fr.folder.Name, &fr.folder.Icon, &role, &fr.folder.Unread, &fr.parentID, &fr.folder.Color, &fr.folder.IconOverride, &fr.folder.IconStyle); err != nil {
+		if err := rows.Scan(&fr.folder.ID, &fr.folder.Name, &fr.folder.Icon, &role, &fr.folder.Unread, &fr.parentID, &fr.folder.Color, &fr.folder.IconOverride, &fr.folder.IconStyle, &fr.place); err != nil {
 			return nil, fmt.Errorf("scan folder: %w", err)
 		}
 		fr.folder.Role = role
 		fr.folder.IsSystem = role != "custom"
+		fr.folder.Name = i18n.FolderName(ctx, role, fr.folder.Name)
 		flat = append(flat, fr)
 	}
 
@@ -5150,6 +5178,10 @@ func buildFolderTree(flat []folderRow) []models.Folder {
 	folderIDs := make(map[string]bool, len(flat))
 	var roots []models.Folder
 
+	// Folders the user put in order come first among the ones next to them,
+	// in that order; the rest keep the server's order after them.
+	flat = slices.Clone(flat)
+	sortByUserOrder(flat, func(fr folderRow) sql.NullInt64 { return fr.place })
 	for _, fr := range flat {
 		folderIDs[fr.folder.ID] = true
 	}
@@ -5882,9 +5914,9 @@ func (db *DB) getThreadMessages(ctx context.Context, accountID, threadID, userID
 			item.TextBody = item.Preview
 		}
 		if dateReceived.Valid {
-			item.Date = formatRelativeDate(dateReceived.Time, now, loc)
-			item.DateWithTime = formatRelativeDateWithTime(dateReceived.Time, now, loc)
-			item.DateFull = formatFullDateTime(dateReceived.Time, loc)
+			item.Date = formatRelativeDate(ctx, dateReceived.Time, now, loc)
+			item.DateWithTime = formatRelativeDateWithTime(ctx, dateReceived.Time, now, loc)
+			item.DateFull = formatFullDateTime(ctx, dateReceived.Time, loc)
 		}
 		items = append(items, item)
 	}
@@ -6041,9 +6073,9 @@ func (db *DB) getEmailByID(ctx context.Context, id, userID string) (*models.Emai
 		email.Body = template.HTML(fmt.Sprintf("<p>%s</p>", snippet))
 	}
 	if dateReceived.Valid {
-		email.Date = formatRelativeDate(dateReceived.Time, now, loc)
-		email.DateWithTime = formatRelativeDateWithTime(dateReceived.Time, now, loc)
-		email.DateFull = formatFullDateTime(dateReceived.Time, loc)
+		email.Date = formatRelativeDate(ctx, dateReceived.Time, now, loc)
+		email.DateWithTime = formatRelativeDateWithTime(ctx, dateReceived.Time, now, loc)
+		email.DateFull = formatFullDateTime(ctx, dateReceived.Time, loc)
 	}
 
 	if threadID.Valid {
@@ -6485,8 +6517,8 @@ func (db *DB) scanEmailRows(ctx context.Context, rows *sql.Rows) ([]models.Email
 			r.email.ThreadID = threadID.String
 		}
 		if dateReceived.Valid {
-			r.email.Date = formatRelativeDate(dateReceived.Time, now, loc)
-			r.email.DateWithTime = formatRelativeDateWithTime(dateReceived.Time, now, loc)
+			r.email.Date = formatRelativeDate(ctx, dateReceived.Time, now, loc)
+			r.email.DateWithTime = formatRelativeDateWithTime(ctx, dateReceived.Time, now, loc)
 		}
 		items = append(items, r)
 	}
@@ -6889,8 +6921,8 @@ func (db *DB) SearchMessages(ctx context.Context, userID string, query string, l
 		r.email.IsStarred = isStarred == 1
 		r.email.HasAttachment = hasAttach == 1
 		if dateReceived.Valid {
-			r.email.Date = formatRelativeDate(dateReceived.Time, now, loc)
-			r.email.DateWithTime = formatRelativeDateWithTime(dateReceived.Time, now, loc)
+			r.email.Date = formatRelativeDate(ctx, dateReceived.Time, now, loc)
+			r.email.DateWithTime = formatRelativeDateWithTime(ctx, dateReceived.Time, now, loc)
 		}
 		items = append(items, r)
 	}
@@ -8787,6 +8819,7 @@ func defaultUISettings() map[string]string {
 		"notification_title":                "auto",
 		"notification_content":              "subject",
 		"notification_icon":                 "avatar",
+		"title_unread_count":                "inboxes",
 		"mail_card_fields":                  "avatar,thread,from,account,to,attachment,date,subject,preview,labels,starred",
 		"mail_card_layout":                  "railTop:avatar|header:account,from,date|meta:attachment|railMiddle:|body:to|bodyBottom:subject|status:|railBottom:thread|footer:preview,labels|corner:starred|hidden:accountMarker,unread,cc",
 		"mail_card_date_time":               "false",

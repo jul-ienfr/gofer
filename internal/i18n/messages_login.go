@@ -275,12 +275,3 @@ var loginFrench = map[string]string{
 	"setup.token.submit":           "Continuer en toute sécurité",
 	"setup.token.privacy":          "Le jeton n'est envoyé qu'à la soumission de ce formulaire. Il ne figure jamais dans l'URL de la page et n'est pas enregistré dans le stockage du navigateur par Gofer.",
 }
-
-func init() {
-	for key, value := range loginEnglish {
-		messages[English][key] = value
-	}
-	for key, value := range loginFrench {
-		messages[French][key] = value
-	}
-}

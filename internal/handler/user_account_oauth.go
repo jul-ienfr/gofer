@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"log"
 	"net/http"
 	"strings"
@@ -19,16 +20,17 @@ import (
 
 func (h *Handler) handleUserAccountOAuthAuthorize(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form data", 400)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_form_data"), 400)
 		return
 	}
 	provider := strings.TrimSpace(r.FormValue("provider"))
 	if _, err := h.userCredentials.AccountAuthorizationURL(provider, "", false); err != nil {
-		http.Error(w, err.Error(), 400)
+		http.Error(w, serverText(r.Context(), err.Error()), 400)
 		return
 	}
 	owner := h.userID(r.Context())
 	form := map[string]string{"provider": provider, "email_address": strings.TrimSpace(r.FormValue("email_address")), "display_name": r.FormValue("display_name"), "flow_action": accountOAuthFlowAction(r.FormValue("flow_action")), "return_to": accountOAuthReturnPath(r.FormValue("return_to"))}
+	addProxyChoiceToFlow(r, form)
 	// Refuse a provider or address the allowed mail lists leave out before
 	// sending the person to sign in.
 	if code := h.oauthMailAllowlistFailure(r.Context(), owner, provider, form["email_address"]); code != "" {
@@ -53,13 +55,19 @@ func (h *Handler) handleUserAccountOAuthAuthorize(w http.ResponseWriter, r *http
 		}
 		form["account_id"], form["provider_account_id"] = id, data.ProviderAccountID
 	}
+	// Signing in goes through the proxy the account will use.
+	proxyCtx, err := h.oauthFlowProxyContext(r.Context(), owner, form)
+	if err != nil {
+		http.Redirect(w, r, "/settings/accounts?error=proxy_unavailable", http.StatusSeeOther)
+		return
+	}
 	state, err := h.userCredentials.CreateAccountOAuthFlow(r.Context(), owner, auth.GetSessionToken(r), provider, form)
 	if err != nil {
-		http.Error(w, "could not start account authorization", 503)
+		http.Error(w, i18n.T(r.Context(), "server.error.could_not_start_account_authorization"), 503)
 		return
 	}
 	if provider == providers.ProviderOutlook && h.userCredentials.UsesMicrosoftDeviceCode() {
-		if _, err := h.userCredentials.StartMicrosoftDeviceSignIn(r.Context(), state, owner, auth.GetSessionToken(r)); err != nil {
+		if _, err := h.userCredentials.StartMicrosoftDeviceSignIn(proxyCtx, state, owner, auth.GetSessionToken(r)); err != nil {
 			log.Printf("routed mailbox OAuth authorize: %v", err)
 			http.Redirect(w, r, "/settings/accounts?error=oauth_device_failed", http.StatusSeeOther)
 			return
@@ -69,7 +77,7 @@ func (h *Handler) handleUserAccountOAuthAuthorize(w http.ResponseWriter, r *http
 	}
 	location, err := h.userCredentials.AccountAuthorizationURL(provider, state, r.FormValue("calendar_access") == "full")
 	if err != nil {
-		http.Error(w, "mailbox OAuth provider is not configured", 400)
+		http.Error(w, i18n.T(r.Context(), "server.error.mailbox_oauth_provider_is_not_configured"), 400)
 		return
 	}
 	http.Redirect(w, r, location, http.StatusSeeOther)
@@ -94,7 +102,12 @@ func (h *Handler) handleUserAccountOAuthCallback(w http.ResponseWriter, r *http.
 		http.Redirect(w, r, "/settings/accounts?error=oauth_no_code", http.StatusSeeOther)
 		return
 	}
-	location := h.finishUserAccountOAuth(w, r.Context(), owner, provider, flow, func(ctx context.Context) (*models.CreateAccountRequest, *oauth2.Token, error) {
+	ctx, err := h.oauthFlowProxyContext(r.Context(), owner, flow.FormData)
+	if err != nil {
+		http.Redirect(w, r, "/settings/accounts?error=proxy_unavailable", http.StatusSeeOther)
+		return
+	}
+	location := h.finishUserAccountOAuth(w, ctx, owner, provider, flow, func(ctx context.Context) (*models.CreateAccountRequest, *oauth2.Token, error) {
 		return h.userCredentials.ExchangeMailboxCode(ctx, provider, code)
 	})
 	http.Redirect(w, r, location, http.StatusSeeOther)
@@ -137,6 +150,7 @@ func (h *Handler) finishUserAccountOAuth(w http.ResponseWriter, ctx context.Cont
 			}
 			created := id == ""
 			if created {
+				req.ProxyID = flow.FormData["proxy"]
 				account, err := h.userAccounts.CreateAccount(ctx, owner, req)
 				if err != nil {
 					var pending *config.PendingAccountCreationError

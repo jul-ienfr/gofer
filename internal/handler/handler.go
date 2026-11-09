@@ -16,6 +16,7 @@ import (
 	avatarresolver "github.com/cristianadrielbraun/gofer/internal/avatar"
 	"github.com/cristianadrielbraun/gofer/internal/calendar"
 	"github.com/cristianadrielbraun/gofer/internal/config"
+	"github.com/cristianadrielbraun/gofer/internal/googlefonts"
 	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"github.com/cristianadrielbraun/gofer/internal/llm"
 	mail "github.com/cristianadrielbraun/gofer/internal/mail"
@@ -42,6 +43,7 @@ import (
 	"math/rand"
 	"mime"
 	"net/http"
+	netmail "net/mail"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -61,6 +63,7 @@ type Handler struct {
 	aiAPIRateMu                sync.Mutex
 	aiAPIRate                  map[string]*aiAPIRateBucket
 	userStorage                *storage.AccountRouting
+	settingsRouting            *storage.AccountRouting // users' own settings stores, for the base handler (see withSettingsDB)
 	ownedMailbox               *Handler
 	userIMAP                   *mail.UserIMAP
 	userCredentials            *mailauth.UserCredentials
@@ -113,6 +116,7 @@ type Handler struct {
 	contactBackfillState       models.ContactBackfillState
 	contactSyncMu              sync.Mutex
 	contactSyncRunning         map[string]struct{}
+	contactPushSyncs           map[string]bool // accounts pulling after a push; true: pull again (contact_push.go)
 	contactSyncQueue           chan struct{}
 	userContactWorkers         *userContactWorkers
 	calendarWorkerOnce         sync.Once
@@ -212,17 +216,21 @@ func New(db *storage.DB, accountStore *config.AccountStore, syncer *mail.SyncOrc
 		mailRuleRuns:           newMailRuleRuns(),
 		authEventRetentionWake: make(chan struct{}, 1),
 		sentCopyIMAPFactory: func(ctx context.Context, cfg *models.AccountConfig, password string) (sentCopyIMAPClient, error) {
-			return imap.NewClient(ctx, cfg, password)
+			return imap.DefaultPool.Get(ctx, cfg, password)
 		},
 		messageMutationIMAPFactory: func(ctx context.Context, cfg *models.AccountConfig, password string) (messageMutationIMAPClient, error) {
 			return imap.NewClient(ctx, cfg, password)
 		},
-		remoteResourceDownloader: newRemoteResourceDownloader(privateTargetAllowed(db)),
-		messageFileKey:           newMessageFileKey(),
+		messageFileKey: newMessageFileKey(),
 		// Provider avatar addresses come from provider responses; they never
 		// need a private address.
 		providerAvatarHTTPClient: &http.Client{Timeout: 15 * time.Second, Transport: netguard.NewHTTPTransport(nil)},
 	}
+	// Avatars, calendar subscriptions and remote images in mail belong to no
+	// account, so they go through the default proxy.
+	h.avatar.SetProxySource(h.sharedDefaultProxy)
+	h.remoteResourceDownloader = newRemoteResourceDownloader(privateTargetAllowed(db), h.readerDefaultProxy)
+	h.providerAvatarHTTPClient.Transport = netguard.ProxySourceTransport(h.providerAvatarHTTPClient.Transport, h.sharedDefaultProxy)
 	setDAVPrivateTargetPolicy(privateTargetAllowed(db))
 	setDAVServerPolicy(davServerAllowed(db))
 	setDAVPlaintextPolicy(func(ctx context.Context, host string, port int) bool {
@@ -235,6 +243,12 @@ func New(db *storage.DB, accountStore *config.AccountStore, syncer *mail.SyncOrc
 	if syncer != nil {
 		syncer.SetMutationWake(h.signalMessageMutationWorker)
 	}
+	db.SetContactChangeHook(func(userID string) {
+		if h.syncer == nil {
+			return
+		}
+		h.syncer.Events().Publish(mail.Event{Type: mail.EventContactsChanged, UserID: userID})
+	})
 	db.SetContactActivityHook(func(event storage.ContactActivityNotification) {
 		if h.syncer == nil {
 			return
@@ -256,6 +270,8 @@ func New(db *storage.DB, accountStore *config.AccountStore, syncer *mail.SyncOrc
 			Payload:   map[string]any{"event_type": event.EventType},
 		})
 	})
+	h.useSavedRegionalForBackground()
+	i18n.SetServerTextTranslator(serverText)
 	return h
 }
 
@@ -382,7 +398,7 @@ func (h *Handler) requireOwnedAccount(w http.ResponseWriter, r *http.Request, ac
 	account, err := h.ownedAccount(r.Context(), accountID)
 	if err != nil {
 		log.Printf("account ownership check account=%s user=%s: %v", accountID, h.userID(r.Context()), err)
-		http.Error(w, "failed to load account", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_load_account"), http.StatusInternalServerError)
 		return false
 	}
 	if account == nil {
@@ -401,7 +417,7 @@ func (h *Handler) adminOnly(next http.Handler) http.Handler {
 			allowed = true
 		}
 		if !allowed || (authEnabled && !user.IsManagement()) {
-			http.Error(w, "admin access required", http.StatusForbidden)
+			http.Error(w, i18n.T(r.Context(), "server.error.admin_access_required"), http.StatusForbidden)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -416,7 +432,7 @@ func (h *Handler) managementAccountOnly(next http.Handler) http.Handler {
 			return
 		}
 		if user == nil || !user.IsManagement() || !user.IsAdmin {
-			http.Error(w, "management account required", http.StatusForbidden)
+			http.Error(w, i18n.T(r.Context(), "server.error.management_account_required"), http.StatusForbidden)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -486,6 +502,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/messages/{id}/draft", h.RequireAIToken("draft", http.HandlerFunc(h.handleAIDraft)))
 	mux.Handle("POST /api/v1/automation/{id}/undo", h.RequireAIToken("write", http.HandlerFunc(h.handleAIAutomationUndo)))
 
+
 	mux.HandleFunc("GET /", h.handleIndex)
 	mux.HandleFunc("GET /email/{id}", h.handleEmailPartial)
 	mux.HandleFunc("GET /email/{id}/move", h.handleMoveDialog)
@@ -517,6 +534,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/calendar/sources/{id}/import", h.handleCalendarSourceImport)
 	mux.HandleFunc("POST /api/calendar/import", h.handleCalendarImport)
 	mux.HandleFunc("GET /api/calendar/sources/{id}/export", h.handleCalendarSourceExport)
+	mux.HandleFunc("POST /api/calendar/subscriptions", h.handleCalendarSubscriptionAdd)
+	mux.HandleFunc("PATCH /api/calendar/subscriptions/{id}", h.handleCalendarSubscriptionChange)
+	mux.HandleFunc("DELETE /api/calendar/subscriptions/{id}", h.handleCalendarSubscriptionChange)
 	mux.HandleFunc("GET /api/calendar/events/{id}", h.handleCalendarEvent)
 	mux.HandleFunc("GET /api/calendar/events/{id}/actions", h.handleCalendarEventActions)
 	mux.HandleFunc("GET /api/calendar/events/{id}/delivery", h.handleCalendarDeliveryStatus)
@@ -544,7 +564,11 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/contacts/export", h.handleExportSelectedContacts)
 	mux.HandleFunc("POST /api/contacts/bulk-delete", h.handleTrashContacts)
 	mux.HandleFunc("POST /api/contacts/trash/restore", h.handleRestoreContacts)
+	mux.HandleFunc("POST /api/contacts/trash/places", h.handleContactTrashPlaces)
 	mux.HandleFunc("GET /contacts/trash-count", h.handleContactTrashCount)
+	mux.HandleFunc("GET /contacts/unresolved-count", h.handleUnresolvedContactCount)
+	mux.HandleFunc("GET /contacts/resolver", h.handleContactResolver)
+	mux.HandleFunc("POST /api/contacts/unresolved/keep", h.handleKeepContactsWithoutDeletedPlaces)
 	mux.HandleFunc("POST /api/contacts/trash/delete", h.handleDeleteContactsForever)
 	mux.HandleFunc("GET /api/contacts/ids", h.handleContactIDs)
 	mux.HandleFunc("GET /api/contacts/{id}/export", h.handleExportContact)
@@ -559,6 +583,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/contacts/{id}/unify", h.handleUnifyContact)
 	mux.HandleFunc("POST /api/contacts/{id}/delete", h.handleDeleteContact)
 	mux.HandleFunc("POST /api/contacts/{id}/delete-forever", h.handleDeleteContactForever)
+	mux.HandleFunc("POST /api/contacts/{id}/move", h.handleMoveContact)
+	mux.HandleFunc("POST /api/contacts/{id}/duplicate", h.handleDuplicateContact)
 	mux.HandleFunc("POST /api/accounts/discover", h.handleDiscoverAccount)
 	mux.HandleFunc("POST /api/accounts/order", h.handleAccountOrder)
 	mux.HandleFunc("GET /api/accounts/server-check", h.handleAccountServerCheck)
@@ -569,12 +595,20 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/accounts/{id}/edit", h.handleUpdateAccount)
 	mux.HandleFunc("POST /api/accounts/{id}/services", h.handleUpdateAccountService)
 	mux.HandleFunc("POST /api/accounts/{id}/color", h.handleUpdateAccountColor)
+	mux.HandleFunc("GET /api/accounts/proxy-choice", h.handleAccountProxyChoice)
+	mux.HandleFunc("GET /api/accounts/proxy-dialog", h.handleAccountProxyAddDialog)
+	mux.HandleFunc("GET /api/accounts/{id}/proxy/manage", h.handleManageAccountProxy)
+	mux.HandleFunc("POST /api/accounts/{id}/proxy", h.handleSaveAccountProxy)
 	mux.HandleFunc("POST /api/accounts/{id}/shown", h.handleLocalFoldersShown)
 	mux.HandleFunc("POST /api/accounts/{id}/calendar/discover", h.handleDiscoverAccountCalendars)
 	mux.HandleFunc("POST /api/accounts/{id}/calendar/sources", h.handleSaveAccountCalendarSources)
 	mux.HandleFunc("POST /api/accounts/{id}/contacts/sync", h.handleSaveAccountContactSync)
 	mux.HandleFunc("POST /api/accounts/{id}/contacts/sync/test", h.handleTestAccountContactSync)
 	mux.HandleFunc("POST /api/accounts/{id}/contacts/sync/discover", h.handleDiscoverAccountContactSync)
+	mux.HandleFunc("GET /api/accounts/{id}/contacts/books", h.handleContactAccountBooks)
+	mux.HandleFunc("GET /api/contacts/books/{id}/usage", h.handleContactBookUsage)
+	mux.HandleFunc("GET /api/contacts/books/{id}/movers", h.handleContactBookMovers)
+	mux.HandleFunc("POST /api/contacts/books/{id}/release", h.handleReleaseContactBook)
 	mux.HandleFunc("POST /api/accounts/dav/find", h.handleFindDAVItems)
 	mux.HandleFunc("POST /api/accounts/dav", h.handleCreateDAVAccount)
 	mux.HandleFunc("POST /api/accounts/{id}/dav/find", h.handleFindDAVItems)
@@ -595,6 +629,10 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/accounts/{id}/folder-roles/create", h.handleCreateFolderRoleFolder)
 	mux.HandleFunc("POST /api/accounts/{id}/folders", h.handleCreateFolder)
 	mux.HandleFunc("GET /api/accounts/{id}/folders/manage", h.handleManageFolders)
+	mux.HandleFunc("POST /api/accounts/{id}/folders/order", h.handleFolderOrder)
+	mux.HandleFunc("POST /api/accounts/{id}/tags/order", h.handleTagOrder)
+	mux.HandleFunc("POST /api/unified-folders/order", h.handleUnifiedFolderOrder)
+	mux.HandleFunc("POST /api/unified-tags/order", h.handleUnifiedTagOrder)
 	mux.HandleFunc("GET /api/folders/{id}/manage", h.handleFolderInfo)
 	mux.HandleFunc("GET /api/virtual-folders/{id}/appearance", h.handleVirtualFolderAppearance)
 	mux.HandleFunc("GET /api/tags/{id}/appearance", h.handleTagAppearance)
@@ -607,6 +645,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/folders/{id}/rename", h.handleRenameFolder)
 	mux.HandleFunc("POST /api/folders/{id}/delete", h.handleDeleteFolder)
 	mux.HandleFunc("POST /api/folders/{id}/restore", h.handleRestoreFolder)
+	mux.HandleFunc("GET /api/folders/{id}/move", h.handleFolderMoveDialog)
+	mux.HandleFunc("POST /api/folders/{id}/move", h.handleMoveFolderTo)
 	mux.HandleFunc("POST /api/folders/{id}/trash-folders/delete", h.handleDeleteTrashFolders)
 	mux.HandleFunc("POST /api/accounts/{id}/labels", h.handleCreateLabel)
 	mux.HandleFunc("GET /api/labels/{id}/manage", h.handleLabelInfo)
@@ -765,6 +805,7 @@ func setupAssetsRoutes(mux *http.ServeMux) {
 	})
 
 	mux.Handle("GET /assets/", http.StripPrefix("/assets/", assetHandler))
+	mux.HandleFunc("GET "+i18n.ScriptPrefix+"{file}", serveLocaleScript)
 	mux.HandleFunc("GET /sw.js", func(w http.ResponseWriter, r *http.Request) {
 		if isDevelopment {
 			w.Header().Set("Cache-Control", "no-store")
@@ -774,6 +815,7 @@ func setupAssetsRoutes(mux *http.ServeMux) {
 		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 		serveServiceWorker(w, r)
 	})
+	setupGoogleFontsRoutes(mux)
 }
 
 func (h *Handler) handleIndex(w http.ResponseWriter, r *http.Request) {
@@ -921,7 +963,7 @@ func (h *Handler) handleMoveDialog(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleLabelsDialog(w http.ResponseWriter, r *http.Request) {
 	payload, err := decodeMessageBulkRequest(r)
 	if err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_request_body"), http.StatusBadRequest)
 		return
 	}
 	ctx := r.Context()
@@ -1077,6 +1119,10 @@ func (h *Handler) handleContacts(w http.ResponseWriter, r *http.Request) {
 				return nil, sql.ErrNoRows
 			}
 			return views.ContactRecentActivity(*selected, local.recentContactActivity(ctx, userID, selected)), nil
+		case "new-contact":
+			// A fresh dialog for the next new contact.
+			accounts, _ := local.db.GetAccounts(ctx, userID)
+			return views.ContactNewDialog(accounts, false), nil
 		case "detail":
 			var selected *models.Contact
 			var profile *models.ContactProfile
@@ -1178,26 +1224,39 @@ func (h *Handler) parseContactFilters(r *http.Request) models.ContactFilters {
 	q := r.URL.Query()
 	filters := models.ContactFilters{
 		Query:      strings.TrimSpace(q.Get("q")),
-		Source:     strings.TrimSpace(q.Get("source")),
-		SaveTarget: strings.TrimSpace(q.Get("save_target")),
-		Activity:   strings.TrimSpace(q.Get("activity")),
+		Source:     contactFilterParam(q["source"], contactSourceFilterValid),
+		SaveTarget: contactFilterParam(q["save_target"], contactPlaceFilterValid),
+		StoredIn:   contactFilterParam(q["stored_in"], contactPlaceFilterValid),
+		Activity:   contactFilterParam(q["activity"], func(value string) bool { return value == "seen" || value == "none" }),
 		View:       contactViewMode(q.Get("view")),
 		SortBy:     strings.TrimSpace(q.Get("sort_by")),
 		SortOrder:  strings.TrimSpace(q.Get("sort_order")),
 		Trash:      q.Get("trash") == "1",
 	}
-	if filters.Source != "manual" && filters.Source != "observed" && filters.Source != "synced" && !strings.HasPrefix(filters.Source, "synced:") && !strings.HasPrefix(filters.Source, "book:") {
-		filters.Source = ""
-	}
-	if filters.Activity != "seen" && filters.Activity != "none" {
-		filters.Activity = ""
-	}
-	if filters.SaveTarget != "local" && !strings.HasPrefix(filters.SaveTarget, "account:") && !strings.HasPrefix(filters.SaveTarget, "book:") {
-		filters.SaveTarget = ""
-	}
+	filters.Unresolved = !filters.Trash && q.Get("unresolved") == "1"
 	filters.SortBy = normalizeContactSortBy(filters.SortBy)
 	filters.SortOrder = normalizeSortOrder(filters.SortOrder)
 	return filters
+}
+
+// contactFilterParam keeps the valid values of a contacts filter, given
+// once with commas between them or as the parameter repeated.
+func contactFilterParam(raw []string, valid func(string) bool) string {
+	var kept []string
+	for _, value := range models.ContactFilterValues(strings.Join(raw, ",")) {
+		if valid(value) {
+			kept = append(kept, value)
+		}
+	}
+	return strings.Join(kept, ",")
+}
+
+func contactSourceFilterValid(value string) bool {
+	return value == "manual" || value == "observed" || value == models.ContactOriginImported || value == "synced" || strings.HasPrefix(value, "synced:") || strings.HasPrefix(value, "book:")
+}
+
+func contactPlaceFilterValid(value string) bool {
+	return value == "local" || strings.HasPrefix(value, "account:") || strings.HasPrefix(value, "book:")
 }
 
 func applyContactSortDefaults(filters models.ContactFilters, r *http.Request, settings map[string]string) models.ContactFilters {
@@ -1212,7 +1271,7 @@ func applyContactSortDefaults(filters models.ContactFilters, r *http.Request, se
 }
 
 func normalizeContactSortBy(value string) string {
-	if value == "name" || value == "last_interaction" {
+	if value == "name" || value == "created" || value == "last_interaction" {
 		return value
 	}
 	return "updated"
@@ -1238,25 +1297,43 @@ func contactViewMode(mode string) string {
 func (h *Handler) handleSaveContact(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.bad_request"), http.StatusBadRequest)
 		return
 	}
 	userID := h.userID(ctx)
 	contact, err := contactFromForm(r, h.contactSaveTargets(ctx, r.FormValue("save_targets")))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, serverText(r.Context(), err.Error()), http.StatusBadRequest)
+		return
+	}
+	// A new contact lives where it was asked to, when that is a place it can
+	// be saved to; an existing one keeps its home.
+	if contact.ID == "" {
+		if targets := h.contactSaveTargets(ctx, contact.StoredIn); len(targets) != 1 || targets[0] != contact.StoredIn {
+			contact.StoredIn = "local"
+		}
+	} else {
+		contact.StoredIn = ""
+	}
+	if h.contactWaitsToResolve(ctx, userID, contact.ID) {
+		http.Error(w, i18n.T(r.Context(), "server.error.resolve_contact_first"), http.StatusConflict)
 		return
 	}
 	var previous *models.Contact
 	if contact.ID != "" {
 		if trashed, err := h.db.ContactInTrash(ctx, userID, contact.ID); err != nil {
-			http.Error(w, "save failed", http.StatusInternalServerError)
+			http.Error(w, i18n.T(r.Context(), "server.error.save_failed"), http.StatusInternalServerError)
 			return
 		} else if trashed {
-			http.Error(w, "Restore this contact from the Trash to edit it.", http.StatusConflict)
+			http.Error(w, i18n.T(r.Context(), "server.error.restore_this_contact_from_the_trash_to"), http.StatusConflict)
 			return
 		}
 		previous, _ = h.db.GetContact(ctx, userID, contact.ID)
+	}
+	syncPlaces, err := h.contactSyncPlaces(ctx, userID, contact.ID)
+	if err != nil {
+		http.Error(w, i18n.T(r.Context(), "server.error.save_failed"), http.StatusInternalServerError)
+		return
 	}
 	setupRequired := contactSyncSetupRequired(contact, previous)
 	if setupRequired {
@@ -1264,7 +1341,7 @@ func (h *Handler) handleSaveContact(w http.ResponseWriter, r *http.Request) {
 	}
 	if !setupRequired {
 		if err := h.preflightNewContactSyncTargets(ctx, userID, contact, previous); err != nil {
-			http.Error(w, err.Error(), http.StatusConflict)
+			http.Error(w, serverText(r.Context(), err.Error()), http.StatusConflict)
 			return
 		}
 	}
@@ -1274,12 +1351,31 @@ func (h *Handler) handleSaveContact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, serverText(r.Context(), err.Error()), http.StatusBadRequest)
 		return
 	}
 	syncQueued := false
 	if !setupRequired {
 		syncQueued = h.scheduleContactAccountSync(ctx, userID, saved, previous)
+	}
+	// A contact living on an account is written there: a new one now, and an
+	// edit to one whatever Gofer Sync says. With Gofer Sync on, its sync
+	// writes it there with its other places.
+	if saved.StoredIn != "" && saved.StoredIn != "local" && !saved.GoferSyncEnabled {
+		if _, err := h.db.EnqueueContactStoreOperation(ctx, userID, saved, saved.StoredIn); err != nil {
+			log.Printf("contacts: store new contact %s: %v", saved.ID, err)
+		} else {
+			syncQueued = true
+			h.signalContactSyncOperationWorker()
+		}
+	}
+	// A place taken out of Gofer Sync no longer holds the contact.
+	removeFailed := ""
+	if previous != nil {
+		if err := h.removeDroppedSyncPlaces(ctx, userID, saved.ID, saved.StoredIn, syncPlaces); err != nil {
+			log.Printf("contacts: remove %s from dropped sync places: %v", saved.ID, err)
+			removeFailed = contactDeleteFailureMessage(saved.ID, err)
+		}
 	}
 	if strings.Contains(r.Header.Get("Accept"), "application/json") {
 		w.Header().Set("Content-Type", "application/json")
@@ -1294,6 +1390,9 @@ func (h *Handler) handleSaveContact(w http.ResponseWriter, r *http.Request) {
 		}
 		if setupRequired {
 			response["contact_sync_setup_url"] = "/api/contacts/" + url.PathEscape(saved.ID) + "/sync-setup"
+		}
+		if removeFailed != "" {
+			response["contact_place_remove_failed"] = serverText(r.Context(), removeFailed)
 		}
 		_ = json.NewEncoder(w).Encode(response)
 		return
@@ -1328,8 +1427,10 @@ func contactFromForm(r *http.Request, targets []string) (models.Contact, error) 
 		Notes:                 strings.TrimSpace(r.FormValue("notes")),
 		GoferSyncEnabled:      r.FormValue("sync_enabled") == "on",
 		SaveTargets:           targets,
-		AvatarURL:             avatarURL,
-		RemoveAvatar:          removeAvatar,
+		// Where a new contact goes to live; the handlers check it.
+		StoredIn:     strings.TrimSpace(r.FormValue("stored_in")),
+		AvatarURL:    avatarURL,
+		RemoveAvatar: removeAvatar,
 	}
 	// The email address is optional. If only an additional one is filled in,
 	// it becomes the main one.
@@ -1472,25 +1573,38 @@ func (h *Handler) contactSaveTargets(ctx context.Context, raw string) []string {
 			targets = append(targets, target)
 		}
 	}
-	if len(targets) == 0 {
-		targets = []string{"local"}
-	}
+	// Nothing chosen is nothing: a contact's home says where it lives.
 	return targets
 }
 
+// handleExportContacts downloads every contact as one vCard file, or, with
+// ?stored_in, the contacts whose main location is that place.
 func (h *Handler) handleExportContacts(w http.ResponseWriter, r *http.Request) {
 	userID := h.userID(r.Context())
+	place := strings.TrimSpace(r.URL.Query().Get("stored_in"))
 	var contacts []models.Contact
 	err := h.withUserDB(r.Context(), userID, func(db *storage.DB) error {
 		var err error
 		contacts, err = db.ListContactsForExport(r.Context(), userID)
-		return err
+		if err != nil || place == "" {
+			return err
+		}
+		there, _, err := db.ListContactsForSelection(r.Context(), userID, models.ContactFilters{StoredIn: place}, 1<<20)
+		if err != nil {
+			return err
+		}
+		keep := make(map[string]bool, len(there))
+		for _, contact := range there {
+			keep[contact.ID] = true
+		}
+		contacts = slices.DeleteFunc(contacts, func(contact models.Contact) bool { return !keep[contact.ID] })
+		return nil
 	})
 	if err != nil {
-		http.Error(w, "failed to export contacts", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_export_contacts"), http.StatusInternalServerError)
 		return
 	}
-	serveVCard(w, "gofer-contacts.vcf", contacts)
+	serveVCard(w, r, "gofer-contacts.vcf", contacts)
 }
 
 func (h *Handler) handleExportContact(w http.ResponseWriter, r *http.Request) {
@@ -1502,20 +1616,20 @@ func (h *Handler) handleExportContact(w http.ResponseWriter, r *http.Request) {
 		return err
 	})
 	if err != nil {
-		http.Error(w, "failed to export contact", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_export_contact"), http.StatusInternalServerError)
 		return
 	}
 	if contact == nil {
 		http.NotFound(w, r)
 		return
 	}
-	serveVCard(w, contactVCardFilename(*contact), []models.Contact{*contact})
+	serveVCard(w, r, contactVCardFilename(*contact), []models.Contact{*contact})
 }
 
-func serveVCard(w http.ResponseWriter, filename string, contacts []models.Contact) {
+func serveVCard(w http.ResponseWriter, r *http.Request, filename string, contacts []models.Contact) {
 	data, err := renderVCard4(contacts)
 	if err != nil {
-		http.Error(w, "failed to render vCard", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_render_vcard"), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/vcard; charset=utf-8")
@@ -1525,43 +1639,77 @@ func serveVCard(w http.ResponseWriter, filename string, contacts []models.Contac
 }
 
 func (h *Handler) handleImportContacts(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	// ParseMultipartForm only caps what it keeps in memory; the rest of an
-	// unbounded body would go to temporary files.
-	r.Body = http.MaxBytesReader(w, r.Body, contactImportMaxBytes+(128<<10))
-	if err := r.ParseMultipartForm(contactImportMaxBytes); err != nil {
-		http.Error(w, "invalid vCard import", http.StatusBadRequest)
+	// Read the owner only once the form is in: an oversized upload is
+	// refused before anything else.
+	owner := func(ctx context.Context) string { return h.userID(ctx) }
+	store := contactImportStore{
+		accepted: func(ctx context.Context, place string) (bool, error) {
+			targets := h.contactSaveTargets(ctx, place)
+			return len(targets) == 1 && targets[0] == place, nil
+		},
+		storedIn: func(ctx context.Context, email, place string) (bool, error) {
+			return h.db.ContactStoredIn(ctx, owner(ctx), email, place)
+		},
+		run: func(ctx context.Context, work func(context.Context) error) error { return work(ctx) },
+		save: func(ctx context.Context, contact models.Contact, request contactImportRequest) (contactImportSaved, error) {
+			var result contactImportSaved
+			owner := owner(ctx)
+			// Only a contact already in the store place is the same contact;
+			// one with the address elsewhere is another, left alone.
+			inPlace, err := h.db.ContactInPlace(ctx, owner, contact.Email, request.storeIn)
+			if err != nil {
+				return result, err
+			}
+			result.existed = inPlace != ""
+			if result.existed && request.skipExisting {
+				return result, nil
+			}
+			var previous *models.Contact
+			if inPlace != "" {
+				if previous, err = h.db.GetContact(ctx, owner, inPlace); err != nil {
+					return result, err
+				}
+				contact.ID = inPlace
+			}
+			contact = importedContact(contact, previous, request)
+			saved, err := h.db.SaveContact(ctx, owner, contact)
+			if err != nil {
+				return result, err
+			}
+			result.saved = true
+			if contactImportNeedsStore(saved, request) {
+				result.operation, err = h.db.EnqueueContactStoreOperation(ctx, owner, saved, request.storeIn)
+			} else if h.contactNeedsAccountSync(ctx, owner, saved, previous) {
+				result.operation, err = h.db.EnqueueContactSyncOperation(ctx, owner, saved, previous)
+			}
+			return result, err
+		},
+		deliver: func(ctx context.Context) bool {
+			ops, err := h.db.ClaimContactSyncOperations(ctx, 1, 5*time.Minute)
+			if err != nil || len(ops) == 0 {
+				return false
+			}
+			h.processContactSyncOperation(ctx, ops[0])
+			return true
+		},
+		progress: func(ctx context.Context, ids []string) (storage.ContactOperationProgress, error) {
+			return h.db.ContactOperationProgress(ctx, owner(ctx), ids)
+		},
+		fail: func(w http.ResponseWriter, r *http.Request, _ error) {
+			http.Error(w, i18n.T(r.Context(), "server.error.failed_to_import_contacts"), http.StatusInternalServerError)
+		},
+	}
+	request, ok := readContactImport(w, r, store)
+	if !ok {
 		return
 	}
-	file, _, err := r.FormFile("vcard")
-	if err != nil {
-		http.Error(w, "missing vCard file", http.StatusBadRequest)
+	if request.preview {
+		previewContactImport(w, r, request, store)
 		return
 	}
-	defer file.Close()
-
-	data, err := io.ReadAll(io.LimitReader(file, contactImportMaxBytes+1))
-	if err != nil || int64(len(data)) > contactImportMaxBytes {
-		http.Error(w, "vCard file is too large", http.StatusBadRequest)
-		return
-	}
-
-	contacts, err := parseVCardContacts(bytes.NewReader(data), h.contactSaveTargets(ctx, r.FormValue("save_targets")))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	imported := 0
-	for _, contact := range contacts {
-		saved, err := h.db.SaveContact(ctx, h.userID(ctx), contact)
-		if err != nil {
-			http.Error(w, "failed to import contacts", http.StatusInternalServerError)
-			return
-		}
-		h.scheduleContactAccountSync(ctx, h.userID(ctx), saved, nil)
-		imported++
-	}
-	http.Redirect(w, r, fmt.Sprintf("/contacts?imported=%d", imported), http.StatusSeeOther)
+	runContactImport(w, r, request, store)
+	// Writes that failed once are tried again by the worker.
+	h.signalContactSyncOperationWorker()
 }
 
 func (h *Handler) handleUnifyContact(w http.ResponseWriter, r *http.Request) {
@@ -1584,7 +1732,7 @@ func (h *Handler) handleUnifyContact(w http.ResponseWriter, r *http.Request) {
 	}
 	saved, err := h.db.SaveContact(ctx, userID, contact)
 	if err != nil {
-		http.Error(w, "failed to unify contact", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_unify_contact"), http.StatusBadRequest)
 		return
 	}
 	syncQueued := h.scheduleContactAccountSync(ctx, userID, saved, previous)
@@ -1650,7 +1798,7 @@ func (h *Handler) handleContactSearch(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "search failed"})
+		json.NewEncoder(w).Encode(map[string]string{"error": i18n.T(r.Context(), "server.msg.search_failed")})
 		return
 	}
 	type result struct {
@@ -1661,11 +1809,7 @@ func (h *Handler) handleContactSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	items := make([]result, 0, len(contacts))
 	for _, c := range contacts {
-		value := c.Email
-		if c.Name != "" && c.Name != c.Email {
-			value = fmt.Sprintf("%s <%s>", c.Name, c.Email)
-		}
-		items = append(items, result{ID: c.ID, Name: c.Name, Email: c.Email, Value: value})
+		items = append(items, result{ID: c.ID, Name: c.Name, Email: c.Email, Value: message.FormatAddress(c.Name, c.Email)})
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{"results": items})
@@ -1677,8 +1821,10 @@ func (h *Handler) handleContactSearch(w http.ResponseWriter, r *http.Request) {
 // frame tall, it could never shrink back and left a long blank gap. It measures
 // again whenever the page or its content changes size, including when a
 // collapsed thread message opens and its body is laid out for the first time.
+// It sends its width too, so the page knows the width the height is for
+// without measuring the frame, which laid the page out for every report.
 func emailResizeScript(emailID string) []byte {
-	return []byte(fmt.Sprintf(`<script>(function(){var id=%q,last=-1;function r(){var b=document.body;if(!b)return;var rg=document.createRange();rg.selectNodeContents(b);var cs=getComputedStyle(b);var h=Math.ceil(rg.getBoundingClientRect().bottom+(window.scrollY||0)+(parseFloat(cs.paddingBottom)||0)+(parseFloat(cs.borderBottomWidth)||0)+(parseFloat(cs.marginBottom)||0))+16;if(h===last)return;last=h;parent.postMessage({type:'emailBodyResize',emailId:id,height:h},'*')}requestAnimationFrame(function(){requestAnimationFrame(r)});window.addEventListener('load',r);document.querySelectorAll('img').forEach(function(i){i.onload=r});if(document.fonts&&document.fonts.ready)document.fonts.ready.then(r);if(typeof MutationObserver!=='undefined'){new MutationObserver(function(){setTimeout(r,0)}).observe(document.body,{childList:true,subtree:true,attributes:true})}if(typeof ResizeObserver!=='undefined'){var ro=new ResizeObserver(function(){r()});ro.observe(document.documentElement);ro.observe(document.body)}setTimeout(r,300)})();</script>`, emailID))
+	return []byte(fmt.Sprintf(`<script>(function(){var id=%q,last=-1;function r(){var b=document.body;if(!b)return;var rg=document.createRange();rg.selectNodeContents(b);var cs=getComputedStyle(b);var h=Math.ceil(rg.getBoundingClientRect().bottom+(window.scrollY||0)+(parseFloat(cs.paddingBottom)||0)+(parseFloat(cs.borderBottomWidth)||0)+(parseFloat(cs.marginBottom)||0))+16;var w=window.innerWidth,k=h+'x'+w;if(k===last)return;last=k;parent.postMessage({type:'emailBodyResize',emailId:id,height:h,width:w},'*')}requestAnimationFrame(function(){requestAnimationFrame(r)});window.addEventListener('load',r);document.querySelectorAll('img').forEach(function(i){i.onload=r});if(document.fonts&&document.fonts.ready)document.fonts.ready.then(r);if(typeof MutationObserver!=='undefined'){new MutationObserver(function(){setTimeout(r,0)}).observe(document.body,{childList:true,subtree:true,attributes:true})}if(typeof ResizeObserver!=='undefined'){var ro=new ResizeObserver(function(){r()});ro.observe(document.documentElement);ro.observe(document.body)}setTimeout(r,300)})();</script>`, emailID))
 }
 
 func remoteImagesDetectScript(emailID string) []byte {
@@ -1721,16 +1867,24 @@ func (h *Handler) handleEmailBody(w http.ResponseWriter, r *http.Request) {
 	original := r.URL.Query().Get("mode") == "original"
 	loadRemote := r.URL.Query().Get("remote") == "true"
 	var body []byte
+	// A failed download is kept so that, when nothing is saved either, the
+	// reading pane is told why. A bare 404 would leave it waiting for a body
+	// that never reports its height.
+	var fetchErr error
+	var fetchAccountID string
 	if msgID > 0 && !h.db.IsBodyFetchedInternal(ctx, msgID) {
 		info, err := h.db.GetMessageFetchInfoForUser(ctx, msgID, userID)
 		if err == nil && info != nil {
+			fetchAccountID = info.AccountID
 			parsed, err := h.fetchParsedBody(message.WithDownloadLimit(ctx, message.AutoDownloadMaxBytes), msgID, info.AccountID)
 			var tooLarge *message.TooLargeError
 			if errors.As(err, &tooLarge) {
 				h.writeEmailBodyError(w, ctx, userID, emailID, info.AccountID, err)
 				return
 			}
-			if err == nil {
+			if err != nil {
+				fetchErr = err
+			} else {
 				if original {
 					body = originalBodyFromParsedMessage(parsed, msgID)
 				} else {
@@ -1750,7 +1904,13 @@ func (h *Handler) handleEmailBody(w http.ResponseWriter, r *http.Request) {
 			body, err = h.db.GetEmailBodyForUser(ctx, emailID, userID)
 		}
 		if err != nil || body == nil {
-			http.NotFound(w, r)
+			switch {
+			case fetchErr != nil:
+				err = fetchErr
+			case err == nil:
+				err = errors.New("message body is not saved yet")
+			}
+			h.writeEmailBodyError(w, ctx, userID, emailID, fetchAccountID, err)
 			return
 		}
 	}
@@ -1773,7 +1933,7 @@ func (h *Handler) handleEmailBody(w http.ResponseWriter, r *http.Request) {
 	body = h.signMessageFileLinks(r.Context(), body, userID, msgID)
 
 	nonce := setEmailBodyDocumentHeaders(w)
-	doc := buildBodyDocument(body, emailResizeScript(emailID), theme, bg, fg, link, original, emailBodyTextSize(r), nonce)
+	doc := buildBodyDocument(r.Context(), body, emailResizeScript(emailID), theme, bg, fg, link, original, emailBodyTextSize(r), nonce)
 	if !loadRemote {
 		doc = append(doc, scriptWithNonce(remoteImagesDetectScript(emailID), nonce)...)
 	}
@@ -1938,12 +2098,16 @@ func emailBodyTextSize(r *http.Request) int {
 	return 14
 }
 
-func buildBodyDocument(body []byte, resizeScript []byte, theme string, bgColor string, fgColor string, linkColor string, original bool, textSize int, nonce string) []byte {
+func buildBodyDocument(ctx context.Context, body []byte, resizeScript []byte, theme string, bgColor string, fgColor string, linkColor string, original bool, textSize int, nonce string) []byte {
 	nonced := func(script []byte) string { return string(scriptWithNonce(script, nonce)) }
 	s := string(body)
+	// A message that only carries a calendar file has a saved English body.
+	if strings.Contains(s, ">"+i18n.CalendarOnlyBody+"<") {
+		s = strings.Replace(s, ">"+i18n.CalendarOnlyBody+"<", ">"+template.HTMLEscapeString(i18n.T(ctx, "mail.calendar_only_body"))+"<", 1)
+	}
 	lower := strings.ToLower(s)
 	isDark := theme == "dark"
-	injection := nonced(emailExternalLinksScript()) + nonced(emailQuoteScript()) + nonced(resizeScript)
+	injection := nonced(emailExternalLinksScript()) + nonced(emailQuoteScript(ctx)) + nonced(resizeScript)
 
 	if original {
 		if strings.Contains(lower, "<html") {
@@ -2646,7 +2810,7 @@ func (h *Handler) handleMailItemIDs(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.Printf("mail item ids unavailable: %v", err)
-		http.Error(w, "mailbox unavailable", http.StatusServiceUnavailable)
+		http.Error(w, i18n.T(r.Context(), "server.error.mailbox_unavailable"), http.StatusServiceUnavailable)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -2799,9 +2963,19 @@ func emailFiltersActive(filters models.EmailFilters) bool {
 
 func (h *Handler) resolveFolderID(ctx context.Context, userID, requested string) (string, error) {
 	if requested == "" {
-		requested = "inbox"
+		requested = h.defaultMailFolder(ctx, userID)
 	}
 	return h.db.ResolveFolderIDForUser(ctx, userID, requested)
+}
+
+// defaultMailFolder is the folder opened when none is asked for, the first
+// one the sidebar shows (views.DefaultMailFolder).
+func (h *Handler) defaultMailFolder(ctx context.Context, userID string) string {
+	accounts, err := h.db.GetAccounts(ctx, userID)
+	if err != nil {
+		return "inbox"
+	}
+	return views.DefaultMailFolder(accounts, h.db.GetUISettings(ctx, userID))
 }
 
 func (h *Handler) handleThreadSubItems(w http.ResponseWriter, r *http.Request) {
@@ -2840,25 +3014,31 @@ func (h *Handler) handleSearch(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleDiscoverAccount(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 	if err := r.ParseForm(); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "Invalid discovery request.")
+		writeJSONError(w, r, http.StatusBadRequest, "Invalid discovery request.")
 		return
 	}
 	email := strings.TrimSpace(firstNonEmptyString(r.FormValue("email_address"), r.FormValue("email")))
 	if email == "" {
-		writeJSONError(w, http.StatusBadRequest, "Enter an email address first.")
+		writeJSONError(w, r, http.StatusBadRequest, "Enter an email address first.")
+		return
+	}
+	// Discovery connects through the proxy the new account will use.
+	proxyCtx, err := h.proxyChoiceContext(r.Context(), h.userID(r.Context()), r.FormValue("proxy"))
+	if err != nil {
+		writeJSONError(w, r, http.StatusBadRequest, i18n.T(r.Context(), "account_proxy.gone"))
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 18*time.Second)
+	ctx, cancel := context.WithTimeout(proxyCtx, 18*time.Second)
 	defer cancel()
 	allowlist, err := h.mailAllowlist(ctx)
 	if err != nil {
 		log.Printf("mail autodiscovery: %v", err)
-		writeJSONError(w, http.StatusServiceUnavailable, "Gofer could not check the allowed mail servers.")
+		writeJSONError(w, r, http.StatusServiceUnavailable, "Gofer could not check the allowed mail servers.")
 		return
 	}
 	if err := allowlist.CheckAddress(email); err != nil {
-		writeJSONError(w, http.StatusForbidden, err.Error())
+		writeJSONError(w, r, http.StatusForbidden, err.Error())
 		return
 	}
 	var allowServer func(string) bool
@@ -2894,10 +3074,17 @@ func (h *Handler) handleDiscoverAccount(w http.ResponseWriter, r *http.Request) 
 		},
 	})
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, err.Error())
+		writeJSONError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
+	// The notes say how each candidate was found, written in English by the
+	// discovery package.
+	for i := range candidates {
+		for j, note := range candidates[i].Notes {
+			candidates[i].Notes[j] = i18n.Stored(ctx, "discovery.note.", note)
+		}
+	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"candidates": candidates,
@@ -2907,32 +3094,39 @@ func (h *Handler) handleDiscoverAccount(w http.ResponseWriter, r *http.Request) 
 func (h *Handler) handleCreateAccount(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		w.Header().Set("Content-Type", "text/html")
-		views.AccountFormError("Invalid form data").Render(r.Context(), w)
+		views.AccountFormError(serverText(r.Context(), "Invalid form data")).Render(r.Context(), w)
 		return
 	}
 
 	req := accountRequestFromForm(r)
+	proxyCtx, err := h.proxyChoiceContext(r.Context(), h.userID(r.Context()), req.ProxyID)
+	if err != nil {
+		w.Header().Set("Content-Type", "text/html")
+		views.AccountFormError(i18n.T(r.Context(), "account_proxy.gone")).Render(r.Context(), w)
+		return
+	}
+	r = r.WithContext(proxyCtx)
 
 	if req.Provider == providers.ProviderJMAP {
 		if err := h.prepareJMAPAccount(r, &req); err != nil {
 			w.Header().Set("Content-Type", "text/html")
-			views.AccountFormError(err.Error()).Render(r.Context(), w)
+			views.AccountFormError(serverText(r.Context(), err.Error())).Render(r.Context(), w)
 			return
 		}
 	} else if req.EmailAddress == "" || req.IMAPHost == "" || req.SMTPHost == "" || req.Username == "" {
 		w.Header().Set("Content-Type", "application/html")
-		views.AccountFormError("All required fields must be filled in").Render(r.Context(), w)
+		views.AccountFormError(serverText(r.Context(), "All required fields must be filled in")).Render(r.Context(), w)
 		return
 	}
 	if req.AuthMethod != "oauth2" && req.Password == "" {
 		w.Header().Set("Content-Type", "text/html")
-		views.AccountFormError("Password is required for PLAIN auth").Render(r.Context(), w)
+		views.AccountFormError(serverText(r.Context(), "Password is required for PLAIN auth")).Render(r.Context(), w)
 		return
 	}
 
 	if err := h.cleanupDeletingAccountForCreate(r.Context(), h.userID(r.Context()), req.EmailAddress); err != nil {
 		w.Header().Set("Content-Type", "text/html")
-		views.AccountFormError(fmt.Sprintf("Failed to clean up deleting account: %v", err)).Render(r.Context(), w)
+		views.AccountFormError(serverText(r.Context(), fmt.Sprintf("Failed to clean up deleting account: %v", err))).Render(r.Context(), w)
 		return
 	}
 
@@ -2943,7 +3137,7 @@ func (h *Handler) handleCreateAccount(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, config.ErrMailboxExists) {
 			message = "This mailbox is already connected to Gofer."
 		}
-		views.AccountFormError(message).Render(r.Context(), w)
+		views.AccountFormError(serverText(r.Context(), message)).Render(r.Context(), w)
 		return
 	}
 
@@ -2959,7 +3153,7 @@ func (h *Handler) handleCreateAccount(w http.ResponseWriter, r *http.Request) {
 	editData, err := h.accountStore.GetEditData(r.Context(), account.ID)
 	if err != nil {
 		log.Printf("load account %s for post-create wizard: %v", account.ID, err)
-		http.Error(w, "account created but setup details could not be loaded", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.account_created_but_setup_details_could_not"), http.StatusInternalServerError)
 		return
 	}
 	h.markCalendarCreateAccess(r.Context(), editData)
@@ -2970,7 +3164,7 @@ func (h *Handler) handleCreateAccount(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleGetEditAccount(w http.ResponseWriter, r *http.Request) {
 	accountID := r.PathValue("id")
 	if accountID == "" {
-		http.Error(w, "account id required", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.account_id_required"), http.StatusBadRequest)
 		return
 	}
 	if !h.requireOwnedAccount(w, r, accountID) {
@@ -2979,7 +3173,7 @@ func (h *Handler) handleGetEditAccount(w http.ResponseWriter, r *http.Request) {
 
 	data, err := h.accountStore.GetEditData(r.Context(), accountID)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("get account: %v", err), http.StatusNotFound)
+		http.Error(w, serverText(r.Context(), fmt.Sprintf("get account: %v", err)), http.StatusNotFound)
 		return
 	}
 	h.markCalendarCreateAccess(r.Context(), data)
@@ -2996,7 +3190,7 @@ func (h *Handler) handleUpdateAccount(w http.ResponseWriter, r *http.Request) {
 	accountID := r.PathValue("id")
 	if accountID == "" {
 		w.Header().Set("Content-Type", "text/html")
-		views.AccountFormError("Account ID is required").Render(r.Context(), w)
+		views.AccountFormError(serverText(r.Context(), "Account ID is required")).Render(r.Context(), w)
 		return
 	}
 	if !h.requireOwnedAccount(w, r, accountID) {
@@ -3005,7 +3199,7 @@ func (h *Handler) handleUpdateAccount(w http.ResponseWriter, r *http.Request) {
 
 	if err := r.ParseForm(); err != nil {
 		w.Header().Set("Content-Type", "text/html")
-		views.AccountFormError("Invalid form data").Render(r.Context(), w)
+		views.AccountFormError(serverText(r.Context(), "Invalid form data")).Render(r.Context(), w)
 		return
 	}
 
@@ -3015,24 +3209,24 @@ func (h *Handler) handleUpdateAccount(w http.ResponseWriter, r *http.Request) {
 		strings.EqualFold(strings.TrimSpace(req.Provider), providers.ProviderOutlook) {
 		if strings.TrimSpace(req.EmailAddress) == "" {
 			w.Header().Set("Content-Type", "text/html")
-			views.AccountFormError("Email address is required").Render(r.Context(), w)
+			views.AccountFormError(serverText(r.Context(), "Email address is required")).Render(r.Context(), w)
 			return
 		}
 	} else if req.Provider == providers.ProviderJMAP {
 		if err := h.resolveJMAPAccountChanges(r, accountID, &req); err != nil {
 			w.Header().Set("Content-Type", "text/html")
-			views.AccountFormError(err.Error()).Render(r.Context(), w)
+			views.AccountFormError(serverText(r.Context(), err.Error())).Render(r.Context(), w)
 			return
 		}
 	} else if req.EmailAddress == "" || req.IMAPHost == "" || req.SMTPHost == "" || req.Username == "" {
 		w.Header().Set("Content-Type", "text/html")
-		views.AccountFormError("All required fields must be filled in").Render(r.Context(), w)
+		views.AccountFormError(serverText(r.Context(), "All required fields must be filled in")).Render(r.Context(), w)
 		return
 	}
 
 	if err := h.accountStore.UpdateAccount(r.Context(), accountID, &req); err != nil {
 		w.Header().Set("Content-Type", "text/html")
-		views.AccountFormError(fmt.Sprintf("Failed to update account: %v", err)).Render(r.Context(), w)
+		views.AccountFormError(serverText(r.Context(), fmt.Sprintf("Failed to update account: %v", err))).Render(r.Context(), w)
 		return
 	}
 	if err := h.resolveImportedMailLogin(w, r.Context(), h.userID(r.Context()), accountID, &req); err != nil {
@@ -3050,14 +3244,14 @@ func (h *Handler) handleUpdateAccountService(w http.ResponseWriter, r *http.Requ
 	userID := h.userID(ctx)
 	accountID := r.PathValue("id")
 	if accountID == "" {
-		http.Error(w, "account id required", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.account_id_required"), http.StatusBadRequest)
 		return
 	}
 	if !h.requireOwnedAccount(w, r, accountID) {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.bad_request"), http.StatusBadRequest)
 		return
 	}
 
@@ -3066,12 +3260,12 @@ func (h *Handler) handleUpdateAccountService(w http.ResponseWriter, r *http.Requ
 	case "email":
 		if enabled {
 			if account, err := h.ownedAccount(ctx, accountID); err == nil && account != nil && account.Provider == providers.ProviderDAV {
-				http.Error(w, "Add email to this account before turning it on.", http.StatusConflict)
+				http.Error(w, i18n.T(r.Context(), "server.error.add_email_to_this_account_before_turning"), http.StatusConflict)
 				return
 			}
 		}
 		if err := h.accountStore.SetEmailSyncEnabled(ctx, userID, accountID, enabled); err != nil {
-			http.Error(w, "could not update email sync", http.StatusInternalServerError)
+			http.Error(w, i18n.T(r.Context(), "server.error.could_not_update_email_sync"), http.StatusInternalServerError)
 			return
 		}
 		if enabled {
@@ -3082,7 +3276,7 @@ func (h *Handler) handleUpdateAccountService(w http.ResponseWriter, r *http.Requ
 		}
 	case "contacts":
 		if err := h.accountStore.SetContactSyncEnabled(ctx, userID, accountID, enabled); err != nil {
-			http.Error(w, "could not update contact sync", http.StatusInternalServerError)
+			http.Error(w, i18n.T(r.Context(), "server.error.could_not_update_contact_sync"), http.StatusInternalServerError)
 			return
 		}
 		if enabled {
@@ -3098,26 +3292,26 @@ func (h *Handler) handleUpdateAccountService(w http.ResponseWriter, r *http.Requ
 		if enabled {
 			calendarConfig, configErr := h.accountStore.GetCalendarSyncConfig(ctx, userID, accountID)
 			if configErr != nil {
-				http.Error(w, "could not check calendar configuration", http.StatusInternalServerError)
+				http.Error(w, i18n.T(r.Context(), "server.error.could_not_check_calendar_configuration"), http.StatusInternalServerError)
 				return
 			}
 			if calendarConfig.SourceCount == 0 {
-				http.Error(w, "Discover at least one calendar before enabling Calendar.", http.StatusConflict)
+				http.Error(w, i18n.T(r.Context(), "server.error.discover_at_least_one_calendar_before_enabling"), http.StatusConflict)
 				return
 			}
 		}
 		if err := h.accountStore.SetCalendarSyncEnabled(ctx, userID, accountID, enabled); err != nil {
-			http.Error(w, "could not update calendar sync", http.StatusInternalServerError)
+			http.Error(w, i18n.T(r.Context(), "server.error.could_not_update_calendar_sync"), http.StatusInternalServerError)
 			return
 		}
 	default:
-		http.Error(w, "unknown service", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.unknown_service"), http.StatusBadRequest)
 		return
 	}
 
 	account, err := h.ownedAccount(ctx, accountID)
 	if err != nil || account == nil {
-		http.Error(w, "account not found", http.StatusNotFound)
+		http.Error(w, i18n.T(r.Context(), "server.error.account_not_found"), http.StatusNotFound)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html")
@@ -3156,7 +3350,7 @@ func (h *Handler) handleUpdateAccountColor(w http.ResponseWriter, r *http.Reques
 			return
 		}
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to update account color"})
+		json.NewEncoder(w).Encode(map[string]string{"error": i18n.T(r.Context(), "server.msg.failed_to_update_account_color")})
 		return
 	}
 
@@ -3167,7 +3361,7 @@ func (h *Handler) handleUpdateAccountColor(w http.ResponseWriter, r *http.Reques
 func (h *Handler) handleAccountSignatures(w http.ResponseWriter, r *http.Request) {
 	accountID := r.PathValue("id")
 	if accountID == "" {
-		http.Error(w, "account id required", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.account_id_required"), http.StatusBadRequest)
 		return
 	}
 	if !h.requireOwnedAccount(w, r, accountID) {
@@ -3177,12 +3371,12 @@ func (h *Handler) handleAccountSignatures(w http.ResponseWriter, r *http.Request
 	userID := h.userID(ctx)
 	settings, err := h.db.GetAccountSignatureSettings(ctx, userID, accountID)
 	if err != nil {
-		http.Error(w, "account not found", http.StatusNotFound)
+		http.Error(w, i18n.T(r.Context(), "server.error.account_not_found"), http.StatusNotFound)
 		return
 	}
 	signatures, err := h.db.ListSignatures(ctx, userID)
 	if err != nil {
-		http.Error(w, "failed to load signatures", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_load_signatures"), http.StatusInternalServerError)
 		return
 	}
 	mode := r.URL.Query().Get("mode")
@@ -3195,11 +3389,11 @@ func (h *Handler) handleAccountSignatures(w http.ResponseWriter, r *http.Request
 	if identityID := strings.TrimSpace(r.URL.Query().Get("identity")); identityID != "" {
 		identity, err := h.db.GetAccountIdentity(ctx, userID, accountID, identityID)
 		if errors.Is(err, sql.ErrNoRows) {
-			http.Error(w, "identity not found", http.StatusNotFound)
+			http.Error(w, i18n.T(r.Context(), "server.error.identity_not_found"), http.StatusNotFound)
 			return
 		}
 		if err != nil {
-			http.Error(w, "failed to load identity", http.StatusInternalServerError)
+			http.Error(w, i18n.T(r.Context(), "server.error.failed_to_load_identity"), http.StatusInternalServerError)
 			return
 		}
 		if identity.SignatureID != "" {
@@ -3219,7 +3413,7 @@ func (h *Handler) handleAccountSignatures(w http.ResponseWriter, r *http.Request
 func (h *Handler) handleManageAccountSignatures(w http.ResponseWriter, r *http.Request) {
 	accountID := r.PathValue("id")
 	if accountID == "" {
-		http.Error(w, "account id required", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.account_id_required"), http.StatusBadRequest)
 		return
 	}
 	if !h.requireOwnedAccount(w, r, accountID) {
@@ -3229,17 +3423,17 @@ func (h *Handler) handleManageAccountSignatures(w http.ResponseWriter, r *http.R
 	userID := h.userID(ctx)
 	settings, err := h.db.GetAccountSignatureSettings(ctx, userID, accountID)
 	if err != nil {
-		http.Error(w, "account not found", http.StatusNotFound)
+		http.Error(w, i18n.T(r.Context(), "server.error.account_not_found"), http.StatusNotFound)
 		return
 	}
 	account, err := h.ownedAccount(ctx, accountID)
 	if err != nil || account == nil {
-		http.Error(w, "account not found", http.StatusNotFound)
+		http.Error(w, i18n.T(r.Context(), "server.error.account_not_found"), http.StatusNotFound)
 		return
 	}
 	signatures, err := h.db.ListSignatures(ctx, userID)
 	if err != nil {
-		http.Error(w, "failed to load signatures", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_load_signatures"), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html")
@@ -3284,7 +3478,7 @@ func (h *Handler) handleSaveSignature(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		json.NewEncoder(w).Encode(map[string]string{"error": serverText(r.Context(), err.Error())})
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -3294,7 +3488,7 @@ func (h *Handler) handleSaveSignature(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleDeleteSignature(w http.ResponseWriter, r *http.Request) {
 	signatureID := r.PathValue("id")
 	if signatureID == "" {
-		http.Error(w, "signature id required", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.signature_id_required"), http.StatusBadRequest)
 		return
 	}
 	if err := h.db.DeleteSignatureGuarded(r.Context(), h.userID(r.Context()), signatureID, h.signatureGuard); err != nil {
@@ -3302,7 +3496,7 @@ func (h *Handler) handleDeleteSignature(w http.ResponseWriter, r *http.Request) 
 			http.NotFound(w, r)
 			return
 		}
-		http.Error(w, "failed to delete signature", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_delete_signature"), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -3337,7 +3531,7 @@ func (h *Handler) handleSaveAccountSignatureSettings(w http.ResponseWriter, r *h
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to save signature settings"})
+		json.NewEncoder(w).Encode(map[string]string{"error": i18n.T(r.Context(), "server.msg.failed_to_save_signature_settings")})
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -3377,24 +3571,24 @@ func signatureHTMLToText(raw string) string {
 func (h *Handler) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
 	accountID := r.PathValue("id")
 	if accountID == "" {
-		http.Error(w, "account id required", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.account_id_required"), http.StatusBadRequest)
 		return
 	}
 	if !h.requireOwnedAccount(w, r, accountID) {
 		return
 	}
 	if provider, err := h.db.GetAccountProvider(r.Context(), accountID); err != nil {
-		http.Error(w, "account unavailable", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.account_unavailable"), http.StatusInternalServerError)
 		return
 	} else if provider == providers.ProviderLocal {
-		http.Error(w, localFoldersNoDelete, http.StatusConflict)
+		http.Error(w, serverText(r.Context(), localFoldersNoDelete), http.StatusConflict)
 		return
 	}
 
 	h.closeBodyClient(accountID)
 	h.syncer.StopAccount(accountID)
 	if err := h.accountStore.MarkAccountDeleting(r.Context(), accountID); err != nil {
-		http.Error(w, fmt.Sprintf("mark account deleting: %v", err), http.StatusInternalServerError)
+		http.Error(w, serverText(r.Context(), fmt.Sprintf("mark account deleting: %v", err)), http.StatusInternalServerError)
 		return
 	}
 
@@ -3418,12 +3612,12 @@ func (h *Handler) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleAccountDeletionStatus(w http.ResponseWriter, r *http.Request) {
 	accountID := strings.TrimSpace(r.PathValue("id"))
 	if accountID == "" {
-		http.Error(w, "account id required", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.account_id_required"), http.StatusBadRequest)
 		return
 	}
 	status, err := h.accountStore.AccountDeletionStatus(r.Context(), h.userID(r.Context()), accountID)
 	if err != nil {
-		http.Error(w, "check account deletion status", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.check_account_deletion_status"), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -3433,7 +3627,7 @@ func (h *Handler) handleAccountDeletionStatus(w http.ResponseWriter, r *http.Req
 func (h *Handler) handleTestAccount(w http.ResponseWriter, r *http.Request) {
 	accountID := r.PathValue("id")
 	if accountID == "" {
-		http.Error(w, "account id required", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.account_id_required"), http.StatusBadRequest)
 		return
 	}
 	if !h.requireOwnedAccount(w, r, accountID) {
@@ -3442,7 +3636,7 @@ func (h *Handler) handleTestAccount(w http.ResponseWriter, r *http.Request) {
 
 	cfg, err := h.accountStore.GetConfig(r.Context(), accountID)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("get config: %v", err), http.StatusNotFound)
+		http.Error(w, serverText(r.Context(), fmt.Sprintf("get config: %v", err)), http.StatusNotFound)
 		return
 	}
 
@@ -3460,7 +3654,7 @@ func (h *Handler) handleTestAccount(w http.ResponseWriter, r *http.Request) {
 		}
 		password, err := h.accountStore.DecryptPassword(r.Context(), accountID)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("get credentials: %v", err), http.StatusInternalServerError)
+			http.Error(w, serverText(r.Context(), fmt.Sprintf("get credentials: %v", err)), http.StatusInternalServerError)
 			return
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
@@ -3471,7 +3665,7 @@ func (h *Handler) handleTestAccount(w http.ResponseWriter, r *http.Request) {
 
 	password, err := h.resolvePassword(r.Context(), cfg, accountID)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("get credentials: %v", err), http.StatusInternalServerError)
+		http.Error(w, serverText(r.Context(), fmt.Sprintf("get credentials: %v", err)), http.StatusInternalServerError)
 		return
 	}
 
@@ -3485,10 +3679,10 @@ func (h *Handler) handleTestAccount(w http.ResponseWriter, r *http.Request) {
 		Message: fmt.Sprintf("%s:%d (%s)", cfg.IMAPHost, cfg.IMAPPort, cfg.IMAPTLSMode),
 	}
 	if imapErr != nil {
-		imapResult.Error = imapErr.Error()
+		imapResult.Error = serverText(r.Context(), imapErr.Error())
 	} else {
 		imapResult.Success = true
-		imapResult.Message = "Connection successful"
+		imapResult.Message = i18n.T(r.Context(), "server.msg.connection_successful")
 	}
 	results = append(results, imapResult)
 
@@ -3496,7 +3690,7 @@ func (h *Handler) handleTestAccount(w http.ResponseWriter, r *http.Request) {
 	if cfg.SmtpUsername != "" {
 		smtpPw, err := h.accountStore.DecryptSmtpPassword(r.Context(), accountID)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("decrypt smtp password: %v", err), http.StatusInternalServerError)
+			http.Error(w, serverText(r.Context(), fmt.Sprintf("decrypt smtp password: %v", err)), http.StatusInternalServerError)
 			return
 		}
 		smtpPassword = smtpPw
@@ -3510,10 +3704,10 @@ func (h *Handler) handleTestAccount(w http.ResponseWriter, r *http.Request) {
 		Message: fmt.Sprintf("%s:%d (%s)", cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPTLSMode),
 	}
 	if smtpErr != nil {
-		smtpResult.Error = smtpErr.Error()
+		smtpResult.Error = serverText(r.Context(), smtpErr.Error())
 	} else {
 		smtpResult.Success = true
-		smtpResult.Message = "Connection successful"
+		smtpResult.Message = i18n.T(r.Context(), "server.msg.connection_successful")
 	}
 	results = append(results, smtpResult)
 
@@ -3616,7 +3810,7 @@ func (h *Handler) renderPasswordSecurityTab(w http.ResponseWriter, r *http.Reque
 	ctx := r.Context()
 	user := auth.GetCurrentUser(ctx)
 	if user == nil {
-		http.Error(w, "authentication required", http.StatusUnauthorized)
+		http.Error(w, i18n.T(r.Context(), "server.error.authentication_required"), http.StatusUnauthorized)
 		return
 	}
 	managementSurface := r.URL.Path == "/admin/account/security" && user.IsManagement()
@@ -3632,7 +3826,7 @@ func (h *Handler) renderPasswordSecurityTab(w http.ResponseWriter, r *http.Reque
 	}
 	if err != nil {
 		log.Printf("authorize security settings access: %v", err)
-		http.Error(w, "failed to load security settings", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_load_security_settings"), http.StatusInternalServerError)
 		return
 	}
 	if !access.StepUpFresh {
@@ -3652,17 +3846,17 @@ func (h *Handler) renderPasswordSecurityTab(w http.ResponseWriter, r *http.Reque
 			data.CSRFTokens["/auth/logout"] = auth.CSRFToken(ctx, http.MethodPost, "/auth/logout")
 		}
 		if override != nil {
-			data.Message = override.Message
+			data.Message = serverText(r.Context(), override.Message)
 			data.MessageIsError = override.MessageIsError
 		} else if r.URL.Query().Get("challenge_expired") == "1" {
-			data.Message = "That security change expired or was replaced. Verify again when you are ready."
+			data.Message = i18n.T(r.Context(), "server.msg.that_security_change_expired_or_was_replaced_alt")
 			data.MessageIsError = true
 		}
 
 		uiSettings, err := h.securityUISettings(ctx, h.userID(ctx))
 		if err != nil {
 			log.Printf("load security display preferences: %v", err)
-			http.Error(w, "user settings unavailable", http.StatusServiceUnavailable)
+			http.Error(w, i18n.T(r.Context(), "server.error.user_settings_unavailable"), http.StatusServiceUnavailable)
 			return
 		}
 		var page bytes.Buffer
@@ -3671,7 +3865,7 @@ func (h *Handler) renderPasswordSecurityTab(w http.ResponseWriter, r *http.Reque
 		} else if r.Header.Get("HX-Request") == "true" {
 			if err := views.PasswordSecurityVerificationPartial(data).Render(ctx, &page); err != nil {
 				log.Printf("render security verification partial: %v", err)
-				http.Error(w, "failed to render security settings", http.StatusInternalServerError)
+				http.Error(w, i18n.T(r.Context(), "server.error.failed_to_render_security_settings"), http.StatusInternalServerError)
 				return
 			}
 		} else {
@@ -3679,7 +3873,7 @@ func (h *Handler) renderPasswordSecurityTab(w http.ResponseWriter, r *http.Reque
 		}
 		if err != nil {
 			log.Printf("render security verification layout: %v", err)
-			http.Error(w, "failed to render security settings", http.StatusInternalServerError)
+			http.Error(w, i18n.T(r.Context(), "server.error.failed_to_render_security_settings"), http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Cache-Control", "no-store")
@@ -3693,13 +3887,13 @@ func (h *Handler) renderPasswordSecurityTab(w http.ResponseWriter, r *http.Reque
 	hasPassword, err := h.auth.HasPasswordCredential(ctx, user.ID)
 	if err != nil {
 		log.Printf("load password security settings: %v", err)
-		http.Error(w, "failed to load security settings", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_load_security_settings"), http.StatusInternalServerError)
 		return
 	}
 	summary, err := h.auth.GetSecurityFactorSummary(ctx, auth.GetSessionToken(r))
 	if err != nil {
 		log.Printf("load authentication-factor security settings: %v", err)
-		http.Error(w, "failed to load security settings", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_load_security_settings"), http.StatusInternalServerError)
 		return
 	}
 	var identities []auth.FederatedIdentitySummary
@@ -3707,7 +3901,7 @@ func (h *Handler) renderPasswordSecurityTab(w http.ResponseWriter, r *http.Reque
 		identities, err = h.auth.ListFederatedIdentities(ctx, user.ID)
 		if err != nil {
 			log.Printf("load federated identity security settings: %v", err)
-			http.Error(w, "failed to load security settings", http.StatusInternalServerError)
+			http.Error(w, i18n.T(r.Context(), "server.error.failed_to_load_security_settings"), http.StatusInternalServerError)
 			return
 		}
 	}
@@ -3723,7 +3917,7 @@ func (h *Handler) renderPasswordSecurityTab(w http.ResponseWriter, r *http.Reque
 	}
 	if err != nil {
 		log.Printf("load security session history: %v", err)
-		http.Error(w, "failed to load security settings", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_load_security_settings"), http.StatusInternalServerError)
 		return
 	}
 	securityEventOverview, err := h.auth.GetSecurityEventOverview(ctx, auth.GetSessionToken(r))
@@ -3738,7 +3932,7 @@ func (h *Handler) renderPasswordSecurityTab(w http.ResponseWriter, r *http.Reque
 	}
 	if err != nil {
 		log.Printf("load security event history: %v", err)
-		http.Error(w, "failed to load security settings", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_load_security_settings"), http.StatusInternalServerError)
 		return
 	}
 	data := views.PasswordSecurityData{
@@ -3748,7 +3942,7 @@ func (h *Handler) renderPasswordSecurityTab(w http.ResponseWriter, r *http.Reque
 		RequiresMFA:            summary.RequiresMFA,
 		RecoveryCodesRemaining: summary.RecoveryCodesRemaining,
 		StepUpFresh:            summary.StepUpFresh, CanDisableTOTP: summary.CanDisableTOTP,
-		DisableTOTPReason:       summary.DisableTOTPReason,
+		DisableTOTPReason:       authText(ctx, summary.DisableTOTPReason),
 		CSRFTokens:              map[string]string{},
 		GoogleLoginAvailable:    !managementSurface && h.auth.HasGoogleLogin(),
 		MicrosoftLoginAvailable: !managementSurface && h.auth.HasMicrosoftLogin(),
@@ -3758,12 +3952,17 @@ func (h *Handler) renderPasswordSecurityTab(w http.ResponseWriter, r *http.Reque
 	data.MailSecurity, err = h.ownerMailSecurityData(r)
 	if err != nil {
 		log.Printf("load personal mail security exceptions: %v", err)
-		http.Error(w, "failed to load security settings", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_load_security_settings"), http.StatusInternalServerError)
 		return
 	}
-	data.Passkeys = passkeySecurityViewData(summary.Passkeys)
-	data.FederatedIdentities = federatedIdentityViewData(identities)
-	data.Sessions, data.SessionsTruncated = securitySessionViewData(sessions, data.OIDCLoginName)
+	if data.OwnProxies, err = h.ownProxiesData(r); err != nil {
+		log.Printf("load own proxies: %v", err)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_load_security_settings"), http.StatusInternalServerError)
+		return
+	}
+	data.Passkeys = passkeySecurityViewData(ctx, summary.Passkeys)
+	data.FederatedIdentities = federatedIdentityViewData(ctx, identities)
+	data.Sessions, data.SessionsTruncated = securitySessionViewData(ctx, sessions, data.OIDCLoginName)
 	data.SecurityEventCount = securityEventOverview.TotalEvents
 	for _, session := range data.Sessions {
 		if session.RevokePath != "" {
@@ -3814,7 +4013,7 @@ func (h *Handler) renderPasswordSecurityTab(w http.ResponseWriter, r *http.Reque
 		}
 	}
 	if override != nil {
-		data.Message = override.Message
+		data.Message = serverText(r.Context(), override.Message)
 		data.MessageIsError = override.MessageIsError
 		if override.TOTPManagement != nil {
 			data.TOTPManagement = override.TOTPManagement
@@ -3827,47 +4026,47 @@ func (h *Handler) renderPasswordSecurityTab(w http.ResponseWriter, r *http.Reque
 	} else {
 		switch {
 		case r.URL.Query().Get("password_changed") == "1":
-			data.Message = "Password changed. Other signed-in devices were signed out."
+			data.Message = i18n.T(r.Context(), "server.msg.password_changed_other_signed_in_devices_were")
 		case r.URL.Query().Get("verification_required") == "1":
-			data.Message = "Verify this session before changing the password."
+			data.Message = i18n.T(r.Context(), "server.msg.verify_this_session_before_changing_the_password")
 			data.MessageIsError = true
 		case r.URL.Query().Get("verified") == "1":
-			data.Message = "Security verification complete. Sensitive actions are available for ten minutes."
+			data.Message = i18n.T(r.Context(), "server.msg.security_verification_complete_sensitive_actions_are_available")
 		case r.URL.Query().Get("totp_replaced") == "1":
-			data.Message = "Authenticator replaced. Other signed-in devices were signed out."
+			data.Message = i18n.T(r.Context(), "server.msg.authenticator_replaced_other_signed_in_devices_were")
 		case r.URL.Query().Get("totp_enrolled") == "1":
-			data.Message = "Authenticator enabled. Generate and save recovery codes next. Other signed-in devices were signed out."
+			data.Message = i18n.T(r.Context(), "server.msg.authenticator_enabled_generate_and_save_recovery_codes")
 		case r.URL.Query().Get("totp_disabled") == "1":
-			data.Message = "Authenticator disabled and recovery codes revoked. Other signed-in devices were signed out."
+			data.Message = i18n.T(r.Context(), "server.msg.authenticator_disabled_and_recovery_codes_revoked_other")
 		case r.URL.Query().Get("recovery_replaced") == "1":
-			data.Message = "Recovery codes replaced. The previous unused codes no longer work."
+			data.Message = i18n.T(r.Context(), "server.msg.recovery_codes_replaced_the_previous_unused_codes")
 		case r.URL.Query().Get("recovery_revoked") == "1":
-			data.Message = "All unused recovery codes were revoked."
+			data.Message = i18n.T(r.Context(), "server.msg.all_unused_recovery_codes_were_revoked")
 		case r.URL.Query().Get("passkey_added") == "1":
-			data.Message = "Passkey added. You can register another device or security key at any time."
+			data.Message = i18n.T(r.Context(), "server.msg.passkey_added_you_can_register_another_device")
 		case r.URL.Query().Get("passkey_removed") == "1":
-			data.Message = "Passkey removed. Other signed-in devices were signed out."
+			data.Message = i18n.T(r.Context(), "server.msg.passkey_removed_other_signed_in_devices_were")
 		case r.URL.Query().Get("session_revoked") == "1":
-			data.Message = "Session signed out."
+			data.Message = i18n.T(r.Context(), "server.msg.session_signed_out")
 		case r.URL.Query().Get("other_sessions_revoked") == "1":
-			data.Message = "Other active sessions signed out."
+			data.Message = i18n.T(r.Context(), "server.msg.other_active_sessions_signed_out")
 		case r.URL.Query().Get("other_sessions_unchanged") == "1":
-			data.Message = "No other active sessions needed signing out."
+			data.Message = i18n.T(r.Context(), "server.msg.no_other_active_sessions_needed_signing_out")
 		case r.URL.Query().Get("session_unavailable") == "1":
-			data.Message = "That session is no longer active."
+			data.Message = i18n.T(r.Context(), "server.msg.that_session_is_no_longer_active")
 		case r.URL.Query().Get("google_linked") == "1":
-			data.Message = "Google sign-in connected. You can now use that Google identity to sign in to this Gofer account."
+			data.Message = i18n.T(r.Context(), "server.msg.google_sign_in_connected_you_can_now")
 		case r.URL.Query().Get("google_unlinked") == "1":
-			data.Message = "Google sign-in disconnected. That identity can no longer sign in to this Gofer account."
+			data.Message = i18n.T(r.Context(), "server.msg.google_sign_in_disconnected_that_identity_can")
 		case r.URL.Query().Get("google_link_failed") == "1":
-			data.Message = "Google sign-in could not be connected. Disconnect your current Google identity before choosing another. The selected identity must not belong to another Gofer account, and the request must still be valid."
+			data.Message = serverText(r.Context(), "Google sign-in could not be connected. Disconnect your current Google identity before choosing another. The selected identity must not belong to another Gofer account, and the request must still be valid.")
 			data.MessageIsError = true
 		case r.URL.Query().Get("microsoft_linked") == "1":
-			data.Message = "Microsoft sign-in connected. You can now use that Microsoft identity to sign in to this Gofer account."
+			data.Message = i18n.T(r.Context(), "server.msg.microsoft_sign_in_connected_you_can_now")
 		case r.URL.Query().Get("microsoft_unlinked") == "1":
-			data.Message = "Microsoft sign-in disconnected. That identity can no longer sign in to this Gofer account."
+			data.Message = i18n.T(r.Context(), "server.msg.microsoft_sign_in_disconnected_that_identity_can")
 		case r.URL.Query().Get("microsoft_link_failed") == "1":
-			data.Message = "Microsoft sign-in could not be connected. Disconnect your current Microsoft identity before choosing another. The selected identity must not belong to another Gofer account, and the request must still be valid."
+			data.Message = serverText(r.Context(), "Microsoft sign-in could not be connected. Disconnect your current Microsoft identity before choosing another. The selected identity must not belong to another Gofer account, and the request must still be valid.")
 			data.MessageIsError = true
 		case r.URL.Query().Get("oidc_linked") == "1":
 			data.Message = data.OIDCLoginName + " sign-in connected. You can now use that identity to sign in to this Gofer account."
@@ -3877,7 +4076,7 @@ func (h *Handler) renderPasswordSecurityTab(w http.ResponseWriter, r *http.Reque
 			data.Message = data.OIDCLoginName + " sign-in could not be connected. It may already belong to another Gofer account, or the request may have expired."
 			data.MessageIsError = true
 		case r.URL.Query().Get("challenge_expired") == "1":
-			data.Message = "That security change expired or was replaced. Start again when you are ready."
+			data.Message = i18n.T(r.Context(), "server.msg.that_security_change_expired_or_was_replaced")
 			data.MessageIsError = true
 		}
 	}
@@ -3885,7 +4084,7 @@ func (h *Handler) renderPasswordSecurityTab(w http.ResponseWriter, r *http.Reque
 	uiSettings, err := h.securityUISettings(ctx, h.userID(ctx))
 	if err != nil {
 		log.Printf("load security display preferences: %v", err)
-		http.Error(w, "user settings unavailable", http.StatusServiceUnavailable)
+		http.Error(w, i18n.T(r.Context(), "server.error.user_settings_unavailable"), http.StatusServiceUnavailable)
 		return
 	}
 	var page bytes.Buffer
@@ -3894,7 +4093,7 @@ func (h *Handler) renderPasswordSecurityTab(w http.ResponseWriter, r *http.Reque
 	} else if r.Header.Get("HX-Request") == "true" {
 		if err := views.PasswordSecurityPartial(data).Render(ctx, &page); err != nil {
 			log.Printf("render password security partial: %v", err)
-			http.Error(w, "failed to render security settings", http.StatusInternalServerError)
+			http.Error(w, i18n.T(r.Context(), "server.error.failed_to_render_security_settings"), http.StatusInternalServerError)
 			return
 		}
 	} else {
@@ -3902,7 +4101,7 @@ func (h *Handler) renderPasswordSecurityTab(w http.ResponseWriter, r *http.Reque
 	}
 	if err != nil {
 		log.Printf("render password security layout: %v", err)
-		http.Error(w, "failed to render security settings", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_render_security_settings"), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
@@ -3967,9 +4166,9 @@ func (h *Handler) buildSyncSettings(ctx context.Context, accounts []models.Accou
 		for _, f := range folders {
 			lastSynced := ""
 			if f.LastIncrementalAt.Valid {
-				lastSynced = formatSyncTime(f.LastIncrementalAt.Time)
+				lastSynced = formatSyncTime(ctx, f.LastIncrementalAt.Time)
 			} else if f.LastFullSyncAt.Valid {
-				lastSynced = formatSyncTime(f.LastFullSyncAt.Time)
+				lastSynced = formatSyncTime(ctx, f.LastFullSyncAt.Time)
 			}
 
 			name := f.Role
@@ -3980,7 +4179,7 @@ func (h *Handler) buildSyncSettings(ctx context.Context, accounts []models.Accou
 			configuredIDLE := idleFolderIDs[f.ID]
 			runtime, hasRuntime := idleRuntime[f.ID]
 			if h.userIdleStatuses != nil && configuredIDLE && !hasRuntime {
-				runtime.Reason = "Real-time notifications are unavailable; periodic polling is active."
+				runtime.Reason = i18n.T(ctx, "server.msg.real_time_notifications_are_unavailable_periodic_polling")
 				hasRuntime = true
 			}
 			effectiveIDLE, fallbackReason, retryAt := effectiveIDLEFolderStatus(configuredIDLE, runtime, hasRuntime)
@@ -4028,20 +4227,20 @@ func effectiveIDLEFolderStatus(configured bool, runtime mail.IDLEFolderRuntimeSt
 	return false, runtime.Reason, retryAt
 }
 
-func formatSyncTime(t time.Time) string {
+func formatSyncTime(ctx context.Context, t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
 	diff := time.Since(t)
 	switch {
 	case diff < time.Minute:
-		return "just now"
+		return i18n.T(ctx, "sync.time.just_now")
 	case diff < time.Hour:
-		return fmt.Sprintf("%dm ago", int(diff.Minutes()))
+		return i18n.N(ctx, "sync.time.minutes_ago", int(diff.Minutes()))
 	case diff < 24*time.Hour:
-		return fmt.Sprintf("%dh ago", int(diff.Hours()))
+		return i18n.N(ctx, "sync.time.hours_ago", int(diff.Hours()))
 	default:
-		return t.Format("Jan 2")
+		return i18n.Dates(ctx).ShortDate(t)
 	}
 }
 
@@ -4069,19 +4268,19 @@ func folderIconFromRole(role string) string {
 func (h *Handler) handleSaveSyncSettings(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.bad_request"), http.StatusBadRequest)
 		return
 	}
 
 	val := r.FormValue("sync_interval_minutes")
 	n, err := strconv.Atoi(val)
 	if err != nil || n < 1 {
-		http.Error(w, "invalid interval", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_interval"), http.StatusBadRequest)
 		return
 	}
 
 	if err := h.db.SetSetting(ctx, h.userID(ctx), "sync_interval_minutes", strconv.Itoa(n)); err != nil {
-		http.Error(w, "save failed", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.save_failed"), http.StatusInternalServerError)
 		return
 	}
 
@@ -4101,14 +4300,14 @@ func (h *Handler) handleSaveSyncSettings(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := h.db.SetIdleFoldersAll(ctx, h.userID(ctx), perAccount); err != nil {
-		http.Error(w, "save idle folders failed", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.save_idle_folders_failed"), http.StatusInternalServerError)
 		return
 	}
 
 	h.syncer.UpdateInterval(n)
 	accountIDs, err := h.db.GetEmailSyncAccountIDs(ctx, h.userID(ctx))
 	if err != nil {
-		http.Error(w, "restart idle watchers failed", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.restart_idle_watchers_failed"), http.StatusInternalServerError)
 		return
 	}
 	h.syncer.RestartIDLEWatchers(accountIDs)
@@ -4124,7 +4323,7 @@ func (h *Handler) handleGetUISettings(w http.ResponseWriter, r *http.Request) {
 		settings = db.GetUISettings(r.Context(), userID)
 		return nil
 	}); err != nil {
-		http.Error(w, "settings unavailable", http.StatusServiceUnavailable)
+		http.Error(w, i18n.T(r.Context(), "server.error.settings_unavailable"), http.StatusServiceUnavailable)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -4134,50 +4333,25 @@ func (h *Handler) handleGetUISettings(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleSaveUISettings(w http.ResponseWriter, r *http.Request) {
 	var updates map[string]string
 	if err := json.NewDecoder(r.Body).Decode(&updates); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_json"), http.StatusBadRequest)
 		return
 	}
-	normalizeLanguageSetting(updates)
 	normalizeThemeColorSettings(updates)
 	normalizeCustomThemeSetting(updates)
 	normalizeCustomThemesSetting(updates)
+	normalizeFontSettings(updates)
 
 	userID := h.userID(r.Context())
 	if err := h.withUserDB(r.Context(), userID, func(db *storage.DB) error {
 		return db.MergeUISettings(r.Context(), userID, updates)
 	}); err != nil {
-		http.Error(w, "save failed", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.save_failed"), http.StatusInternalServerError)
 		return
 	}
-	if language, ok := updates["language"]; ok {
-		h.setLanguageCookie(w, language)
-	}
+	rememberSavedRegional(userID, updates)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{"ok": true})
-}
-
-const languageCookieName = "gofer_lang"
-
-func (h *Handler) setLanguageCookie(w http.ResponseWriter, language string) {
-	http.SetCookie(w, &http.Cookie{
-		Name:     languageCookieName,
-		Value:    language,
-		Path:     "/",
-		MaxAge:   365 * 24 * 60 * 60,
-		HttpOnly: true,
-		Secure:   h.auth.Config().SecureCookies,
-		SameSite: http.SameSiteLaxMode,
-	})
-}
-
-func normalizeLanguageSetting(updates map[string]string) {
-	raw, exists := updates["language"]
-	if !exists {
-		return
-	}
-	locale, _ := i18n.Normalize(raw)
-	updates["language"] = string(locale)
 }
 
 // normalizeThemeColorSettings stores each style's changed colors in their
@@ -4232,17 +4406,35 @@ func normalizeCustomThemesSetting(updates map[string]string) {
 	}
 }
 
+// normalizeFontSettings trims the chosen font families and drops a name
+// googlefonts refuses. An empty value is kept: it goes back to the built-in
+// font.
+func normalizeFontSettings(updates map[string]string) {
+	for _, key := range []string{googlefonts.BodySetting, googlefonts.HeadingSetting} {
+		raw, ok := updates[key]
+		if !ok {
+			continue
+		}
+		name := strings.TrimSpace(raw)
+		if name != "" && !googlefonts.ValidName(name) {
+			delete(updates, key)
+			continue
+		}
+		updates[key] = name
+	}
+}
+
 // handleCustomThemeCSS is the stylesheet for a Custom theme being built, so
 // Settings can preview it before it is saved.
 func (h *Handler) handleCustomThemeCSS(w http.ResponseWriter, r *http.Request) {
 	raw, err := io.ReadAll(io.LimitReader(r.Body, 4<<10))
 	if err != nil {
-		http.Error(w, "invalid theme", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_theme"), http.StatusBadRequest)
 		return
 	}
 	theme, ok := themebuilder.Parse(string(raw))
 	if !ok {
-		http.Error(w, "invalid theme", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_theme"), http.StatusBadRequest)
 		return
 	}
 	w.Header().Set("Content-Type", "text/css; charset=utf-8")
@@ -4260,12 +4452,12 @@ type themeColorsPreview struct {
 func (h *Handler) handleThemeColorsCSS(w http.ResponseWriter, r *http.Request) {
 	var preview themeColorsPreview
 	if err := json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&preview); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 	overrides, ok := themecolors.Parse(string(preview.Overrides))
 	if !ok || !themecolors.IsStyle(preview.Style) {
-		http.Error(w, "invalid colors", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_colors"), http.StatusBadRequest)
 		return
 	}
 	w.Header().Set("Content-Type", "text/css; charset=utf-8")
@@ -4298,14 +4490,14 @@ func (h *Handler) handlePushVAPIDPublicKey(w http.ResponseWriter, r *http.Reques
 func (h *Handler) handleSavePushSubscription(w http.ResponseWriter, r *http.Request) {
 	var req pushSubscriptionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 	req.Endpoint = strings.TrimSpace(req.Endpoint)
 	req.Keys.P256DH = strings.TrimSpace(req.Keys.P256DH)
 	req.Keys.Auth = strings.TrimSpace(req.Keys.Auth)
 	if req.Endpoint == "" || req.Keys.P256DH == "" || req.Keys.Auth == "" || !validPushEndpoint(req.Endpoint) {
-		http.Error(w, "invalid subscription", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_subscription"), http.StatusBadRequest)
 		return
 	}
 
@@ -4320,7 +4512,7 @@ func (h *Handler) handleSavePushSubscription(w http.ResponseWriter, r *http.Requ
 			http.NotFound(w, r)
 			return
 		}
-		http.Error(w, "save subscription failed", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.save_subscription_failed"), http.StatusInternalServerError)
 		return
 	}
 
@@ -4334,7 +4526,7 @@ func (h *Handler) handleDeletePushSubscription(w http.ResponseWriter, r *http.Re
 	req.Endpoint = strings.TrimSpace(req.Endpoint)
 	if req.Endpoint != "" {
 		if err := h.db.DeleteWebPushSubscription(r.Context(), h.userID(r.Context()), req.Endpoint); err != nil {
-			http.Error(w, "delete subscription failed", http.StatusInternalServerError)
+			http.Error(w, i18n.T(r.Context(), "server.error.delete_subscription_failed"), http.StatusInternalServerError)
 			return
 		}
 	}
@@ -4346,19 +4538,19 @@ func (h *Handler) handleDeletePushSubscription(w http.ResponseWriter, r *http.Re
 func (h *Handler) handleTestPush(w http.ResponseWriter, r *http.Request) {
 	var req pushSubscriptionDeleteRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_json"), http.StatusBadRequest)
 		return
 	}
 	if h.testPush == nil {
-		http.Error(w, "Web Push is not set up for this browser.", http.StatusConflict)
+		http.Error(w, i18n.T(r.Context(), "server.error.web_push_is_not_set_up_for"), http.StatusConflict)
 		return
 	}
 	if err := h.testPush(r.Context(), h.userID(r.Context()), req.Endpoint); err != nil {
 		if errors.Is(err, storage.ErrNoWebPushSubscription) {
-			http.Error(w, "Web Push is not set up for this browser. Turn notifications off and on again to register it.", http.StatusConflict)
+			http.Error(w, i18n.T(r.Context(), "server.error.web_push_is_not_set_up_for_alt"), http.StatusConflict)
 			return
 		}
-		http.Error(w, "Could not send the test notification: "+err.Error(), http.StatusBadGateway)
+		http.Error(w, serverText(r.Context(), "Could not send the test notification: "+err.Error()), http.StatusBadGateway)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -4369,7 +4561,7 @@ func (h *Handler) handleDeleteObservedContacts(w http.ResponseWriter, r *http.Re
 	ctx := r.Context()
 	settings := h.db.GetContactSettings(ctx, h.userID(ctx))
 	if _, err := h.db.DeleteObservedContacts(ctx, h.userID(ctx), settings.PreventRecreateDeleted); err != nil {
-		http.Error(w, "delete observed contacts failed", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.delete_observed_contacts_failed"), http.StatusInternalServerError)
 		return
 	}
 	http.Redirect(w, r, "/settings/contacts", http.StatusSeeOther)
@@ -4379,12 +4571,12 @@ func (h *Handler) handleSuppressedContactsSettings(w http.ResponseWriter, r *htt
 	ctx := r.Context()
 	suppressed, err := h.db.ListSuppressedContacts(ctx, h.userID(ctx), 200)
 	if err != nil {
-		http.Error(w, "failed to load suppressed contacts", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_load_suppressed_contacts"), http.StatusInternalServerError)
 		return
 	}
 	total, err := h.db.CountSuppressedContacts(ctx, h.userID(ctx))
 	if err != nil {
-		http.Error(w, "failed to count suppressed contacts", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_count_suppressed_contacts"), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html")
@@ -4393,7 +4585,7 @@ func (h *Handler) handleSuppressedContactsSettings(w http.ResponseWriter, r *htt
 
 func (h *Handler) handleClearSuppressedContacts(w http.ResponseWriter, r *http.Request) {
 	if _, err := h.db.ClearSuppressedContacts(r.Context(), h.userID(r.Context())); err != nil {
-		http.Error(w, "failed to clear suppressed contacts", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_clear_suppressed_contacts"), http.StatusInternalServerError)
 		return
 	}
 	h.handleSuppressedContactsSettings(w, r)
@@ -4405,7 +4597,7 @@ func (h *Handler) handleClearSuppressedContact(w http.ResponseWriter, r *http.Re
 			http.NotFound(w, r)
 			return
 		}
-		http.Error(w, "failed to clear suppressed contact", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_clear_suppressed_contact"), http.StatusInternalServerError)
 		return
 	}
 	h.handleSuppressedContactsSettings(w, r)
@@ -4494,14 +4686,14 @@ func (h *Handler) handleComposeAttachmentUpload(w http.ResponseWriter, r *http.R
 	if err := r.ParseMultipartForm(composeAttachmentMaxBytes); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid attachment upload"})
+		json.NewEncoder(w).Encode(map[string]string{"error": i18n.T(r.Context(), "server.msg.invalid_attachment_upload")})
 		return
 	}
 	file, header, err := r.FormFile("attachment")
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "missing attachment"})
+		json.NewEncoder(w).Encode(map[string]string{"error": i18n.T(r.Context(), "server.msg.missing_attachment")})
 		return
 	}
 	defer file.Close()
@@ -4510,7 +4702,7 @@ func (h *Handler) handleComposeAttachmentUpload(w http.ResponseWriter, r *http.R
 	if err != nil || int64(len(data)) > composeAttachmentMaxBytes {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "attachment is too large"})
+		json.NewEncoder(w).Encode(map[string]string{"error": i18n.T(r.Context(), "server.msg.attachment_is_too_large")})
 		return
 	}
 	contentType := header.Header.Get("Content-Type")
@@ -4521,7 +4713,7 @@ func (h *Handler) handleComposeAttachmentUpload(w http.ResponseWriter, r *http.R
 		// Reading a multipart body may outlive owner access. The file pin
 		// prevents removal, but does not authorize publishing new bytes.
 		if err := h.userStorage.ValidateUser(r.Context(), h.userID(r.Context())); err != nil {
-			http.Error(w, "user storage unavailable", http.StatusForbidden)
+			http.Error(w, i18n.T(r.Context(), "server.error.user_storage_unavailable"), http.StatusForbidden)
 			return
 		}
 	}
@@ -4529,7 +4721,7 @@ func (h *Handler) handleComposeAttachmentUpload(w http.ResponseWriter, r *http.R
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to store attachment"})
+		json.NewEncoder(w).Encode(map[string]string{"error": i18n.T(r.Context(), "server.msg.failed_to_store_attachment")})
 		return
 	}
 	_ = path
@@ -4701,13 +4893,13 @@ func (h *Handler) handleInlineContent(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleAllowRemoteContent(w http.ResponseWriter, r *http.Request) {
 	emailID := r.PathValue("id")
 	if emailID == "" {
-		http.Error(w, "missing id", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.missing_id"), http.StatusBadRequest)
 		return
 	}
 
 	msgID, err := strconv.ParseInt(emailID, 10, 64)
 	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_id"), http.StatusBadRequest)
 		return
 	}
 
@@ -4715,7 +4907,7 @@ func (h *Handler) handleAllowRemoteContent(w http.ResponseWriter, r *http.Reques
 		Mode string `json:"mode"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid body", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_body"), http.StatusBadRequest)
 		return
 	}
 
@@ -4723,7 +4915,7 @@ func (h *Handler) handleAllowRemoteContent(w http.ResponseWriter, r *http.Reques
 	userID := h.userID(ctx)
 	info, err := h.db.GetMessageFetchInfoForUser(ctx, msgID, userID)
 	if err != nil {
-		http.Error(w, "failed to load message", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_load_message"), http.StatusInternalServerError)
 		return
 	}
 	if info == nil {
@@ -4738,7 +4930,7 @@ func (h *Handler) handleAllowRemoteContent(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if req.Mode != "email" && req.Mode != "sender" {
-		http.Error(w, "invalid mode", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_mode"), http.StatusBadRequest)
 		return
 	}
 
@@ -4755,7 +4947,7 @@ func (h *Handler) handleAllowRemoteContent(w http.ResponseWriter, r *http.Reques
 	for _, remoteURL := range remoteURLs {
 		download := h.remoteResourceDownloader
 		if download == nil {
-			download = newRemoteResourceDownloader(privateTargetAllowed(h.db))
+			download = newRemoteResourceDownloader(privateTargetAllowed(h.db), h.readerDefaultProxy)
 		}
 		data, err := download(ctx, remoteURL)
 		if err != nil || len(data) == 0 {
@@ -4771,7 +4963,7 @@ func (h *Handler) handleAllowRemoteContent(w http.ResponseWriter, r *http.Reques
 	rewritten := message.RewriteToLocalAssets(body, urlToLocal)
 	localBodyPath, err := h.blobStore.StoreRemoteBodyHTML(accountID, msgID, rewritten)
 	if err != nil {
-		http.Error(w, "store failed", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.store_failed"), http.StatusInternalServerError)
 		return
 	}
 
@@ -4780,7 +4972,7 @@ func (h *Handler) handleAllowRemoteContent(w http.ResponseWriter, r *http.Reques
 			http.NotFound(w, r)
 			return
 		}
-		http.Error(w, "update failed", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.update_failed"), http.StatusInternalServerError)
 		return
 	}
 
@@ -4790,7 +4982,7 @@ func (h *Handler) handleAllowRemoteContent(w http.ResponseWriter, r *http.Reques
 				http.NotFound(w, r)
 				return
 			}
-			http.Error(w, "update failed", http.StatusInternalServerError)
+			http.Error(w, i18n.T(r.Context(), "server.error.update_failed"), http.StatusInternalServerError)
 			return
 		}
 	} else if req.Mode == "sender" {
@@ -4799,7 +4991,7 @@ func (h *Handler) handleAllowRemoteContent(w http.ResponseWriter, r *http.Reques
 				http.NotFound(w, r)
 				return
 			}
-			http.Error(w, "update failed", http.StatusInternalServerError)
+			http.Error(w, i18n.T(r.Context(), "server.error.update_failed"), http.StatusInternalServerError)
 			return
 		}
 	}
@@ -4813,11 +5005,17 @@ func (h *Handler) handleAllowRemoteContent(w http.ResponseWriter, r *http.Reques
 // load. Their addresses come from the sender, so every connection goes
 // through netguard: private addresses only when an administrator approved
 // them, no proxy from the environment, and each redirect is checked again
-// when it connects.
-func newRemoteResourceDownloader(allowPrivate netguard.PrivatePolicy) func(context.Context, string) ([]byte, error) {
+// when it connects. They are loaded for whoever reads the message rather than
+// for one account, so they go through the proxy pick returns, the default
+// proxy, or directly when pick is nil.
+func newRemoteResourceDownloader(allowPrivate netguard.PrivatePolicy, pick ...func(context.Context) (*netguard.Proxy, error)) func(context.Context, string) ([]byte, error) {
+	transport := netguard.NewHTTPTransport(allowPrivate)
+	if len(pick) > 0 && pick[0] != nil {
+		transport = netguard.ProxySourceTransport(transport, pick[0])
+	}
 	client := &http.Client{
 		Timeout:   10 * time.Second,
-		Transport: netguard.NewHTTPTransport(allowPrivate),
+		Transport: transport,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= 5 {
 				return errors.New("remote resource redirected too many times")
@@ -4925,7 +5123,7 @@ func (h *Handler) handleRemoteAsset(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleSSE(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.streaming_not_supported"), http.StatusInternalServerError)
 		return
 	}
 
@@ -4955,7 +5153,7 @@ func (h *Handler) handleSSE(w http.ResponseWriter, r *http.Request) {
 		if !sseEventVisible(event, userID, accountSet, isAdmin) {
 			return false
 		}
-		writeSSEEvent(w, flusher, event)
+		writeSSEEvent(r.Context(), w, flusher, event)
 		return true
 	}
 
@@ -5062,11 +5260,21 @@ func (h *Handler) handleFolderUnreadCounts(w http.ResponseWriter, r *http.Reques
 	var counts map[string]int
 	err := h.withUserDB(r.Context(), h.userID(r.Context()), func(db *storage.DB) error {
 		var err error
-		counts, err = db.GetAllFolderUnreadCounts(r.Context(), h.userID(r.Context()))
+		userID := h.userID(r.Context())
+		counts, err = db.GetAllFolderUnreadCounts(r.Context(), userID)
+		if err != nil {
+			return err
+		}
+		// The tab title can count every folder rather than the inboxes,
+		// which the folder counts can't give without counting a message
+		// once per label.
+		if db.GetUISettings(r.Context(), userID)["title_unread_count"] == "all" {
+			counts["all"], err = db.CountUnreadOutsideSkippedFolders(r.Context(), userID)
+		}
 		return err
 	})
 	if err != nil {
-		http.Error(w, "failed to get unread counts", http.StatusServiceUnavailable)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_get_unread_counts"), http.StatusServiceUnavailable)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -5131,28 +5339,28 @@ func (h *Handler) handleSyncMail(w http.ResponseWriter, r *http.Request) {
 	userID := h.userID(ctx)
 	accountIDs, err := h.db.GetEmailSyncAccountIDs(ctx, userID)
 	if err != nil {
-		htmlStatus(w, http.StatusInternalServerError, "Could not find email-sync accounts.")
+		htmlStatus(w, r, http.StatusInternalServerError, "Could not find email-sync accounts.")
 		return
 	}
 	paused, err := h.pausedJMAPAccounts(ctx, userID)
 	if err != nil {
-		htmlStatus(w, http.StatusInternalServerError, "Could not find email-sync accounts.")
+		htmlStatus(w, r, http.StatusInternalServerError, "Could not find email-sync accounts.")
 		return
 	}
 	accountIDs = slices.DeleteFunc(accountIDs, func(id string) bool { return paused[id] })
 	if len(accountIDs) == 0 && len(paused) > 0 {
-		htmlStatus(w, http.StatusConflict, providers.ErrJMAPDisabled.Error())
+		htmlStatus(w, r, http.StatusConflict, providers.ErrJMAPDisabled.Error())
 		return
 	}
 	if len(accountIDs) == 0 {
-		htmlStatus(w, http.StatusBadRequest, "Connect an email account before syncing mail.")
+		htmlStatus(w, r, http.StatusBadRequest, "Connect an email account before syncing mail.")
 		return
 	}
 
 	runID, started := h.syncer.SyncAccounts(context.Background(), userID, accountIDs)
 	if !started {
 		w.Header().Set("X-Gofer-Mail-Sync-Running", "true")
-		htmlStatus(w, http.StatusOK, "Mail sync is already running.")
+		htmlStatus(w, r, http.StatusOK, "Mail sync is already running.")
 		return
 	}
 
@@ -5160,10 +5368,10 @@ func (h *Handler) handleSyncMail(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Gofer-Mail-Sync-Accounts", strconv.Itoa(len(accountIDs)))
 	w.Header().Set("X-Gofer-Mail-Sync-Mode", "sync")
 	if len(accountIDs) == 1 {
-		htmlStatus(w, http.StatusOK, "Mail sync started for 1 account.")
+		htmlStatus(w, r, http.StatusOK, "Mail sync started for 1 account.")
 		return
 	}
-	htmlStatus(w, http.StatusOK, fmt.Sprintf("Mail sync started for %d accounts.", len(accountIDs)))
+	htmlStatus(w, r, http.StatusOK, fmt.Sprintf("Mail sync started for %d accounts.", len(accountIDs)))
 }
 
 func (h *Handler) handleSyncMailAccount(w http.ResponseWriter, r *http.Request) {
@@ -5171,13 +5379,13 @@ func (h *Handler) handleSyncMailAccount(w http.ResponseWriter, r *http.Request) 
 	userID := h.userID(ctx)
 	accountID := strings.TrimSpace(r.PathValue("id"))
 	if accountID == "" {
-		htmlStatus(w, http.StatusBadRequest, "Choose an account before syncing mail.")
+		htmlStatus(w, r, http.StatusBadRequest, "Choose an account before syncing mail.")
 		return
 	}
 
 	accountIDs, err := h.db.GetEmailSyncAccountIDs(ctx, userID)
 	if err != nil {
-		htmlStatus(w, http.StatusInternalServerError, "Could not find email-sync accounts.")
+		htmlStatus(w, r, http.StatusInternalServerError, "Could not find email-sync accounts.")
 		return
 	}
 	found := false
@@ -5188,30 +5396,30 @@ func (h *Handler) handleSyncMailAccount(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 	if !found {
-		htmlStatus(w, http.StatusNotFound, "That account is not available for mail sync.")
+		htmlStatus(w, r, http.StatusNotFound, "That account is not available for mail sync.")
 		return
 	}
 	paused, err := h.pausedJMAPAccounts(ctx, userID)
 	if err != nil {
-		htmlStatus(w, http.StatusInternalServerError, "Could not find email-sync accounts.")
+		htmlStatus(w, r, http.StatusInternalServerError, "Could not find email-sync accounts.")
 		return
 	}
 	if paused[accountID] {
-		htmlStatus(w, http.StatusConflict, providers.ErrJMAPDisabled.Error())
+		htmlStatus(w, r, http.StatusConflict, providers.ErrJMAPDisabled.Error())
 		return
 	}
 
 	runID, started := h.syncer.SyncAccounts(context.Background(), userID, []string{accountID})
 	if !started {
 		w.Header().Set("X-Gofer-Mail-Sync-Running", "true")
-		htmlStatus(w, http.StatusOK, "Mail sync is already running.")
+		htmlStatus(w, r, http.StatusOK, "Mail sync is already running.")
 		return
 	}
 
 	w.Header().Set("X-Gofer-Mail-Sync-Run-ID", runID)
 	w.Header().Set("X-Gofer-Mail-Sync-Accounts", "1")
 	w.Header().Set("X-Gofer-Mail-Sync-Mode", "sync")
-	htmlStatus(w, http.StatusOK, "Mail sync started for 1 account.")
+	htmlStatus(w, r, http.StatusOK, "Mail sync started for 1 account.")
 }
 
 func (h *Handler) handleRepairMailAccount(w http.ResponseWriter, r *http.Request) {
@@ -5219,17 +5427,17 @@ func (h *Handler) handleRepairMailAccount(w http.ResponseWriter, r *http.Request
 	userID := h.userID(ctx)
 	accountID := strings.TrimSpace(r.PathValue("id"))
 	if accountID == "" {
-		htmlStatus(w, http.StatusBadRequest, "Choose an account before repairing mail.")
+		htmlStatus(w, r, http.StatusBadRequest, "Choose an account before repairing mail.")
 		return
 	}
 	if h.syncer == nil {
-		htmlStatus(w, http.StatusInternalServerError, "Mail sync is not available.")
+		htmlStatus(w, r, http.StatusInternalServerError, "Mail sync is not available.")
 		return
 	}
 
 	accountIDs, err := h.db.GetEmailSyncAccountIDs(ctx, userID)
 	if err != nil {
-		htmlStatus(w, http.StatusInternalServerError, "Could not find email-sync accounts.")
+		htmlStatus(w, r, http.StatusInternalServerError, "Could not find email-sync accounts.")
 		return
 	}
 	found := false
@@ -5240,38 +5448,38 @@ func (h *Handler) handleRepairMailAccount(w http.ResponseWriter, r *http.Request
 		}
 	}
 	if !found {
-		htmlStatus(w, http.StatusNotFound, "That account is not available for mail repair.")
+		htmlStatus(w, r, http.StatusNotFound, "That account is not available for mail repair.")
 		return
 	}
 	account, err := h.accountStore.GetAccountByID(ctx, accountID)
 	if err != nil {
-		htmlStatus(w, http.StatusInternalServerError, "Could not load account.")
+		htmlStatus(w, r, http.StatusInternalServerError, "Could not load account.")
 		return
 	}
 	if account == nil || strings.TrimSpace(account.Provider) != providers.ProviderGmail {
-		htmlStatus(w, http.StatusBadRequest, "Full mail repair is only available for Gmail accounts.")
+		htmlStatus(w, r, http.StatusBadRequest, "Full mail repair is only available for Gmail accounts.")
 		return
 	}
 
 	runID, started := h.syncer.RepairGmailAPIAccount(context.Background(), userID, accountID)
 	if !started {
 		w.Header().Set("X-Gofer-Mail-Sync-Running", "true")
-		htmlStatus(w, http.StatusOK, "Mail sync is already running.")
+		htmlStatus(w, r, http.StatusOK, "Mail sync is already running.")
 		return
 	}
 
 	w.Header().Set("X-Gofer-Mail-Sync-Run-ID", runID)
 	w.Header().Set("X-Gofer-Mail-Sync-Accounts", "1")
 	w.Header().Set("X-Gofer-Mail-Sync-Mode", "repair")
-	htmlStatus(w, http.StatusOK, "Gmail repair and full resync started for 1 account.")
+	htmlStatus(w, r, http.StatusOK, "Gmail repair and full resync started for 1 account.")
 }
 
 func (h *Handler) handleCancelSyncMail(w http.ResponseWriter, r *http.Request) {
 	if h.syncer.CancelManualSync(h.userID(r.Context())) {
-		htmlStatus(w, http.StatusOK, "Mail sync cancellation requested.")
+		htmlStatus(w, r, http.StatusOK, "Mail sync cancellation requested.")
 		return
 	}
-	htmlStatus(w, http.StatusOK, "No mail sync is running.")
+	htmlStatus(w, r, http.StatusOK, "No mail sync is running.")
 }
 
 func (h *Handler) handleProcessingStatus(w http.ResponseWriter, r *http.Request) {
@@ -5280,7 +5488,7 @@ func (h *Handler) handleProcessingStatus(w http.ResponseWriter, r *http.Request)
 		defer cancel()
 		user := auth.GetCurrentUser(ctx)
 		if user == nil {
-			http.Error(w, "admin access required", http.StatusForbidden)
+			http.Error(w, i18n.T(r.Context(), "server.error.admin_access_required"), http.StatusForbidden)
 			return
 		}
 		actor := storage.DiagnosticsActor{ID: user.ID, AuthVersion: user.AuthVersion}
@@ -5290,7 +5498,7 @@ func (h *Handler) handleProcessingStatus(w http.ResponseWriter, r *http.Request)
 				if errors.Is(err, storage.ErrUserDiagnosticsAccess) {
 					status = http.StatusForbidden
 				}
-				http.Error(w, "processing status unavailable", status)
+				http.Error(w, i18n.T(r.Context(), "server.error.processing_status_unavailable"), status)
 				return false
 			}
 			return true
@@ -5319,18 +5527,18 @@ func (h *Handler) handleComposePane(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleComposeDraft(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		writeComposeJSONError(w, http.StatusBadRequest, "invalid form data")
+		writeComposeJSONError(w, r, http.StatusBadRequest, "invalid form data")
 		return
 	}
 
 	ctx := r.Context()
 	saved, composeErr := h.saveComposeDraftFromForm(ctx, r)
 	if composeErr != nil {
-		writeComposeRequestError(w, composeErr)
+		writeComposeRequestError(w, r, composeErr)
 		return
 	}
 	if err := h.refreshPendingOutgoingSend(ctx, saved); err != nil {
-		writeComposeJSONError(w, http.StatusInternalServerError, "failed to update queued message")
+		writeComposeJSONError(w, r, http.StatusInternalServerError, "failed to update queued message")
 		return
 	}
 
@@ -5351,11 +5559,11 @@ func noDraftsFolderError(accountID string) *composeRequestError {
 	return &composeRequestError{status: http.StatusBadRequest, message: "This account has no Drafts folder.", noDraftsAccount: accountID}
 }
 
-func writeComposeRequestError(w http.ResponseWriter, err *composeRequestError) {
+func writeComposeRequestError(w http.ResponseWriter, r *http.Request, err *composeRequestError) {
 	if err.noDraftsAccount != "" {
 		noteMissingFolder(w, err.noDraftsAccount, "drafts")
 	}
-	writeComposeJSONError(w, err.status, err.message)
+	writeComposeJSONError(w, r, err.status, err.message)
 }
 
 type composeDraftSaveResult struct {
@@ -5367,10 +5575,10 @@ type composeDraftSaveResult struct {
 	Sender *composeSender
 }
 
-func writeComposeJSONError(w http.ResponseWriter, status int, message string) {
+func writeComposeJSONError(w http.ResponseWriter, r *http.Request, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]string{"error": message})
+	json.NewEncoder(w).Encode(map[string]string{"error": serverText(r.Context(), message)})
 }
 
 func (h *Handler) saveComposeDraftFromForm(ctx context.Context, r *http.Request) (composeDraftSaveResult, *composeRequestError) {
@@ -5411,7 +5619,7 @@ func (h *Handler) saveComposeDraftFromForm(ctx context.Context, r *http.Request)
 	body := r.FormValue("body")
 	htmlBody := strings.TrimSpace(r.FormValue("html_body"))
 	if htmlBody != "" {
-		htmlBody = string(message.SanitizeHTML([]byte(htmlBody)))
+		htmlBody = string(message.SanitizeOutgoingHTML([]byte(htmlBody)))
 	}
 	subject := r.FormValue("subject")
 	snippet := sentSnippet(body, subject)
@@ -5423,6 +5631,9 @@ func (h *Handler) saveComposeDraftFromForm(ctx context.Context, r *http.Request)
 		return composeDraftSaveResult{}, &composeRequestError{status: http.StatusBadRequest, message: err.Error()}
 	}
 
+	toAddrs := message.ParseDraftAddressList(r.FormValue("to"))
+	ccAddrs := message.ParseDraftAddressList(r.FormValue("cc"))
+	bccAddrs := message.ParseDraftAddressList(r.FormValue("bcc"))
 	msgID, err := h.db.SaveDraftMessage(ctx, storage.DraftMessageInput{
 		AccountID:         accountID,
 		FolderID:          draftFolderID,
@@ -5433,9 +5644,9 @@ func (h *Handler) saveComposeDraftFromForm(ctx context.Context, r *http.Request)
 		FromName:          sender.Name,
 		FromEmail:         sender.Email,
 		Snippet:           snippet,
-		ToRecipients:      parseDraftRecipients(r.FormValue("to")),
-		CCRecipients:      parseDraftRecipients(r.FormValue("cc")),
-		BCCRecipients:     parseDraftRecipients(r.FormValue("bcc")),
+		ToRecipients:      draftRecipients(toAddrs),
+		CCRecipients:      draftRecipients(ccAddrs),
+		BCCRecipients:     draftRecipients(bccAddrs),
 		Date:              time.Now().UTC(),
 	})
 	if err != nil {
@@ -5455,9 +5666,6 @@ func (h *Handler) saveComposeDraftFromForm(ctx context.Context, r *http.Request)
 	}
 	_ = h.db.UpdateMessageBodyInternal(ctx, msgID, textPath, htmlPath, "", snippet, 0)
 	_ = h.db.ReplaceAttachmentsInternal(ctx, msgID, attachmentRows)
-	toAddrs, _ := message.ParseAddressList(r.FormValue("to"))
-	ccAddrs, _ := message.ParseAddressList(r.FormValue("cc"))
-	bccAddrs, _ := message.ParseAddressList(r.FormValue("bcc"))
 	providerDraft := &message.OutgoingMessage{
 		To:          toAddrs,
 		CC:          ccAddrs,
@@ -5524,7 +5732,7 @@ func (h *Handler) handleDiscardComposeDraft(w http.ResponseWriter, r *http.Reque
 	draftPaths := h.composeDraftAttachmentPaths(ctx, accountID, draftID)
 	draftProvider, _ := h.db.GetDraftProviderInfoInternal(ctx, accountID, draftID)
 	if err := h.queueIMAPDraftDelete(ctx, accountID, draftID, draftProvider); err != nil {
-		writeComposeJSONError(w, http.StatusInternalServerError, "failed to queue remote draft deletion")
+		writeComposeJSONError(w, r, http.StatusInternalServerError, "failed to queue remote draft deletion")
 		return
 	}
 	if messageID, _ := h.db.GetMessageLocalIDByInternetIDInternal(ctx, accountID, draftID); messageID > 0 {
@@ -5534,7 +5742,7 @@ func (h *Handler) handleDiscardComposeDraft(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to discard draft"})
+		json.NewEncoder(w).Encode(map[string]string{"error": i18n.T(r.Context(), "server.msg.failed_to_discard_draft")})
 		return
 	}
 	if folderID != "" {
@@ -5560,11 +5768,7 @@ func (h *Handler) handleDiscardComposeDraft(w http.ResponseWriter, r *http.Reque
 	json.NewEncoder(w).Encode(map[string]string{"status": "discarded"})
 }
 
-func parseDraftRecipients(raw string) []storage.Recipient {
-	addrs, err := message.ParseAddressList(raw)
-	if err != nil {
-		return nil
-	}
+func draftRecipients(addrs []*netmail.Address) []storage.Recipient {
 	recipients := make([]storage.Recipient, 0, len(addrs))
 	for _, addr := range addrs {
 		recipients = append(recipients, storage.Recipient{Name: addr.Name, Email: addr.Address})
@@ -5697,6 +5901,16 @@ func formValueAt(values []string, idx int, fallback string) string {
 	return fallback
 }
 
+type composeSourceAttachment struct {
+	ID          int64  `json:"id"`
+	Filename    string `json:"filename"`
+	ContentType string `json:"content_type"`
+	Size        int64  `json:"size"`
+	Existing    bool   `json:"existing"`
+	PreviewURL  string `json:"preview_url"`
+	ContentID   string `json:"content_id,omitempty"`
+}
+
 func (h *Handler) handleComposeSource(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	// The message comes by its local id from the message list, or by its
@@ -5713,7 +5927,7 @@ func (h *Handler) handleComposeSource(w http.ResponseWriter, r *http.Request) {
 		accountID := q.Get("account_id")
 		messageID := q.Get("message_id")
 		if accountID == "" || messageID == "" {
-			http.Error(w, "missing message", http.StatusBadRequest)
+			http.Error(w, i18n.T(r.Context(), "server.error.missing_message"), http.StatusBadRequest)
 			return
 		}
 		if !h.requireOwnedAccount(w, r, accountID) {
@@ -5740,17 +5954,23 @@ func (h *Handler) handleComposeSource(w http.ResponseWriter, r *http.Request) {
 			email = fetched
 		}
 	}
-	type composeSourceAttachment struct {
-		ID          int64  `json:"id"`
-		Filename    string `json:"filename"`
-		ContentType string `json:"content_type"`
-		Size        int64  `json:"size"`
-		Existing    bool   `json:"existing"`
-		PreviewURL  string `json:"preview_url"`
-	}
 	attachments := make([]composeSourceAttachment, 0, len(email.Attachments))
+	inlineImages := make([]composeSourceAttachment, 0)
 	for _, att := range email.Attachments {
 		if att.Inline {
+			// The quoted body names these parts by cid:, and compose
+			// sends them along again as the message's own inline parts.
+			if att.ContentID != "" {
+				inlineImages = append(inlineImages, composeSourceAttachment{
+					ID:          att.ID,
+					Filename:    att.Filename,
+					ContentType: att.ContentType,
+					Size:        att.SizeBytes,
+					Existing:    true,
+					PreviewURL:  attachmentPreviewURL(att.ID, att.ContentType, att.Filename),
+					ContentID:   att.ContentID,
+				})
+			}
 			continue
 		}
 		attachments = append(attachments, composeSourceAttachment{
@@ -5769,6 +5989,14 @@ func (h *Handler) handleComposeSource(w http.ResponseWriter, r *http.Request) {
 	if htmlBody == "" {
 		htmlBody = email.HTMLBody
 	}
+	htmlBody = composeSourceCIDReferences(htmlBody, localID, inlineImages)
+	// Remote images in the quoted message are sent only when the reader
+	// already chose to load the message's remote content, as they do it in
+	// the reading pane.
+	remoteAllowed := h.db.IsRemoteContentAllowedForMessageForUser(r.Context(), localID, userID)
+	if !remoteAllowed && email.From.Email != "" {
+		remoteAllowed = h.db.IsRemoteContentAllowedForSenderForUser(r.Context(), email.From.Email, userID)
+	}
 	identityID := ""
 	ownEmails := []string{}
 	if account, err := h.ownedAccount(r.Context(), email.AccountID); err == nil && account != nil {
@@ -5783,21 +6011,36 @@ func (h *Handler) handleComposeSource(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
-		"account_id":  email.AccountID,
-		"identity_id": identityID,
-		"own_emails":  ownEmails,
-		"message_id":  email.InternetMessageID,
-		"references":  email.References,
-		"subject":     email.Subject,
-		"from_name":   email.From.Name,
-		"from_email":  email.From.Email,
-		"date":        email.DateFull,
-		"to":          contactsToAddressList(email.To),
-		"cc":          contactsToAddressList(email.CC),
-		"body":        email.TextBody,
-		"html_body":   htmlBody,
-		"attachments": attachments,
+		"account_id":     email.AccountID,
+		"identity_id":    identityID,
+		"own_emails":     ownEmails,
+		"message_id":     email.InternetMessageID,
+		"references":     email.References,
+		"subject":        email.Subject,
+		"from_name":      email.From.Name,
+		"from_email":     email.From.Email,
+		"date":           email.DateFull,
+		"to":             contactsToAddressList(email.To),
+		"cc":             contactsToAddressList(email.CC),
+		"body":           email.TextBody,
+		"html_body":      htmlBody,
+		"attachments":    attachments,
+		"email_id":       email.ID,
+		"inline_images":  inlineImages,
+		"remote_allowed": remoteAllowed,
 	})
+}
+
+// composeSourceCIDReferences turns the quoted message's inline parts back
+// from their Gofer addresses to cid: references, which compose attaches
+// again. A Gofer address would reach the recipient as a broken link.
+func composeSourceCIDReferences(body string, messageID int64, inlineImages []composeSourceAttachment) string {
+	for _, att := range inlineImages {
+		local := inlineContentURL(messageID, att.ContentID)
+		body = strings.ReplaceAll(body, local, "cid:"+att.ContentID)
+		body = strings.ReplaceAll(body, html.EscapeString(local), "cid:"+html.EscapeString(att.ContentID))
+	}
+	return body
 }
 
 func (h *Handler) handleGetDraft(w http.ResponseWriter, r *http.Request) {
@@ -5809,7 +6052,8 @@ func (h *Handler) handleGetDraft(w http.ResponseWriter, r *http.Request) {
 	// A draft picked up from a thread may not have been opened yet, so its
 	// body may not be downloaded. Without it the editor would open with only
 	// the preview text.
-	if msgID, err := strconv.ParseInt(email.ID, 10, 64); err == nil && !h.db.IsBodyFetchedInternal(r.Context(), msgID) {
+	// Per-user storage fetched it before this handler ran (userComposeHandler).
+	if msgID, err := strconv.ParseInt(email.ID, 10, 64); err == nil && h.userMutationState == nil && !h.db.IsBodyFetchedInternal(r.Context(), msgID) {
 		h.ensureBodyFetched(r.Context(), msgID, email.AccountID)
 		if fetched, err := h.db.GetEmailByIDForUser(r.Context(), email.ID, h.userID(r.Context())); err == nil && fetched != nil && fetched.IsDraft {
 			email = fetched
@@ -5887,7 +6131,7 @@ func (h *Handler) handleDeleteDraft(w http.ResponseWriter, r *http.Request) {
 	draftPaths := attachmentStoragePaths(email.Attachments)
 	draftProvider, _ := h.db.GetDraftProviderInfoInternal(r.Context(), email.AccountID, email.InternetMessageID)
 	if err := h.queueIMAPDraftDelete(r.Context(), email.AccountID, email.InternetMessageID, draftProvider); err != nil {
-		writeComposeJSONError(w, http.StatusInternalServerError, "failed to queue remote draft deletion")
+		writeComposeJSONError(w, r, http.StatusInternalServerError, "failed to queue remote draft deletion")
 		return
 	}
 	if messageID, err := strconv.ParseInt(email.ID, 10, 64); err == nil {
@@ -5897,7 +6141,7 @@ func (h *Handler) handleDeleteDraft(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to discard draft"})
+		json.NewEncoder(w).Encode(map[string]string{"error": i18n.T(r.Context(), "server.msg.failed_to_discard_draft")})
 		return
 	}
 	if folderID != "" {
@@ -5929,18 +6173,14 @@ func contactsToAddressList(contacts []models.Contact) string {
 		if c.Email == "" {
 			continue
 		}
-		if c.Name != "" && c.Name != c.Email {
-			parts = append(parts, fmt.Sprintf("%s <%s>", c.Name, c.Email))
-		} else {
-			parts = append(parts, c.Email)
-		}
+		parts = append(parts, message.FormatAddress(c.Name, c.Email))
 	}
 	return strings.Join(parts, ", ")
 }
 
 func (h *Handler) handleCompose(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		writeComposeJSONError(w, http.StatusBadRequest, "invalid form data")
+		writeComposeJSONError(w, r, http.StatusBadRequest, "invalid form data")
 		return
 	}
 
@@ -5950,37 +6190,37 @@ func (h *Handler) handleCompose(w http.ResponseWriter, r *http.Request) {
 		accountID = h.accountStore.GetFirstAccountID(ctx, h.userID(ctx))
 	}
 	if accountID == "" {
-		writeComposeJSONError(w, http.StatusBadRequest, "no account configured")
+		writeComposeJSONError(w, r, http.StatusBadRequest, "no account configured")
 		return
 	}
 
 	account, err := h.ownedAccount(ctx, accountID)
 	if err != nil || account == nil {
-		writeComposeJSONError(w, http.StatusNotFound, "account not found")
+		writeComposeJSONError(w, r, http.StatusNotFound, "account not found")
 		return
 	}
 
 	toAddrs, err := message.ParseAddressList(r.FormValue("to"))
 	if err != nil || len(toAddrs) == 0 {
-		writeComposeJSONError(w, http.StatusBadRequest, "Please enter at least one recipient.")
+		writeComposeJSONError(w, r, http.StatusBadRequest, "Please enter at least one recipient.")
 		return
 	}
 	ccAddrs, _ := message.ParseAddressList(r.FormValue("cc"))
 	bccAddrs, _ := message.ParseAddressList(r.FormValue("bcc"))
 	attachments, _, err := h.collectComposeAttachments(r)
 	if err != nil {
-		writeComposeJSONError(w, http.StatusNotFound, err.Error())
+		writeComposeJSONError(w, r, http.StatusNotFound, err.Error())
 		return
 	}
 	if err := validateComposeMessageSize(attachments, r.FormValue("body"), r.FormValue("html_body")); err != nil {
-		writeComposeJSONError(w, http.StatusBadRequest, err.Error())
+		writeComposeJSONError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	body := r.FormValue("body")
 	htmlBody := strings.TrimSpace(r.FormValue("html_body"))
 	if htmlBody != "" {
-		htmlBody = string(message.SanitizeHTML([]byte(htmlBody)))
+		htmlBody = string(message.SanitizeOutgoingHTML([]byte(htmlBody)))
 		if !strings.Contains(strings.ToLower(htmlBody), "<html") {
 			htmlBody = "<html><body>" + htmlBody + "</body></html>"
 		}
@@ -5991,7 +6231,7 @@ func (h *Handler) handleCompose(w http.ResponseWriter, r *http.Request) {
 	sender, err := h.composeSenderFor(ctx, account, r, true)
 	if err != nil {
 		status, text := composeSenderError(err)
-		writeComposeJSONError(w, status, text)
+		writeComposeJSONError(w, r, status, text)
 		return
 	}
 
@@ -6017,11 +6257,11 @@ func (h *Handler) handleCompose(w http.ResponseWriter, r *http.Request) {
 	}
 	queued, err := h.queueOutgoingMessage(ctx, accountID, localDraftMessageID, draftID, msg, time.Now().UTC(), false)
 	if errors.Is(err, providers.ErrJMAPDisabled) {
-		writeComposeJSONError(w, http.StatusConflict, err.Error())
+		writeComposeJSONError(w, r, http.StatusConflict, err.Error())
 		return
 	}
 	if err != nil {
-		writeComposeJSONError(w, http.StatusInternalServerError, "failed to queue message")
+		writeComposeJSONError(w, r, http.StatusInternalServerError, "failed to queue message")
 		return
 	}
 	h.signalOutgoingWorker()
@@ -6033,28 +6273,28 @@ func (h *Handler) handleCompose(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleComposeSchedule(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		writeComposeJSONError(w, http.StatusBadRequest, "invalid form data")
+		writeComposeJSONError(w, r, http.StatusBadRequest, "invalid form data")
 		return
 	}
 
 	userID := h.userID(r.Context())
 	loc, err := h.scheduleLocation(r.Context(), userID, r.FormValue("schedule_timezone"))
 	if err != nil {
-		writeComposeJSONError(w, http.StatusBadRequest, err.Error())
+		writeComposeJSONError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	scheduledFor, err := parseScheduledSendWallTime(r.FormValue("schedule_date"), r.FormValue("schedule_hour"), r.FormValue("schedule_minute"), loc)
 	if err != nil {
-		writeComposeJSONError(w, http.StatusBadRequest, err.Error())
+		writeComposeJSONError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	if !scheduledFor.After(time.Now().Add(30 * time.Second)) {
-		writeComposeJSONError(w, http.StatusBadRequest, "Choose a time at least 1 minute in the future.")
+		writeComposeJSONError(w, r, http.StatusBadRequest, "Choose a time at least 1 minute in the future.")
 		return
 	}
 
 	if toAddrs, err := message.ParseAddressList(r.FormValue("to")); err != nil || len(toAddrs) == 0 {
-		writeComposeJSONError(w, http.StatusBadRequest, "Please enter at least one recipient.")
+		writeComposeJSONError(w, r, http.StatusBadRequest, "Please enter at least one recipient.")
 		return
 	}
 
@@ -6063,19 +6303,19 @@ func (h *Handler) handleComposeSchedule(w http.ResponseWriter, r *http.Request) 
 	if account, err := h.ownedAccount(r.Context(), r.FormValue("account_id")); err == nil && account != nil {
 		if _, err := h.composeSenderFor(r.Context(), account, r, true); err != nil {
 			status, text := composeSenderError(err)
-			writeComposeJSONError(w, status, text)
+			writeComposeJSONError(w, r, status, text)
 			return
 		}
 	}
 	saved, composeErr := h.saveComposeDraftFromForm(r.Context(), r)
 	if composeErr != nil {
-		writeComposeRequestError(w, composeErr)
+		writeComposeRequestError(w, r, composeErr)
 		return
 	}
 
 	msg, err := h.outgoingMessageFromDraft(r.Context(), saved.MessageID)
 	if err != nil {
-		writeComposeJSONError(w, http.StatusInternalServerError, "failed to prepare scheduled message")
+		writeComposeJSONError(w, r, http.StatusInternalServerError, "failed to prepare scheduled message")
 		return
 	}
 	if saved.Sender != nil {
@@ -6084,11 +6324,11 @@ func (h *Handler) handleComposeSchedule(w http.ResponseWriter, r *http.Request) 
 	}
 	scheduled, err := h.queueOutgoingMessage(r.Context(), saved.AccountID, saved.MessageID, saved.DraftID, msg, scheduledFor, true)
 	if errors.Is(err, providers.ErrJMAPDisabled) {
-		writeComposeJSONError(w, http.StatusConflict, err.Error())
+		writeComposeJSONError(w, r, http.StatusConflict, err.Error())
 		return
 	}
 	if err != nil {
-		writeComposeJSONError(w, http.StatusInternalServerError, "failed to schedule message")
+		writeComposeJSONError(w, r, http.StatusInternalServerError, "failed to schedule message")
 		return
 	}
 	h.publishMutation(saved.AccountID, "scheduled")
@@ -6268,10 +6508,13 @@ func (h *Handler) validComposeThreadHeaders(ctx context.Context, accountID, subj
 	}
 	parentID := ids[0]
 
+	// The parent's own subject, not its stored normalized_subject: mail
+	// saved before Gofer knew a prefix, such as 答复:, still has it there.
 	var parentSubject string
 	err := h.db.Read().QueryRowContext(ctx,
-		`SELECT normalized_subject FROM messages WHERE account_id = ? AND message_id_normalized = ? LIMIT 1`, accountID, parentID,
+		`SELECT subject FROM messages WHERE account_id = ? AND message_id_normalized = ? LIMIT 1`, accountID, parentID,
 	).Scan(&parentSubject)
+	parentSubject = message.BaseSubject(parentSubject)
 	if err != nil || parentSubject == "" || parentSubject != message.BaseSubject(subject) {
 		return "", ""
 	}
@@ -6346,14 +6589,14 @@ func (h *Handler) getMessageInfoForFolder(ctx context.Context, idStr, folderID s
 func writeMessageTargetError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, errInvalidMessageTarget):
-		http.Error(w, "invalid message id", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_message_id"), http.StatusBadRequest)
 	case errors.Is(err, errMessageTargetNotFound), errors.Is(err, sql.ErrNoRows):
 		http.NotFound(w, r)
 	case errors.Is(err, errUserMessageMutationUnsupported):
-		http.Error(w, "Mail changes for this account are not available yet.", http.StatusNotImplemented)
+		http.Error(w, i18n.T(r.Context(), "server.error.mail_changes_for_this_account_are_not"), http.StatusNotImplemented)
 	default:
 		log.Printf("message target lookup failed: %v", err)
-		http.Error(w, "failed to load message", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_load_message"), http.StatusInternalServerError)
 	}
 }
 
@@ -6542,7 +6785,7 @@ func (h *Handler) handleToggleRead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.db.SetMessageReadAndQueueForUser(ctx, msgID, targetRead, h.userID(ctx)); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, serverText(r.Context(), err.Error()), http.StatusInternalServerError)
 		return
 	}
 	h.signalMessageMutationWorker()
@@ -6557,7 +6800,7 @@ func (h *Handler) handleToggleRead(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleMarkMessagesRead(w http.ResponseWriter, r *http.Request) {
 	payload, err := decodeMessageBulkRequest(r)
 	if err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_request_body"), http.StatusBadRequest)
 		return
 	}
 
@@ -6575,7 +6818,7 @@ func (h *Handler) handleMarkMessagesRead(w http.ResponseWriter, r *http.Request)
 			messageIDs = append(messageIDs, info.MessageID)
 		}
 		if err := h.db.SetMessagesReadAndQueueForUser(ctx, messageIDs, targetRead, h.userID(ctx)); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, serverText(r.Context(), err.Error()), http.StatusInternalServerError)
 			return
 		}
 		updated++
@@ -6599,7 +6842,7 @@ func (h *Handler) handleMarkMessagesRead(w http.ResponseWriter, r *http.Request)
 func (h *Handler) handleMarkMessagesStarred(w http.ResponseWriter, r *http.Request) {
 	payload, err := decodeMessageBulkRequest(r)
 	if err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_request_body"), http.StatusBadRequest)
 		return
 	}
 	targetStarred := payload.State != "unstarred" && payload.State != "false"
@@ -6617,7 +6860,7 @@ func (h *Handler) handleMarkMessagesStarred(w http.ResponseWriter, r *http.Reque
 			messageIDs = append(messageIDs, info.MessageID)
 		}
 		if err := h.db.SetMessagesStarredAndQueueForUser(ctx, messageIDs, targetStarred, h.userID(ctx)); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, serverText(r.Context(), err.Error()), http.StatusInternalServerError)
 			return
 		}
 		updated++
@@ -6641,7 +6884,7 @@ func (h *Handler) handleMarkMessagesStarred(w http.ResponseWriter, r *http.Reque
 func (h *Handler) handleArchiveMessages(w http.ResponseWriter, r *http.Request) {
 	payload, err := decodeMessageBulkRequest(r)
 	if err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_request_body"), http.StatusBadRequest)
 		return
 	}
 	ctx := h.messageMutationContext(r.Context())
@@ -6668,7 +6911,7 @@ func (h *Handler) handleArchiveMessages(w http.ResponseWriter, r *http.Request) 
 			continue
 		}
 		if err := h.queueMessageMoves(ctx, target.Infos, archiveFolderID); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, serverText(r.Context(), err.Error()), http.StatusInternalServerError)
 			return
 		}
 		updated++
@@ -6686,7 +6929,7 @@ func (h *Handler) handleArchiveMessages(w http.ResponseWriter, r *http.Request) 
 func (h *Handler) handleUnarchiveMessages(w http.ResponseWriter, r *http.Request) {
 	payload, err := decodeMessageBulkRequest(r)
 	if err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_request_body"), http.StatusBadRequest)
 		return
 	}
 	ctx := h.messageMutationContext(r.Context())
@@ -6713,7 +6956,7 @@ func (h *Handler) handleUnarchiveMessages(w http.ResponseWriter, r *http.Request
 			continue
 		}
 		if err := h.queueMessageMoves(ctx, archived, inboxFolderID); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, serverText(r.Context(), err.Error()), http.StatusInternalServerError)
 			return
 		}
 		updated++
@@ -6729,7 +6972,7 @@ func (h *Handler) handleUnarchiveMessages(w http.ResponseWriter, r *http.Request
 func (h *Handler) handleDeleteMessages(w http.ResponseWriter, r *http.Request) {
 	payload, err := decodeMessageBulkRequest(r)
 	if err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_request_body"), http.StatusBadRequest)
 		return
 	}
 	ctx := h.messageMutationContext(r.Context())
@@ -6749,7 +6992,7 @@ func (h *Handler) handleDeleteMessages(w http.ResponseWriter, r *http.Request) {
 		currentInfo := target.Infos[0].MessageMutationInfo
 		if payload.ForGood && currentInfo.FolderRole != "trash" {
 			if err := h.queuePermanentDeletes(ctx, target.Infos); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				http.Error(w, serverText(r.Context(), err.Error()), http.StatusInternalServerError)
 				return
 			}
 		} else if currentInfo.FolderRole == "trash" {
@@ -6758,7 +7001,7 @@ func (h *Handler) handleDeleteMessages(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			if err := h.queuePermanentDeletes(ctx, target.Infos); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				http.Error(w, serverText(r.Context(), err.Error()), http.StatusInternalServerError)
 				return
 			}
 		} else {
@@ -6771,7 +7014,7 @@ func (h *Handler) handleDeleteMessages(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			if err := h.queueMessageMoves(ctx, target.Infos, trashFolderID); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				http.Error(w, serverText(r.Context(), err.Error()), http.StatusInternalServerError)
 				return
 			}
 			h.publishMutation(currentInfo.AccountID, trashFolderID)
@@ -6796,12 +7039,12 @@ func (h *Handler) handleDeleteMessages(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleMoveMessages(w http.ResponseWriter, r *http.Request) {
 	payload, err := decodeMessageBulkRequest(r)
 	if err != nil {
-		moveRefused(w, "invalid request body", http.StatusBadRequest)
+		moveRefused(w, r, "invalid request body", http.StatusBadRequest)
 		return
 	}
 	destFolderID := strings.TrimSpace(payload.FolderID)
 	if destFolderID == "" {
-		moveRefused(w, "folder_id required", http.StatusBadRequest)
+		moveRefused(w, r, "folder_id required", http.StatusBadRequest)
 		return
 	}
 	ctx := h.messageMutationContext(r.Context())
@@ -6810,23 +7053,23 @@ func (h *Handler) handleMoveMessages(w http.ResponseWriter, r *http.Request) {
 	case "inbox", "archive", "spam", "trash":
 		combinedRole = destFolderID
 	case "starred", "sent", "drafts", "scheduled":
-		moveRefused(w, "messages cannot be moved to this folder", http.StatusBadRequest)
+		moveRefused(w, r, "messages cannot be moved to this folder", http.StatusBadRequest)
 		return
 	}
 	destAccountID := ""
 	if combinedRole == "" {
 		destFolderID, err = h.resolveFolderID(ctx, h.userID(ctx), destFolderID)
 		if err != nil {
-			moveRefused(w, "destination folder not found", http.StatusBadRequest)
+			moveRefused(w, r, "destination folder not found", http.StatusBadRequest)
 			return
 		}
 		if remoteID, err := h.db.GetFolderRemoteID(ctx, destFolderID); err != nil || remoteID == "" {
-			moveRefused(w, "destination folder not found", http.StatusBadRequest)
+			moveRefused(w, r, "destination folder not found", http.StatusBadRequest)
 			return
 		}
 		destAccountID, err = h.db.GetFolderAccountID(ctx, destFolderID)
 		if err != nil || destAccountID == "" {
-			moveRefused(w, "destination folder not found", http.StatusBadRequest)
+			moveRefused(w, r, "destination folder not found", http.StatusBadRequest)
 			return
 		}
 	}
@@ -6842,7 +7085,7 @@ func (h *Handler) handleMoveMessages(w http.ResponseWriter, r *http.Request) {
 		info := target.Infos[0].MessageMutationInfo
 		if combinedRole == "" {
 			if info.AccountID != destAccountID {
-				moveRefused(w, "messages from another account cannot be moved to this folder", http.StatusBadRequest)
+				moveRefused(w, r, "messages from another account cannot be moved to this folder", http.StatusBadRequest)
 				return
 			}
 			destinations[i] = destFolderID
@@ -6850,7 +7093,7 @@ func (h *Handler) handleMoveMessages(w http.ResponseWriter, r *http.Request) {
 		}
 		folderID, err := h.combinedFolderIDForAccount(ctx, info.AccountID, combinedRole)
 		if err != nil || folderID == "" {
-			moveRefused(w, "an account has no folder of this kind", http.StatusBadRequest)
+			moveRefused(w, r, "an account has no folder of this kind", http.StatusBadRequest)
 			return
 		}
 		destinations[i] = folderID
@@ -6868,7 +7111,7 @@ func (h *Handler) handleMoveMessages(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if err := h.queueMessageMoves(ctx, moving, destinations[i]); err != nil {
-			moveRefused(w, err.Error(), http.StatusInternalServerError)
+			moveRefused(w, r, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		updated++
@@ -6883,9 +7126,9 @@ func (h *Handler) handleMoveMessages(w http.ResponseWriter, r *http.Request) {
 
 // moveRefused answers a refused move and logs why, since the browser only
 // shows the reason to the user.
-func moveRefused(w http.ResponseWriter, reason string, status int) {
+func moveRefused(w http.ResponseWriter, r *http.Request, reason string, status int) {
 	log.Printf("message move refused (%d): %s", status, reason)
-	http.Error(w, reason, status)
+	http.Error(w, serverText(r.Context(), reason), status)
 }
 
 // combinedFolderIDForAccount is an account's folder behind a combined folder.
@@ -6911,7 +7154,7 @@ func (h *Handler) handleToggleStar(w http.ResponseWriter, r *http.Request) {
 
 	targetStarred := !info.IsStarred
 	if err := h.db.SetMessageStarredAndQueueForUser(ctx, msgID, targetStarred, h.userID(ctx)); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, serverText(r.Context(), err.Error()), http.StatusInternalServerError)
 		return
 	}
 
@@ -6954,7 +7197,7 @@ func (h *Handler) handleToggleThreadRead(w http.ResponseWriter, r *http.Request)
 		messageIDs = append(messageIDs, info.MessageID)
 	}
 	if err := h.db.SetMessagesReadAndQueueForUser(ctx, messageIDs, targetRead, h.userID(ctx)); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, serverText(r.Context(), err.Error()), http.StatusInternalServerError)
 		return
 	}
 
@@ -6992,7 +7235,7 @@ func (h *Handler) handleToggleThreadStar(w http.ResponseWriter, r *http.Request)
 		messageIDs = append(messageIDs, info.MessageID)
 	}
 	if err := h.db.SetMessagesStarredAndQueueForUser(ctx, messageIDs, targetStarred, h.userID(ctx)); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, serverText(r.Context(), err.Error()), http.StatusInternalServerError)
 		return
 	}
 
@@ -7017,7 +7260,7 @@ func (h *Handler) handleArchiveThread(w http.ResponseWriter, r *http.Request) {
 	infos := targets[0].Infos
 	info := infos[0].MessageMutationInfo
 	if info.FolderRole == "archive" || info.FolderRole == "trash" {
-		http.Error(w, "thread cannot be archived from this folder", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.thread_cannot_be_archived_from_this_folder"), http.StatusBadRequest)
 		return
 	}
 
@@ -7026,16 +7269,16 @@ func (h *Handler) handleArchiveThread(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			noteMissingFolder(w, info.AccountID, "archive")
 		}
-		http.Error(w, "This account has no Archive folder.", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.this_account_has_no_archive_folder"), http.StatusBadRequest)
 		return
 	}
 	if archiveFolderID == info.FolderID {
-		http.Error(w, "thread is already archived", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.thread_is_already_archived"), http.StatusBadRequest)
 		return
 	}
 
 	if err := h.queueMessageMoves(ctx, infos, archiveFolderID); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, serverText(r.Context(), err.Error()), http.StatusInternalServerError)
 		return
 	}
 	h.publishThreadMutation(infos)
@@ -7061,7 +7304,7 @@ func (h *Handler) handleDeleteThread(w http.ResponseWriter, r *http.Request) {
 	// when the account has none.
 	if currentInfo.FolderRole == "trash" || r.URL.Query().Get("permanent") == "1" {
 		if err := h.queuePermanentDeletes(ctx, infos); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, serverText(r.Context(), err.Error()), http.StatusInternalServerError)
 			return
 		}
 	} else {
@@ -7070,11 +7313,11 @@ func (h *Handler) handleDeleteThread(w http.ResponseWriter, r *http.Request) {
 			if err == nil {
 				noteMissingFolder(w, currentInfo.AccountID, "trash")
 			}
-			http.Error(w, "This account has no Trash folder.", http.StatusBadRequest)
+			http.Error(w, i18n.T(r.Context(), "server.error.this_account_has_no_trash_folder"), http.StatusBadRequest)
 			return
 		}
 		if err := h.queueMessageMoves(ctx, infos, trashFolderID); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, serverText(r.Context(), err.Error()), http.StatusInternalServerError)
 			return
 		}
 		h.publishMutation(currentInfo.AccountID, trashFolderID)
@@ -7100,7 +7343,7 @@ func (h *Handler) handleDeleteMessage(w http.ResponseWriter, r *http.Request) {
 	// when the account has none.
 	if info.FolderRole == "trash" || r.URL.Query().Get("permanent") == "1" {
 		if err := h.db.PermanentlyDeleteMessageAndQueueForUser(ctx, msgID, info.FolderID, h.userID(ctx)); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, serverText(r.Context(), err.Error()), http.StatusInternalServerError)
 			return
 		}
 		h.signalMessageMutationWorker()
@@ -7110,12 +7353,12 @@ func (h *Handler) handleDeleteMessage(w http.ResponseWriter, r *http.Request) {
 			if err == nil {
 				noteMissingFolder(w, info.AccountID, "trash")
 			}
-			http.Error(w, "This account has no Trash folder.", http.StatusBadRequest)
+			http.Error(w, i18n.T(r.Context(), "server.error.this_account_has_no_trash_folder"), http.StatusBadRequest)
 			return
 		}
 
 		if err := h.db.MoveMessageAndQueueForUser(ctx, msgID, info.FolderID, trashFolderID, h.userID(ctx)); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, serverText(r.Context(), err.Error()), http.StatusInternalServerError)
 			return
 		}
 		h.signalMessageMutationWorker()
@@ -7134,19 +7377,19 @@ func (h *Handler) handleMoveMessage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form data", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_form_data"), http.StatusBadRequest)
 		return
 	}
 
 	destFolderID := r.FormValue("folder_id")
 	if destFolderID == "" {
-		http.Error(w, "folder_id required", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.folder_id_required"), http.StatusBadRequest)
 		return
 	}
 	var err error
 	destFolderID, err = h.resolveFolderID(ctx, h.userID(ctx), destFolderID)
 	if err != nil {
-		http.Error(w, "destination folder not found", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.destination_folder_not_found"), http.StatusBadRequest)
 		return
 	}
 
@@ -7158,12 +7401,12 @@ func (h *Handler) handleMoveMessage(w http.ResponseWriter, r *http.Request) {
 
 	destRemoteID, err := h.db.GetFolderRemoteID(ctx, destFolderID)
 	if err != nil || destRemoteID == "" {
-		http.Error(w, "destination folder not found", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.destination_folder_not_found"), http.StatusBadRequest)
 		return
 	}
 
 	if err := h.db.MoveMessageAndQueueForUser(ctx, msgID, info.FolderID, destFolderID, h.userID(ctx)); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, serverText(r.Context(), err.Error()), http.StatusInternalServerError)
 		return
 	}
 	h.signalMessageMutationWorker()
@@ -7190,7 +7433,7 @@ func (h *Handler) handleRefetchBody(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
-		http.Error(w, "failed to clear message data", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_clear_message_data"), http.StatusInternalServerError)
 		return
 	}
 
@@ -7230,9 +7473,9 @@ func (h *Handler) handleDownloadFullBody(w http.ResponseWriter, r *http.Request)
 	if !h.db.IsBodyFetchedInternal(ctx, msgID) {
 		parsed, err := h.fetchParsedBody(ctx, msgID, info.AccountID)
 		if err != nil {
-			if !writeMessageTooLarge(w, err) {
+			if !writeMessageTooLarge(w, r, err) {
 				log.Printf("download full message %d: %v", msgID, err)
-				http.Error(w, "This message couldn't be downloaded from the mail server.", http.StatusServiceUnavailable)
+				http.Error(w, i18n.T(r.Context(), "server.error.this_message_couldn_t_be_downloaded_from"), http.StatusServiceUnavailable)
 			}
 			return
 		}
@@ -7243,7 +7486,7 @@ func (h *Handler) handleDownloadFullBody(w http.ResponseWriter, r *http.Request)
 
 func (h *Handler) handleGoogleRedirect(w http.ResponseWriter, r *http.Request) {
 	if !h.auth.IsEnabled() || !h.auth.HasGoogleLogin() {
-		http.Error(w, "auth not enabled", http.StatusNotFound)
+		http.Error(w, i18n.T(r.Context(), "server.error.auth_not_enabled"), http.StatusNotFound)
 		return
 	}
 	clearLegacyOAuthStateCookie(w, h.auth.Config().SecureCookies)
@@ -7251,7 +7494,7 @@ func (h *Handler) handleGoogleRedirect(w http.ResponseWriter, r *http.Request) {
 		err := h.auth.TerminateGoogleAuthorizationChallenge(r.Context(), previousToken)
 		auth.ClearPreAuthCookie(w, h.auth.Config().SecureCookies)
 		if err != nil && !errors.Is(err, auth.ErrPreAuthChallengeInvalid) {
-			http.Error(w, "failed to initialize authentication", http.StatusInternalServerError)
+			http.Error(w, i18n.T(r.Context(), "server.error.failed_to_initialize_authentication"), http.StatusInternalServerError)
 			return
 		}
 	}
@@ -7259,7 +7502,7 @@ func (h *Handler) handleGoogleRedirect(w http.ResponseWriter, r *http.Request) {
 	start, err := h.auth.BeginGoogleLogin(r.Context())
 	if err != nil {
 		log.Printf("Google application login could not start: reason=challenge_initialization_failed")
-		http.Error(w, "failed to initialize authentication", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_initialize_authentication"), http.StatusInternalServerError)
 		return
 	}
 	challenge := start.Challenge
@@ -7270,7 +7513,7 @@ func (h *Handler) handleGoogleRedirect(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 	if !h.auth.IsEnabled() || !h.auth.HasGoogleLogin() {
-		http.Error(w, "auth not enabled", http.StatusNotFound)
+		http.Error(w, i18n.T(r.Context(), "server.error.auth_not_enabled"), http.StatusNotFound)
 		return
 	}
 	clearLegacyOAuthStateCookie(w, h.auth.Config().SecureCookies)
@@ -7453,7 +7696,7 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 			actorID = user.ID
 		}
 		if _, err := h.auth.RevokeSessionByToken(r.Context(), token, actorID, auth.SessionRevocationLogout); err != nil {
-			http.Error(w, "Unable to sign out. Please try again.", http.StatusInternalServerError)
+			http.Error(w, i18n.T(r.Context(), "server.error.unable_to_sign_out_please_try_again"), http.StatusInternalServerError)
 			return
 		}
 	}
@@ -7464,7 +7707,7 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleAccountOAuthAuthorize(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form data", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_form_data"), http.StatusBadRequest)
 		return
 	}
 
@@ -7473,16 +7716,16 @@ func (h *Handler) handleAccountOAuthAuthorize(w http.ResponseWriter, r *http.Req
 	switch provider {
 	case providers.ProviderGmail:
 		if h.mailCredentials() == nil || !h.mailCredentials().HasGoogleOAuth() {
-			http.Error(w, "google oauth not configured", http.StatusBadRequest)
+			http.Error(w, i18n.T(r.Context(), "server.error.google_oauth_not_configured"), http.StatusBadRequest)
 			return
 		}
 	case providers.ProviderOutlook:
 		if h.mailCredentials() == nil || !h.mailCredentials().HasMicrosoftOAuth() {
-			http.Error(w, "microsoft oauth not configured", http.StatusBadRequest)
+			http.Error(w, i18n.T(r.Context(), "server.error.microsoft_oauth_not_configured"), http.StatusBadRequest)
 			return
 		}
 	default:
-		http.Error(w, "unsupported oauth provider", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.unsupported_oauth_provider"), http.StatusBadRequest)
 		return
 	}
 
@@ -7493,16 +7736,23 @@ func (h *Handler) handleAccountOAuthAuthorize(w http.ResponseWriter, r *http.Req
 		"flow_action":   accountOAuthFlowAction(r.FormValue("flow_action")),
 		"return_to":     accountOAuthReturnPath(r.FormValue("return_to")),
 	}
+	addProxyChoiceToFlow(r, formData)
 
 	user := auth.GetCurrentUser(r.Context())
 	if user == nil || strings.TrimSpace(user.ID) == "" {
-		http.Error(w, "authenticated user required", http.StatusUnauthorized)
+		http.Error(w, i18n.T(r.Context(), "server.error.authenticated_user_required"), http.StatusUnauthorized)
+		return
+	}
+	// Signing in goes through the proxy the account will use.
+	proxyCtx, err := h.oauthFlowProxyContext(r.Context(), user.ID, formData)
+	if err != nil {
+		http.Redirect(w, r, "/settings/accounts?error=proxy_unavailable", http.StatusSeeOther)
 		return
 	}
 	state, err := h.mailCredentials().CreateAccountOAuthFlow(r.Context(), user.ID, auth.GetSessionToken(r), provider, formData)
 	if err != nil {
 		log.Printf("account oauth authorize: create flow failed: %v", err)
-		http.Error(w, "could not start account authorization", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.could_not_start_account_authorization"), http.StatusInternalServerError)
 		return
 	}
 
@@ -7511,7 +7761,7 @@ func (h *Handler) handleAccountOAuthAuthorize(w http.ResponseWriter, r *http.Req
 		authorizeURL = h.mailCredentials().GoogleAccountOAuthURL(state, r.FormValue("calendar_access") == "full")
 	case providers.ProviderOutlook:
 		if h.mailCredentials().UsesMicrosoftDeviceCode() {
-			if _, err := h.mailCredentials().StartMicrosoftDeviceSignIn(r.Context(), state, user.ID, auth.GetSessionToken(r)); err != nil {
+			if _, err := h.mailCredentials().StartMicrosoftDeviceSignIn(proxyCtx, state, user.ID, auth.GetSessionToken(r)); err != nil {
 				log.Printf("account oauth authorize: %v", err)
 				http.Redirect(w, r, "/settings/accounts?error=oauth_device_failed", http.StatusSeeOther)
 				return
@@ -7527,7 +7777,7 @@ func (h *Handler) handleAccountOAuthAuthorize(w http.ResponseWriter, r *http.Req
 func (h *Handler) handleGoogleAccountCallback(w http.ResponseWriter, r *http.Request) {
 	if h.auth == nil || h.mailCredentials() == nil || !h.mailCredentials().HasGoogleOAuth() {
 		log.Printf("gmail callback: google oauth not configured")
-		http.Error(w, "google oauth not configured", http.StatusNotFound)
+		http.Error(w, i18n.T(r.Context(), "server.error.google_oauth_not_configured"), http.StatusNotFound)
 		return
 	}
 
@@ -7536,15 +7786,20 @@ func (h *Handler) handleGoogleAccountCallback(w http.ResponseWriter, r *http.Req
 		return
 	}
 	formData := flow.FormData
+	ctx, err := h.oauthFlowProxyContext(r.Context(), flow.UserID, formData)
+	if err != nil {
+		http.Redirect(w, r, "/settings/accounts?error=proxy_unavailable", http.StatusSeeOther)
+		return
+	}
 
-	token, err := h.mailCredentials().ExchangeAccountCode(r.Context(), code)
+	token, err := h.mailCredentials().ExchangeAccountCode(ctx, code)
 	if err != nil {
 		log.Printf("gmail callback: token exchange failed: %v", err)
 		http.Redirect(w, r, "/settings/accounts?error=oauth_exchange_failed", http.StatusSeeOther)
 		return
 	}
 
-	info, err := h.mailCredentials().GetGoogleAccountInfo(r.Context(), token)
+	info, err := h.mailCredentials().GetGoogleAccountInfo(ctx, token)
 	if err != nil {
 		log.Printf("gmail callback: userinfo failed: %v", err)
 		http.Redirect(w, r, "/settings/accounts?error=oauth_userinfo_failed", http.StatusSeeOther)
@@ -7565,6 +7820,7 @@ func (h *Handler) handleGoogleAccountCallback(w http.ResponseWriter, r *http.Req
 
 	req := providers.GmailAccountRequest(info.Email, displayName, info.Sub)
 	req.Password = "_oauth2_"
+	req.ProxyID = formData["proxy"]
 
 	userID := flow.UserID
 	accountID, err := h.createOrUpdateOAuthMailAccount(r.Context(), userID, req)
@@ -7611,7 +7867,7 @@ func (h *Handler) handleGoogleAccountCallback(w http.ResponseWriter, r *http.Req
 func (h *Handler) handleMicrosoftAccountCallback(w http.ResponseWriter, r *http.Request) {
 	if h.auth == nil || h.mailCredentials() == nil || !h.mailCredentials().HasMicrosoftOAuth() {
 		log.Printf("microsoft callback: microsoft oauth not configured")
-		http.Error(w, "microsoft oauth not configured", http.StatusNotFound)
+		http.Error(w, i18n.T(r.Context(), "server.error.microsoft_oauth_not_configured"), http.StatusNotFound)
 		return
 	}
 
@@ -7620,13 +7876,18 @@ func (h *Handler) handleMicrosoftAccountCallback(w http.ResponseWriter, r *http.
 		return
 	}
 
-	token, err := h.mailCredentials().ExchangeMicrosoftAccountCode(r.Context(), code)
+	ctx, err := h.oauthFlowProxyContext(r.Context(), flow.UserID, flow.FormData)
+	if err != nil {
+		http.Redirect(w, r, "/settings/accounts?error=proxy_unavailable", http.StatusSeeOther)
+		return
+	}
+	token, err := h.mailCredentials().ExchangeMicrosoftAccountCode(ctx, code)
 	if err != nil {
 		log.Printf("microsoft callback: token exchange failed: %v", err)
 		http.Redirect(w, r, "/settings/accounts?error=oauth_exchange_failed", http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, h.finishMicrosoftAccount(r.Context(), flow, token), http.StatusSeeOther)
+	http.Redirect(w, r, h.finishMicrosoftAccount(ctx, flow, token), http.StatusSeeOther)
 }
 
 // finishMicrosoftAccount saves the Outlook mailbox a consumed flow authorized
@@ -7657,6 +7918,7 @@ func (h *Handler) finishMicrosoftAccount(ctx context.Context, flow *mailauth.Acc
 	providerAccountID := info.ProviderAccountID()
 	req := providers.OutlookAccountRequest(outlookEmail, displayName, providerAccountID)
 	req.Password = "_oauth2_"
+	req.ProxyID = formData["proxy"]
 
 	userID := flow.UserID
 	accountID, err := h.createOrUpdateOAuthMailAccount(ctx, userID, req)

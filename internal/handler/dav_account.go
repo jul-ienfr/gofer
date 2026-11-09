@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"log"
 	"net/http"
 	"net/url"
@@ -184,6 +185,17 @@ func davNewChoices(found davAccountDiscovery) func(string) (bool, bool) {
 func (h *Handler) handleFindDAVItems(w http.ResponseWriter, r *http.Request) {
 	var saved *models.EditAccountData
 	owner, id := h.userID(r.Context()), r.PathValue("id")
+	// Signing in with the typed login goes through the account's proxy, or,
+	// for one being added, the proxy its form chose.
+	var ok bool
+	if id == "" {
+		r, ok = h.withProxyChoice(w, r)
+	} else {
+		r, ok = h.withAccountProxyFor(w, r, id)
+	}
+	if !ok {
+		return
+	}
 	if id != "" {
 		var err error
 		if saved, err = h.davAccountEditData(r.Context(), owner, id); err != nil {
@@ -193,7 +205,7 @@ func (h *Handler) handleFindDAVItems(w http.ResponseWriter, r *http.Request) {
 	}
 	form, problem := parseDAVAccountForm(w, r, saved)
 	if problem != "" {
-		http.Error(w, problem, http.StatusBadRequest)
+		http.Error(w, serverText(r.Context(), problem), http.StatusBadRequest)
 		return
 	}
 	if saved != nil && strings.TrimSpace(form.password) == "" {
@@ -211,7 +223,7 @@ func (h *Handler) handleFindDAVItems(w http.ResponseWriter, r *http.Request) {
 	}
 	create, err := readChange(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, serverText(r.Context(), err.Error()), http.StatusBadRequest)
 		return
 	}
 	if !h.checkDAVLogin(w, r, form.username) {
@@ -219,7 +231,7 @@ func (h *Handler) handleFindDAVItems(w http.ResponseWriter, r *http.Request) {
 	}
 	found, err := discoverDAVAccount(r.Context(), form, create)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, serverText(r.Context(), err.Error()), http.StatusBadRequest)
 		return
 	}
 	if saved != nil && create != nil && create.Delete && h.userAccounts == nil {
@@ -262,12 +274,16 @@ func davCreatedChoices(form davAccountForm, created string) func(string) (bool, 
 // CardDAV server. It signs in first, so nothing is saved for a server or login
 // that doesn't work, then saves the calendars or address books ticked.
 func (h *Handler) handleCreateDAVAccount(w http.ResponseWriter, r *http.Request) {
+	r, ok := h.withProxyChoice(w, r)
+	if !ok {
+		return
+	}
 	form, problem := parseDAVAccountForm(w, r, nil)
 	if problem == "" && len(form.items) == 0 {
 		problem = davChooseOne(form.service)
 	}
 	if problem != "" {
-		http.Error(w, problem, http.StatusBadRequest)
+		http.Error(w, serverText(r.Context(), problem), http.StatusBadRequest)
 		return
 	}
 	if !h.checkDAVLogin(w, r, form.username) {
@@ -275,12 +291,13 @@ func (h *Handler) handleCreateDAVAccount(w http.ResponseWriter, r *http.Request)
 	}
 	found, err := discoverDAVAccount(r.Context(), form, nil)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, serverText(r.Context(), err.Error()), http.StatusBadRequest)
 		return
 	}
 	owner := h.userID(r.Context())
 	req := &models.CreateAccountRequest{
 		Provider: providers.ProviderDAV, DisplayName: form.name, Username: form.username, Password: form.password,
+		ProxyID: strings.TrimSpace(r.FormValue("proxy")),
 	}
 	var account *models.Account
 	if h.userAccounts == nil {
@@ -299,7 +316,7 @@ func (h *Handler) handleCreateDAVAccount(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("X-Gofer-Account-ID", account.ID)
 	if err := h.saveDAVAccountServices(r.Context(), owner, account.ID, form, found); err != nil {
 		log.Printf("routed account %s: save %s after creating it: %v", account.ID, form.service, err)
-		http.Error(w, "The account was created, but its "+form.service+" could not be saved. Open Edit to choose them again.", http.StatusServiceUnavailable)
+		http.Error(w, i18n.T(r.Context(), "server.error.dav_services_not_saved_"+form.service), http.StatusServiceUnavailable)
 		return
 	}
 	if h.userAccounts == nil {
@@ -320,6 +337,10 @@ func (h *Handler) handleCreateDAVAccount(w http.ResponseWriter, r *http.Request)
 // first, and the calendars or address books ticked.
 func (h *Handler) handleUpdateDAVAccount(w http.ResponseWriter, r *http.Request) {
 	owner, id := h.userID(r.Context()), r.PathValue("id")
+	r, ok := h.withAccountProxyFor(w, r, id)
+	if !ok {
+		return
+	}
 	saved, err := h.davAccountEditData(r.Context(), owner, id)
 	if err != nil {
 		userAccountError(w, r, err)
@@ -330,7 +351,7 @@ func (h *Handler) handleUpdateDAVAccount(w http.ResponseWriter, r *http.Request)
 		problem = davChooseOne(form.service)
 	}
 	if problem != "" {
-		http.Error(w, problem, http.StatusBadRequest)
+		http.Error(w, serverText(r.Context(), problem), http.StatusBadRequest)
 		return
 	}
 	login := form
@@ -345,11 +366,12 @@ func (h *Handler) handleUpdateDAVAccount(w http.ResponseWriter, r *http.Request)
 	}
 	found, err := discoverDAVAccount(r.Context(), login, nil)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, serverText(r.Context(), err.Error()), http.StatusBadRequest)
 		return
 	}
 	req := &models.CreateAccountRequest{
 		Provider: providers.ProviderDAV, DisplayName: form.name, Username: form.username, Password: form.password,
+		ProxyID: strings.TrimSpace(r.FormValue("proxy")),
 	}
 	if h.userAccounts == nil {
 		err = h.accountStore.UpdateAccount(r.Context(), id, req)
@@ -427,13 +449,21 @@ func (h *Handler) accountEditData(ctx context.Context, owner, id string) (*model
 
 func (h *Handler) davAccountPassword(ctx context.Context, owner, id string) (string, error) {
 	if h.userAccounts == nil {
-		return h.accountStore.DecryptPassword(ctx, id)
+		password, err := h.accountStore.DecryptPassword(ctx, id)
+		if err != nil {
+			return "", err
+		}
+		return password, h.accountStore.BindDAVLogin(ctx, id, password)
 	}
 	snapshot, err := h.userAccounts.SnapshotServices(ctx, owner, id)
 	if err != nil {
 		return "", err
 	}
-	return snapshot.MailboxPassword()
+	password, err := snapshot.MailboxPassword()
+	if err != nil {
+		return "", err
+	}
+	return password, snapshot.BindDAVLogin(password)
 }
 
 // saveDAVAccountServices saves what signing in found, using the account's
@@ -582,25 +612,30 @@ func (h *Handler) handleAddAccountMail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if existing.Provider != providers.ProviderDAV {
-		http.Error(w, config.ErrAccountHasMail.Error(), http.StatusConflict)
+		http.Error(w, serverText(r.Context(), config.ErrAccountHasMail.Error()), http.StatusConflict)
 		return
 	}
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_form"), http.StatusBadRequest)
 		return
 	}
 	req := accountRequestFromForm(r)
+	// The account exists already, with its proxy.
+	r, ok := h.withAccountProxyFor(w, r, id)
+	if !ok {
+		return
+	}
 	if req.Provider == providers.ProviderJMAP {
 		if err := h.prepareJMAPAccount(r, &req); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, serverText(r.Context(), err.Error()), http.StatusBadRequest)
 			return
 		}
 	} else if req.EmailAddress == "" || req.IMAPHost == "" || req.SMTPHost == "" || req.Username == "" || req.Password == "" {
-		http.Error(w, "all required fields must be filled in", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.all_required_fields_must_be_filled_in"), http.StatusBadRequest)
 		return
 	}
 	if (req.Provider != "" && req.Provider != providers.ProviderIMAP && req.Provider != providers.ProviderJMAP) || (req.AuthMethod != "" && req.AuthMethod != "plain") {
-		http.Error(w, "this account connection method is not available yet", http.StatusNotImplemented)
+		http.Error(w, i18n.T(r.Context(), "server.error.this_account_connection_method_is_not_available"), http.StatusNotImplemented)
 		return
 	}
 	if h.userAccounts == nil {
@@ -610,7 +645,7 @@ func (h *Handler) handleAddAccountMail(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		if errors.Is(err, config.ErrAccountHasMail) {
-			http.Error(w, err.Error(), http.StatusConflict)
+			http.Error(w, serverText(r.Context(), err.Error()), http.StatusConflict)
 			return
 		}
 		userAccountError(w, r, err)
@@ -626,7 +661,7 @@ func (h *Handler) handleAddAccountMail(w http.ResponseWriter, r *http.Request) {
 		return h.userAccountHooks.Updated(r.Context(), id)
 	}); err != nil {
 		log.Printf("routed account %s got mail but its sync could not be started: %v", id, err)
-		http.Error(w, "email added; synchronization could not be started", http.StatusServiceUnavailable)
+		http.Error(w, i18n.T(r.Context(), "server.error.email_added_synchronization_could_not_be_started"), http.StatusServiceUnavailable)
 		return
 	}
 	h.renderAddMailNextStep(w, r, owner, id)

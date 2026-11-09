@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"net/http"
 	"net/url"
 	"sort"
@@ -30,6 +31,7 @@ func (h *Handler) handleUserContactSyncSetupFindings(w http.ResponseWriter, r *h
 			return err
 		}
 		setup = models.ContactSyncSetup{Contact: snapshot.Contact(), Phase: "discover", SearchMode: mode, SearchQuery: query}
+		setup.HomeLabel = h.contactSetupHomeLabel(ctx, owner, setup.Contact)
 		queries := []string{setup.Contact.Email, setup.Contact.Phone, setup.Contact.Name}
 		switch mode {
 		case "email":
@@ -47,11 +49,15 @@ func (h *Handler) handleUserContactSyncSetupFindings(w http.ResponseWriter, r *h
 				return sql.ErrNoRows
 			}
 		}
+		besides := h.contactSetupAccountsBesidesHome(ctx, owner, setup.Contact)
 		for _, service := range services {
 			if filter != "" && service.AccountID() != filter {
 				continue
 			}
-			location := models.ContactSyncSetupLocation{AccountID: service.AccountID(), Label: service.Identity().EmailAddress, Provider: service.ContactConfig().Provider}
+			if !besides[service.AccountID()] {
+				continue
+			}
+			location := models.ContactSyncSetupLocation{AccountID: service.AccountID(), Label: h.contactSetupLocationLabel(ctx, owner, setup.Contact, service.AccountID(), service.Identity().EmailAddress), Provider: service.ContactConfig().Provider}
 			searchErr := h.userIMAP.RunAccountService(ctx, owner, service.AccountID(), mail.AccountServiceContacts, 2*time.Minute, func(ctx context.Context) error {
 				var err error
 				location.Candidates, err = h.searchUserContactSetup(ctx, snapshot, service, queries)
@@ -66,7 +72,7 @@ func (h *Handler) handleUserContactSyncSetupFindings(w http.ResponseWriter, r *h
 				return err
 			}
 			if searchErr != nil {
-				location.Error = searchErr.Error()
+				location.Error = serverText(ctx, searchErr.Error())
 			}
 			setup.Locations = append(setup.Locations, location)
 		}
@@ -79,12 +85,12 @@ func (h *Handler) handleUserContactSyncSetupFindings(w http.ResponseWriter, r *h
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if filter != "" {
 		if err := views.ContactSyncSetupLocation(setup.Contact.ID, setup.Locations[0]).Render(r.Context(), w); err != nil {
-			http.Error(w, "Could not render contact sync findings", 500)
+			http.Error(w, i18n.T(r.Context(), "server.error.could_not_render_contact_sync_findings"), 500)
 		}
 		return
 	}
 	if err := views.ContactSyncSetupDiscover(setup).Render(r.Context(), w); err != nil {
-		http.Error(w, "Could not render contact sync findings", 500)
+		http.Error(w, i18n.T(r.Context(), "server.error.could_not_render_contact_sync_findings"), 500)
 	}
 }
 

@@ -269,6 +269,9 @@ func inspectUserStorageMigration(ctx context.Context, source *DB) (report UserSt
 		if !present[link.child] {
 			continue
 		}
+		if link.child == "outbound_proxies" && report.SchemaVersion < 142 {
+			continue // Proxies had no owners before migrateV141ToV142.
+		}
 		if err := migrationCheckLink(ctx, tx, link, present, true); err != nil {
 			return report, err
 		}
@@ -417,11 +420,11 @@ func migrationSourceColumns(ctx context.Context, tx *sql.Tx, table *UserStorageM
 	} else if table.Name == "calendar_events" && version < 112 {
 		missing = []string{"event_type"}
 	} else if table.Name == "accounts" && version < 114 {
-		missing = []string{"jmap_session_url", "provider_push_enabled", "sort_order", "hidden"}
+		missing = []string{"jmap_session_url", "provider_push_enabled", "sort_order", "hidden", "proxy_id"}
 	} else if table.Name == "accounts" && version < 122 {
-		missing = []string{"provider_push_enabled", "sort_order", "hidden"}
+		missing = []string{"provider_push_enabled", "sort_order", "hidden", "proxy_id"}
 	} else if table.Name == "accounts" && version < 124 {
-		missing = []string{"sort_order", "hidden"}
+		missing = []string{"sort_order", "hidden", "proxy_id"}
 	} else if table.Name == "message_folder_state" && version < 118 {
 		missing = []string{"remote_message_id", "message_date", "message_has_attachments", "deleted_at"}
 	} else if table.Name == "message_folder_state" && version < 125 {
@@ -429,7 +432,9 @@ func migrationSourceColumns(ctx context.Context, tx *sql.Tx, table *UserStorageM
 	} else if table.Name == "message_folder_state" && version < 126 {
 		missing = []string{"deleted_at"}
 	} else if table.Name == "contact_profiles" && version < 123 {
-		missing = []string{"trashed_at"}
+		missing = []string{"trashed_at", "home"}
+	} else if table.Name == "contact_profiles" && version < 137 {
+		missing = []string{"home"}
 	} else if table.Name == "account_identities" && version < 129 {
 		missing = []string{"smtp_host", "smtp_port", "smtp_tls_mode", "smtp_username", "encrypted_smtp_password"}
 	} else if table.Name == "folders" && version < 130 {
@@ -437,9 +442,15 @@ func migrationSourceColumns(ctx context.Context, tx *sql.Tx, table *UserStorageM
 	} else if table.Name == "messages" && version < 132 {
 		missing = []string{"list_id"}
 	} else if table.Name == "calendar_sources" && version < 133 {
-		missing = []string{"created_in_gofer"}
+		missing = []string{"created_in_gofer", "refresh_minutes"}
+	} else if table.Name == "calendar_sources" && version < 136 {
+		missing = []string{"refresh_minutes"}
 	} else if table.Name == "accounts" && version < 134 {
-		missing = []string{"hidden"}
+		missing = []string{"hidden", "proxy_id"}
+	} else if table.Name == "accounts" && version < 141 {
+		missing = []string{"proxy_id"}
+	} else if table.Name == "outbound_proxies" && version < 142 {
+		missing = []string{"owner_user_id", "everyone"}
 	} else if table.Name == "mail_rules" && version < 135 {
 		missing = []string{"accounts_chosen"}
 	}
@@ -520,6 +531,15 @@ func requireSharedMigrationTables(ctx context.Context, present map[string]bool, 
 			}
 			if (name == "mail_rule_accounts" || name == "mail_rule_transfers") && version < 135 {
 				continue // Added by migrateV134ToV135.
+			}
+			if name == contactRemoteDeletionsTable && version < 139 {
+				continue // Added empty by migrateV138ToV139.
+			}
+			if name == "outbound_proxies" && version < 141 {
+				continue // Added empty by migrateV140ToV141.
+			}
+			if (name == "outbound_proxy_users" || name == "outbound_proxy_policy") && version < 142 {
+				continue // Added empty by migrateV141ToV142.
 			}
 			return migrationSourceError(name, "required shared table is missing")
 		}

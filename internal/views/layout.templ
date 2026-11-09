@@ -1,7 +1,9 @@
 package views
 
 import (
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"github.com/cristianadrielbraun/gofer/internal/assetver"
+	"github.com/cristianadrielbraun/gofer/internal/googlefonts"
 	"github.com/cristianadrielbraun/gofer/internal/models"
 	"github.com/cristianadrielbraun/gofer/internal/themecolors"
 
@@ -27,19 +29,16 @@ templ AppIcon() {
 	<link rel="manifest" href={ assetver.URL("/assets/manifest.webmanifest") }/>
 }
 
-templ SkipToContent() {
-	<a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-foreground focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-ring">Skip to content</a>
-}
-
 templ Layout(accounts []models.Account, activeFolder string, emails []models.Email, selectedEmail *models.Email, totalCount int, scrollCount int, windowStart int, uiSettings map[string]string, selectedThread []models.ThreadItem, initialEmailID string, scheduledCount int, filters models.EmailFilters) {
 	<!DOCTYPE html>
 	// The mail list's rows start hidden and fan in once it's set up
 	// (fanInRows in virtual-scroll.js), so a page load animates them too.
-	<html lang={ uiLang(uiSettings) } class={ themeClass(uiSettings), "mail-list-entering" } data-theme={ themeStyle(uiSettings) } { themeLookAttributes(uiSettings)... }>
+	<html lang={ pageLang(ctx) } class={ themeClass(uiSettings), "mail-list-entering" } data-theme={ themeStyle(uiSettings) } { themeLookAttributes(uiSettings)... }>
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-			<title>Gofer - Email</title>
+			@I18nScripts()
+			<title>{ i18n.T(ctx, "page.title", "page", i18n.T(ctx, "app.mail")) }</title>
 			@AppIcon()
 			@FontFaces()
 			@SavedPanelSizeStyle()
@@ -64,12 +63,11 @@ templ Layout(accounts []models.Account, activeFolder string, emails []models.Ema
 			<script src={ assetver.URL("/assets/js/actions.js") }></script>
 		</head>
 		<body class="bg-background text-foreground antialiased surface-desk" data-ui-settings={ uiSettingsJSON(uiSettings) } data-initial-email-id={ initialEmailID }>
-			@SkipToContent()
 			<div id="app-shell" class="app-shell flex h-screen overflow-hidden">
 				@MobileTopBar()
 				@Sidebar(accounts, activeFolder, uiSettingGet(uiSettings, "sidebar_width", "256px"), uiSettings, scheduledCount, filters)
 				@ResizeHandle("sidebar")
-				<main id="main-content" tabindex="-1" class={ mailPaneLayoutClass(uiSettingGet(uiSettings, "mail_pane_layout", "side")) } data-mail-pane-layout={ mailPaneLayout(uiSettingGet(uiSettings, "mail_pane_layout", "side")) }>
+				<div id="main-content" class={ mailPaneLayoutClass(uiSettingGet(uiSettings, "mail_pane_layout", "side")) } data-mail-pane-layout={ mailPaneLayout(uiSettingGet(uiSettings, "mail_pane_layout", "side")) }>
 					@MailList(accounts, emails, activeFolder, selectedEmail, totalCount, scrollCount, windowStart, uiSettingGet(uiSettings, "mail_list_width", "50%"), uiSettingGet(uiSettings, "sender_display", "name"), ListViewSetting(ctx, uiSettings, "mail_list_view"), uiSettingGet(uiSettings, "mail_list_navigation", "infinite"), filters)
 					@ResizeHandle("maillist")
 					// selectedEmail may only mark the list row; the reader loads the
@@ -79,11 +77,12 @@ templ Layout(accounts []models.Account, activeFolder string, emails []models.Ema
 					} else {
 						@MailView(selectedEmail, selectedThread)
 					}
-				</main>
+				</div>
 			</div>
 			<div id="app-pane-dialogs"></div>
 			@ComposeDialog(accounts)
 			@CalendarLoadingTemplates(accounts, uiSettings)
+			@AppSwitchSidebarTemplates(accounts, uiSettings)
 			@AppSwitchEmptyPaneTemplates()
 			@AppNavigationTemplates(uiSettings)
 			@AppNavigationDialogs()
@@ -105,18 +104,18 @@ templ MailSyncProgressDialog() {
 	@dialog.Dialog(dialog.Props{ID: "mail-sync-progress-dialog"}) {
 		@dialog.Content(dialog.ContentProps{Class: "sm:max-w-2xl max-h-[calc(100vh-2rem)]"}) {
 			@dialog.Header() {
-				@dialog.Title() { Mail sync progress }
+				@dialog.Title() { { i18n.T(ctx, "mail.sync.dialog.title") } }
 				@dialog.Description() {
 					<span class="inline-flex items-center gap-2">
-						<span data-mail-sync-dialog-subtitle>Waiting for sync details...</span>
-						<button type="button" class="hidden text-xs font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground disabled:pointer-events-none disabled:opacity-60" data-mail-sync-cancel>Cancel</button>
+						<span data-mail-sync-dialog-subtitle>{ i18n.T(ctx, "mail.sync.dialog.waiting") }</span>
+						<button type="button" class="hidden text-xs font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground disabled:pointer-events-none disabled:opacity-60" data-mail-sync-cancel>{ i18n.T(ctx, "common.cancel") }</button>
 					</span>
 				}
 			}
 			<div class="min-h-0 space-y-4">
 				<div class="space-y-2">
 					<div class="flex items-center justify-between gap-3 text-xs font-medium text-muted-foreground">
-						<span data-mail-sync-dialog-summary>Preparing...</span>
+						<span data-mail-sync-dialog-summary>{ i18n.T(ctx, "mail.sync.dialog.preparing") }</span>
 						<span data-mail-sync-dialog-percent>0%</span>
 					</div>
 					<div class="h-2 overflow-hidden rounded-full bg-muted">
@@ -131,11 +130,12 @@ templ MailSyncProgressDialog() {
 
 templ SettingsLayout(accounts []models.Account, syncSettings models.SyncSettings, activeTab string, uiSettings map[string]string, signatureData []models.AccountSignatureData, aiSettings AISettingsData) {
 	<!DOCTYPE html>
-	<html lang={ uiLang(uiSettings) } class={ themeClass(uiSettings) } data-theme={ themeStyle(uiSettings) } { themeLookAttributes(uiSettings)... }>
+	<html lang={ pageLang(ctx) } class={ themeClass(uiSettings) } data-theme={ themeStyle(uiSettings) } { themeLookAttributes(uiSettings)... }>
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-			<title>Gofer - { tr(uiSettings, "settings.title") }</title>
+			@I18nScripts()
+			<title>{ i18n.T(ctx, "page.title", "page", i18n.T(ctx, "settings.section.default.title")) }</title>
 			@AppIcon()
 			@FontFaces()
 			@SavedPanelSizeStyle()
@@ -146,16 +146,16 @@ templ SettingsLayout(accounts []models.Account, syncSettings models.SyncSettings
 			<script src={ assetver.URL("/assets/js/actions.js") }></script>
 		</head>
 		<body class="bg-background text-foreground antialiased surface-desk" data-ui-settings={ uiSettingsJSON(uiSettings) }>
-			@SkipToContent()
 			<div id="app-shell" class="app-shell flex h-screen overflow-hidden">
 				@MobileTopBar()
-				@SettingsSidebar(activeTab, uiSettingGet(uiSettings, "sidebar_width", "256px"), uiSettings)
+				@SettingsSidebar(activeTab, uiSettingGet(uiSettings, "sidebar_width", "256px"))
 				@ResizeHandle("sidebar")
-				<main id="main-content" tabindex="-1" class="flex flex-1 min-w-0">
+				<div id="main-content" class="flex flex-1 min-w-0">
 					@SettingsPage(accounts, syncSettings, activeTab, uiSettings, signatureData, aiSettings)
-				</main>
+				</div>
 			</div>
 			@CalendarLoadingTemplates(accounts, uiSettings)
+			@AppSwitchSidebarTemplates(accounts, uiSettings)
 			@AppSwitchEmptyPaneTemplates()
 			@AppNavigationTemplates(uiSettings)
 			<div id="app-pane-dialogs"></div>
@@ -208,7 +208,7 @@ templ MailShell(accounts []models.Account, activeFolder string, emails []models.
 		@MobileTopBar()
 		@Sidebar(accounts, activeFolder, uiSettingGet(uiSettings, "sidebar_width", "256px"), uiSettings, scheduledCount, filters)
 		@ResizeHandle("sidebar")
-		<div id="main-content" tabindex="-1" class={ mailPaneLayoutClass(uiSettingGet(uiSettings, "mail_pane_layout", "side")) } data-mail-pane-layout={ mailPaneLayout(uiSettingGet(uiSettings, "mail_pane_layout", "side")) }>
+		<div id="main-content" class={ mailPaneLayoutClass(uiSettingGet(uiSettings, "mail_pane_layout", "side")) } data-mail-pane-layout={ mailPaneLayout(uiSettingGet(uiSettings, "mail_pane_layout", "side")) }>
 			@MailList(accounts, emails, activeFolder, selectedEmail, totalCount, scrollCount, 0, uiSettingGet(uiSettings, "mail_list_width", "50%"), uiSettingGet(uiSettings, "sender_display", "name"), ListViewSetting(ctx, uiSettings, "mail_list_view"), uiSettingGet(uiSettings, "mail_list_navigation", "infinite"), filters)
 			@ResizeHandle("maillist")
 			if initialEmailID != "" && selectedEmail == nil {
@@ -220,12 +220,15 @@ templ MailShell(accounts []models.Account, activeFolder string, emails []models.
 	</div>
 }
 
+// The section partials put the sidebar first. A section switch that lands
+// while the panels are still sliding shows the sidebar at once from the start
+// of the response and holds the rest until the slide ends.
 templ MailAppPartial(accounts []models.Account, activeFolder string, emails []models.Email, selectedEmail *models.Email, totalCount int, scrollCount int, uiSettings map[string]string, selectedThread []models.ThreadItem, initialEmailID string, windowStart int, scheduledCount int, filters models.EmailFilters) {
-	@MailList(accounts, emails, activeFolder, selectedEmail, totalCount, scrollCount, windowStart, uiSettingGet(uiSettings, "mail_list_width", "50%"), uiSettingGet(uiSettings, "sender_display", "name"), ListViewSetting(ctx, uiSettings, "mail_list_view"), uiSettingGet(uiSettings, "mail_list_navigation", "infinite"), filters)
 	@MailSidebarBody(accounts, activeFolder, uiSettings, scheduledCount, filters)
 	<div id="sidebar-sync-controls">
 		@SidebarSyncControls(accounts, "mail")
 	</div>
+	@MailList(accounts, emails, activeFolder, selectedEmail, totalCount, scrollCount, windowStart, uiSettingGet(uiSettings, "mail_list_width", "50%"), uiSettingGet(uiSettings, "sender_display", "name"), ListViewSetting(ctx, uiSettings, "mail_list_view"), uiSettingGet(uiSettings, "mail_list_navigation", "infinite"), filters)
 	if initialEmailID != "" {
 		@MailViewLoading()
 	} else {
@@ -236,11 +239,11 @@ templ MailAppPartial(accounts []models.Account, activeFolder string, emails []mo
 }
 
 templ ContactsAppPartial(accounts []models.Account, contacts []models.Contact, selected *models.Contact, selectedProfile *models.ContactProfile, showNew bool, syncQueued bool, filters models.ContactFilters, totalCount int, uiSettings map[string]string) {
-	@ContactsListPane(contacts, selected, filters, totalCount, PanelSetting(uiSettings, "contacts", "mail_list_width", "50%"), accounts)
 	@ContactsSidebarBody(accounts, "contacts", uiSettings, filters)
 	<div id="sidebar-sync-controls">
 		@SidebarSyncControls(accounts, "contacts")
 	</div>
+	@ContactsListPane(contacts, selected, filters, totalCount, PanelSetting(uiSettings, "contacts", "mail_list_width", "50%"), accounts)
 	@ContactsViewPane(selected, selectedProfile, showNew, syncQueued, accounts)
 	<div id="app-pane-dialogs">
 		@ContactsImportDialog(accounts)
@@ -250,11 +253,12 @@ templ ContactsAppPartial(accounts []models.Account, contacts []models.Contact, s
 
 templ ContactsLayout(accounts []models.Account, contacts []models.Contact, selected *models.Contact, selectedProfile *models.ContactProfile, showNew bool, syncQueued bool, filters models.ContactFilters, totalCount int, uiSettings map[string]string) {
 	<!DOCTYPE html>
-	<html lang={ uiLang(uiSettings) } class={ themeClass(uiSettings) } data-theme={ themeStyle(uiSettings) } { themeLookAttributes(uiSettings)... }>
+	<html lang={ pageLang(ctx) } class={ themeClass(uiSettings) } data-theme={ themeStyle(uiSettings) } { themeLookAttributes(uiSettings)... }>
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-			<title>Gofer - Contacts</title>
+			@I18nScripts()
+			<title>{ i18n.T(ctx, "page.title", "page", i18n.T(ctx, "contacts.title")) }</title>
 			@AppIcon()
 			@FontFaces()
 			@SavedPanelSizeStyle()
@@ -279,13 +283,13 @@ templ ContactsLayout(accounts []models.Account, contacts []models.Contact, selec
 			<script src={ assetver.URL("/assets/js/actions.js") }></script>
 		</head>
 			<body class="bg-background text-foreground antialiased surface-desk" data-ui-settings={ uiSettingsJSON(uiSettings) }>
-				@SkipToContent()
 				@ContactsShell(accounts, contacts, selected, selectedProfile, showNew, syncQueued, filters, totalCount, uiSettings)
 				<div id="app-pane-dialogs">
 					@ContactsImportDialog(accounts)
 				</div>
 				@ComposeDialog(accounts)
 			@CalendarLoadingTemplates(accounts, uiSettings)
+			@AppSwitchSidebarTemplates(accounts, uiSettings)
 			@AppSwitchEmptyPaneTemplates()
 			@AppNavigationTemplates(uiSettings)
 			@AppNavigationDialogs()
@@ -341,11 +345,12 @@ templ ContactsShell(accounts []models.Account, contacts []models.Contact, select
 
 templ AdminLayout(uiSettings map[string]string, userData AdminUsersData, avatarStatus models.AvatarStatus, contactStatus models.ContactAdminStatus, labelStatus models.LabelAdminStatus, securityData models.MailSecurityAdminData, operationStatus models.MailOperationsAdminStatus, activeSection string, activeTab string) {
 	<!DOCTYPE html>
-	<html lang={ uiLang(uiSettings) } class={ themeClass(uiSettings) } data-theme={ themeStyle(uiSettings) } { themeLookAttributes(uiSettings)... }>
+	<html lang={ pageLang(ctx) } class={ themeClass(uiSettings) } data-theme={ themeStyle(uiSettings) } { themeLookAttributes(uiSettings)... }>
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-			<title>Gofer - Admin</title>
+			@I18nScripts()
+			<title>{ i18n.T(ctx, "page.title", "page", i18n.T(ctx, "admin.title")) }</title>
 			@AppIcon()
 			@FontFaces()
 			@SavedPanelSizeStyle()
@@ -368,10 +373,9 @@ templ AdminLayout(uiSettings map[string]string, userData AdminUsersData, avatarS
 			<script src={ assetver.URL("/assets/js/actions.js") }></script>
 		</head>
 		<body class="bg-background text-foreground antialiased surface-desk" data-ui-settings={ uiSettingsJSON(uiSettings) }>
-			@SkipToContent()
 			<div class="flex h-screen overflow-hidden bg-background">
 				@AdminSidebar(activeSection)
-				<main id="main-content" tabindex="-1" class="relative flex min-h-0 min-w-0 flex-1">
+				<div id="main-content" class="relative flex min-h-0 min-w-0 flex-1">
 					@AdminNavigationLoading()
 					if activeSection == "users" {
 						@AdminUsersPage(userData)
@@ -386,7 +390,7 @@ templ AdminLayout(uiSettings map[string]string, userData AdminUsersData, avatarS
 					} else {
 						@AdminPage(avatarStatus, activeTab)
 					}
-				</main>
+				</div>
 			</div>
 			<script src={ assetver.URL("/assets/js/ui-settings.js") }></script>
 			<script src={ assetver.URL("/assets/js/admin.js") }></script>
@@ -409,6 +413,8 @@ templ ResizeHandle(panel string) {
 templ ThemeColorsStyle(uiSettings map[string]string) {
 	// The Custom theme's palette comes first, so its hand edits win.
 	@templ.Raw(`<style data-custom-theme>` + customThemeCSS(uiSettings) + `</style>`)
+	// The chosen fonts follow, for every style but Express.
+	@templ.Raw(`<style data-font-choice>` + googlefonts.ChoiceCSS(uiSettingGet(uiSettings, googlefonts.BodySetting, ""), uiSettingGet(uiSettings, googlefonts.HeadingSetting, "")) + `</style>`)
 	for _, style := range themecolors.Styles {
 		@templ.Raw(`<style data-theme-colors="` + style + `">` + themeColorsCSS(uiSettings, style) + `</style>`)
 	}
@@ -430,7 +436,7 @@ templ FolderPartial(accounts []models.Account, emails []models.Email, activeFold
 }
 
 templ MailContentPartial(accounts []models.Account, emails []models.Email, activeFolder string, selectedEmail *models.Email, totalCount int, scrollCount int, selectedThread []models.ThreadItem, uiSettings map[string]string, initialEmailID string, windowStart int, filters models.EmailFilters) {
-	<div id="main-content" tabindex="-1" class={ mailPaneLayoutClass(uiSettingGet(uiSettings, "mail_pane_layout", "side")) } data-mail-pane-layout={ mailPaneLayout(uiSettingGet(uiSettings, "mail_pane_layout", "side")) }>
+	<div id="main-content" class={ mailPaneLayoutClass(uiSettingGet(uiSettings, "mail_pane_layout", "side")) } data-mail-pane-layout={ mailPaneLayout(uiSettingGet(uiSettings, "mail_pane_layout", "side")) }>
 		@MailList(accounts, emails, activeFolder, selectedEmail, totalCount, scrollCount, windowStart, uiSettingGet(uiSettings, "mail_list_width", "50%"), uiSettingGet(uiSettings, "sender_display", "name"), ListViewSetting(ctx, uiSettings, "mail_list_view"), uiSettingGet(uiSettings, "mail_list_navigation", "infinite"), filters)
 		@ResizeHandle("maillist")
 		if initialEmailID != "" {
@@ -446,13 +452,13 @@ templ MailCardLayoutScript() {
 }
 
 templ SettingsPartial(accounts []models.Account, syncSettings models.SyncSettings, activeTab string, uiSettings map[string]string, signatureData []models.AccountSignatureData, aiSettings AISettingsData) {
-	<div id="main-content" tabindex="-1" class="flex flex-1 min-w-0">
+	<div id="main-content" class="flex flex-1 min-w-0">
 		@SettingsPage(accounts, syncSettings, activeTab, uiSettings, signatureData, aiSettings)
 	</div>
 }
 
 templ AdminPartial(userData AdminUsersData, avatarStatus models.AvatarStatus, contactStatus models.ContactAdminStatus, labelStatus models.LabelAdminStatus, securityData models.MailSecurityAdminData, operationStatus models.MailOperationsAdminStatus, activeSection string, activeTab string, verification ...AdminSecurityVerificationData) {
-	<div id="main-content" tabindex="-1" class="relative flex min-h-0 min-w-0 flex-1">
+	<div id="main-content" class="relative flex min-h-0 min-w-0 flex-1">
 		@AdminNavigationLoading()
 		if activeSection == "users" {
 			@AdminUsersPage(userData, adminSecurityVerificationValue(verification))
@@ -471,7 +477,7 @@ templ AdminPartial(userData AdminUsersData, avatarStatus models.AvatarStatus, co
 }
 
 templ AdminSecurityActivityPartial(data AdminSecurityActivityData, verification ...AdminSecurityVerificationData) {
-	<div id="main-content" tabindex="-1" class="relative flex min-h-0 min-w-0 flex-1">
+	<div id="main-content" class="relative flex min-h-0 min-w-0 flex-1">
 		@AdminNavigationLoading()
 		@AdminSecurityActivityPage(data, adminSecurityVerificationValue(verification))
 	</div>

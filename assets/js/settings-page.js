@@ -19,8 +19,8 @@
     if (typeof GoferSettings !== 'undefined') GoferSettings.set('compose_autosave_conditions', values.join(','));
   }
   function composeAutosaveConditionLabel(values) {
-    if (!values.length) return 'No conditions';
-    return values.length === 1 ? '1 condition' : values.length + ' conditions';
+    if (!values.length) return goferT("js.settings.autosave.no_conditions");
+    return goferTn("js.settings.autosave.conditions", values.length);
   }
   function syncComposeAutosaveControls() {
     var enabled = composeAutosaveEnabled();
@@ -177,6 +177,108 @@
   });
 })();
 
+// Fonts. The text and heading fonts come from the Google Fonts library. Each
+// picker arrives with the built-in font and the chosen one; the rest of the
+// library is added once the server has listed it. "default" is the built-in
+// font, saved as "". Express keeps its own font, so the pickers are greyed out
+// while it is the style.
+(function() {
+  // The list is fetched once and shared by every copy of the card, since
+  // Appearance is drawn again when themes change.
+  var loading = null;
+
+  function fill(picker) {
+    var group = picker.querySelector('[data-font-options]');
+    if (!group) return;
+    if (!loading) {
+      loading = fetch('/api/fonts/google', { credentials: 'same-origin' })
+        .then(function(res) { return res.ok ? res.json() : Promise.reject(res.status); })
+        .catch(function() { loading = null; return []; });
+    }
+    loading.then(function(families) {
+      if (!families.length) return;
+      var builtIn = group.querySelector('[data-tui-selectbox-value="default"] .select-item-text');
+      var entries = [['default', builtIn ? builtIn.textContent.trim() : 'default']];
+      families.forEach(function(family) { entries.push([family.family, family.family]); });
+      // selectbox.js builds the items when the menu is first opened.
+      group.setAttribute('data-tui-selectbox-lazy-items', JSON.stringify(entries));
+    });
+  }
+
+  function syncExpress(style) {
+    var card = document.querySelector('[data-font-settings]');
+    if (!card) return;
+    var express = style === 'express';
+    var note = card.querySelector('[data-font-settings-express]');
+    if (note) note.classList.toggle('hidden', !express);
+    card.querySelectorAll('[data-font-setting-row]').forEach(function(row) {
+      row.classList.toggle('opacity-50', express);
+    });
+    card.querySelectorAll('button.select-trigger').forEach(function(trigger) {
+      trigger.disabled = express;
+    });
+  }
+
+  // Each name is drawn in its own font once it scrolls into view, from a
+  // stylesheet with just the letters of the name (see googlefonts.Preview).
+  var previewed = {};
+  var observer = 'IntersectionObserver' in window ? new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (!entry.isIntersecting) return;
+      observer.unobserve(entry.target);
+      preview(entry.target);
+    });
+  }) : null;
+
+  function preview(item) {
+    var name = item.getAttribute('data-tui-selectbox-value');
+    var text = item.querySelector('.select-item-text');
+    if (!name || !text) return;
+    if (name === 'default') {
+      var group = item.closest('[data-font-options]');
+      var builtIn = group && group.getAttribute('data-font-builtin');
+      if (builtIn) text.style.fontFamily = '"' + builtIn + '"';
+      return;
+    }
+    if (!previewed[name]) {
+      previewed[name] = true;
+      var link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = '/fonts/google/preview.css?family=' + encodeURIComponent(name);
+      link.setAttribute('data-font-preview', '');
+      document.head.appendChild(link);
+    }
+    text.style.fontFamily = '"Gofer Preview ' + name + '", var(--font-sans)';
+  }
+
+  function watch(picker) {
+    if (!observer) return;
+    picker.querySelectorAll('[data-font-options] .select-item').forEach(function(item) {
+      if (item._fontPreviewWatched) return;
+      item._fontPreviewWatched = true;
+      observer.observe(item);
+    });
+  }
+
+  goferOnContent('[data-font-picker]', fill);
+  // selectbox.js adds the library's items as the menu opens, so they are
+  // watched right after.
+  ['pointerdown', 'keydown', 'focusin'].forEach(function(type) {
+    document.addEventListener(type, function(e) {
+      var trigger = e.target.closest && e.target.closest('[data-font-picker] button.select-trigger');
+      if (trigger) setTimeout(function() { watch(trigger.closest('[data-font-picker]')); }, 0);
+    });
+  });
+  document.addEventListener('change', function(e) {
+    var input = e.target.closest && e.target.closest('input[data-font-setting]');
+    if (!input || !input.value || typeof GoferSettings === 'undefined') return;
+    GoferSettings.set(input.getAttribute('data-font-setting'), input.value === 'default' ? '' : input.value);
+  });
+  document.body.addEventListener('gofer:settings-changed', function(e) {
+    if (e.detail && e.detail.key === 'theme_style') syncExpress(e.detail.value);
+  });
+})();
+
 // Style colors. A style's changed colors are saved as theme_colors_<style>,
 // and every edit is previewed on the page with CSS from the server. Closing
 // the editor without saving puts the page back as it was.
@@ -200,11 +302,6 @@
 
   function settingKey(name) {
     return 'theme_colors_' + name;
-  }
-
-  function styleLabel(name) {
-    if (name === 'custom') return 'Custom';
-    return name === 'minimal' ? 'Minimal' : 'Classic';
   }
 
   // Each Custom theme keeps its own changed colors, and the editor edits the
@@ -312,7 +409,7 @@
     var count = root.querySelector('[data-theme-colors-count]');
     if (count) {
       var n = changedCount(editing);
-      count.textContent = n === 0 ? 'No colors changed' : n === 1 ? '1 color changed' : n + ' colors changed';
+      count.textContent = n === 0 ? goferT("js.settings.theme.no_colors_changed") : goferTn("js.settings.theme.colors_changed", n);
     }
   }
 
@@ -378,7 +475,7 @@
       el.hidden = name === 'custom';
     });
     var title = root.querySelector('[data-theme-colors-title]');
-    if (title) title.textContent = 'Edit ' + styleLabel(name) + ' colors';
+    if (title) title.textContent = goferT("js.settings.theme.edit_title." + (name === 'custom' || name === 'minimal' ? name : 'classic'));
     watchClose(root);
     render();
     window.tui.dialog.open(EDITOR_ID);
@@ -441,7 +538,7 @@
     if (discard && window.tui && window.tui.dialog) {
       discardStyle = discard.getAttribute('data-theme-colors-discard');
       var text = document.querySelector('[data-theme-colors-discard-text]');
-      if (text) text.textContent = styleLabel(discardStyle) + ' goes back to the colors it ships with, in light and dark mode.';
+      if (text) text.textContent = goferT("js.settings.theme.discard_text." + (discardStyle === 'custom' || discardStyle === 'minimal' ? discardStyle : 'classic'));
       window.tui.dialog.open(DISCARD_ID);
       return;
     }
@@ -509,8 +606,8 @@
   // "My theme", or "My theme 2" and on when that name is taken.
   function defaultName() {
     var names = GoferSettings.customThemes().map(function(theme) { return theme.name; });
-    var name = 'My theme';
-    for (var n = 2; names.indexOf(name) >= 0; n++) name = 'My theme ' + n;
+    var name = goferT("js.settings.theme.default_name");
+    for (var n = 2; names.indexOf(name) >= 0; n++) name = goferT("js.settings.theme.default_name_n", { n: n });
     return name;
   }
 
@@ -699,7 +796,7 @@
       if (secondaryPicker) secondaryPicker.value = editing.seed;
     }
     var secondaryValue = root.querySelector('[data-custom-theme-secondary-value]');
-    if (secondaryValue) secondaryValue.textContent = editing.secondary || 'Same as primary';
+    if (secondaryValue) secondaryValue.textContent = editing.secondary || goferT("js.settings.theme.same_as_primary");
     root.querySelectorAll('[data-custom-theme-field]').forEach(function(input) {
       input.checked = editing[input.getAttribute('data-custom-theme-field')] === input.value;
     });
@@ -713,9 +810,7 @@
     if (warning) {
       var count = colorsChanged() ? handEditCount() : 0;
       warning.classList.toggle('hidden', count === 0);
-      warning.textContent = count === 1
-        ? 'A new base, colors, tint, contrast or sidebar make a new palette, so saving clears the 1 color you edited by hand.'
-        : 'A new base, colors, tint, contrast or sidebar make a new palette, so saving clears the ' + count + ' colors you edited by hand.';
+      warning.textContent = goferTn("js.settings.theme.reset_warning", count);
     }
   }
 
@@ -757,7 +852,7 @@
       if (seq !== frameSeq || !editing) return;
       var head = ['<meta charset="utf-8">'];
       document.querySelectorAll('head link[rel="stylesheet"], head style').forEach(function(node) {
-        if (node.matches('style[data-custom-theme], style[data-theme-colors]')) return;
+        if (node.matches('style[data-custom-theme], style[data-theme-colors], link[data-font-preview]')) return;
         if (node.tagName === 'LINK') head.push('<link rel="stylesheet" href="' + attribute(node.href) + '">');
         else head.push('<style>' + node.textContent + '</style>');
       });
@@ -919,7 +1014,7 @@
   function confirmDelete(button) {
     deletingId = button.getAttribute('data-custom-theme-delete');
     var title = document.querySelector('[data-custom-theme-delete-title]');
-    if (title) title.textContent = 'Delete \u201c' + (button.getAttribute('data-custom-theme-delete-name') || 'this theme') + '\u201d?';
+    if (title) title.textContent = goferT("js.settings.theme.delete_title", { name: button.getAttribute('data-custom-theme-delete-name') || goferT("js.settings.theme.this") });
     window.tui.dialog.open(DELETE_ID);
   }
 
@@ -1071,7 +1166,7 @@
 // Regional tab
 (function() {
   function timezoneLabel(timezone) {
-    if (!timezone || timezone === 'local') return 'Browser timezone';
+    if (!timezone || timezone === 'local') return goferT('js.settings.regional.timezone.browser');
     try {
       var now = new Date();
       var parts = new Intl.DateTimeFormat('en-US', { timeZone: timezone, timeZoneName: 'shortOffset' }).formatToParts(now);
@@ -1130,6 +1225,18 @@
       var valueEl = timezone.closest('.select-trigger') && timezone.closest('.select-trigger').querySelector('.select-value');
       if (valueEl) valueEl.textContent = timezoneLabel(timezone.value);
       GoferSettings.set('timezone', timezone.value);
+    }
+    var language = e.target.closest('[data-language-input]');
+    if (language && language.value && typeof GoferSettings !== 'undefined') {
+      GoferSettings.set('language', language.value);
+    }
+    var dateFormat = e.target.closest('[data-date-format-input]');
+    if (dateFormat && dateFormat.value && typeof GoferSettings !== 'undefined') {
+      GoferSettings.set('date_format', dateFormat.value);
+    }
+    var timeFormat = e.target.closest('[data-time-format-input]');
+    if (timeFormat && timeFormat.value && typeof GoferSettings !== 'undefined') {
+      GoferSettings.set('time_format', timeFormat.value);
     }
   });
 })();
@@ -1199,13 +1306,14 @@
   function fallbackTooltipText(pill) {
     var reason = (pill.dataset.idleFallbackReason || '').trim().replace(/\.$/, '');
     if (!reason) return '';
-    var name = pill.dataset.folderName || 'This folder';
-    var message = name + ' was moved to polling because ' + reason + '.';
+    var message = pill.dataset.folderName
+      ? goferT("js.settings.sync.fallback", { folder: pill.dataset.folderName, reason: reason })
+      : goferT("js.settings.sync.fallback_this", { reason: reason });
     var retryAt = Date.parse(pill.dataset.idleRetryAt || '');
     if (!isNaN(retryAt) && retryAt > Date.now()) {
       var remaining = retryAt - Date.now();
       var minutes = Math.max(1, Math.ceil(remaining / 60000));
-      return message + ' Gofer will try again in ' + minutes + (minutes === 1 ? ' minute.' : ' minutes.');
+      return message + ' ' + goferTn("js.compose.retry_in", minutes);
     }
     return message;
   }
@@ -1290,7 +1398,7 @@
       var el = document.createElement('span');
       el.className = 'sync-empty-state inline-flex items-center px-2.5 rounded-md border border-dashed border-border text-[11px] text-muted-foreground';
       el.style.height = '26px';
-      el.textContent = 'None selected';
+      el.textContent = goferT("js.settings.sync.none_selected");
       zone.appendChild(el);
     } else if (pills.length > 0 && existing) {
       existing.remove();
@@ -1357,7 +1465,7 @@
     if (!input || !input.value) return;
     var interval = input.value;
     document.querySelectorAll('[data-sync-polling-title]').forEach(function(title) {
-      title.textContent = 'Polling (' + interval + ' min)';
+      title.textContent = goferT("js.settings.sync.polling_title", { minutes: interval });
     });
     document.querySelectorAll('[data-sync-folders]').forEach(function(container) {
       container.dataset.syncFolders = interval;
@@ -1376,8 +1484,8 @@
     if (typeof showGoferToast !== 'function') return;
     showGoferToast({
       id: 'sync-settings-toast',
-      title: 'Could not save email sync settings',
-      description: 'Try again in a moment.',
+      title: goferT("js.settings.sync.save_failed"),
+      description: goferT("js.common.try_again"),
       variant: 'error',
       icon: 'error',
       position: 'bottom-right',
@@ -1401,7 +1509,7 @@
 
     syncSaveInFlight = true;
     syncAutoSaveTimer = null;
-    setSaveStatus('Saving');
+    setSaveStatus(goferT("js.settings.status.saving"));
 
     var formData = new FormData(form);
     var params = new URLSearchParams();
@@ -1416,9 +1524,9 @@
       if (!res.ok) throw new Error(res.statusText);
       return res.json();
     }).then(function() {
-      setSaveStatus('Saved');
+      setSaveStatus(goferT("js.settings.status.saved"));
     }).catch(function() {
-      setSaveStatus('Save failed');
+      setSaveStatus(goferT("js.settings.status.save_failed"));
       showSaveError();
     }).finally(function() {
       syncSaveInFlight = false;
@@ -1670,7 +1778,7 @@ function accountWizardTest(options) {
       var box = results();
       if (box) {
         box.textContent = '';
-        box.appendChild(spinner('Testing connection...'));
+        box.appendChild(spinner(goferT("js.settings.account.testing")));
       }
       var request = options.request(key);
       fetch(request.url, {
@@ -1681,7 +1789,7 @@ function accountWizardTest(options) {
       }).then(function(response) {
         return response.text().then(function(body) {
           if (test.key !== key || test.state !== 'testing') return;
-          if (!response.ok) throw new Error((body || '').trim() || 'Could not test the connection.');
+          if (!response.ok) throw new Error((body || '').trim() || goferT("js.settings.account.test_unavailable"));
           var box = results();
           if (box) box.innerHTML = body;
           if (options.onResponse) options.onResponse(response);
@@ -1689,7 +1797,7 @@ function accountWizardTest(options) {
         });
       }).catch(function(error) {
         if (test.key !== key || test.state !== 'testing') return;
-        showError(error && error.message ? error.message : 'Could not test the connection.');
+        showError(error && error.message ? error.message : goferT("js.settings.account.test_unavailable"));
         setState('failed');
       });
     },
@@ -1732,8 +1840,8 @@ function newAddAccountTest() {
     form: 'account-form',
     results: 'add-account-test-results',
     footer: '#add-wizard-footer [data-wizard-footer-step="3"]',
-    anywayLabel: function() { return addingMailToAccount() ? 'Skip test and add email' : 'Skip test and create'; },
-    anywayFailedLabel: function() { return addingMailToAccount() ? 'Add anyway' : 'Create anyway'; },
+    anywayLabel: function() { return addingMailToAccount() ? goferT("js.settings.account.skip_add_email") : goferT("js.settings.account.skip_create"); },
+    anywayFailedLabel: function() { return addingMailToAccount() ? goferT("js.settings.account.add_anyway") : goferT("js.settings.account.create_anyway"); },
     // Going back would create the account a second time.
     lockWhenDone: true,
     request: function(key) { return { url: '/api/accounts/test', body: key }; },
@@ -1759,7 +1867,7 @@ goferOnContent('#add-account-dialog', function() {
 });
 document.body.addEventListener('htmx:beforeRequest', function(event) {
   if (!event.target || event.target.id !== 'account-form') return;
-  addAccountTest.saving(addingMailToAccount() ? 'Adding email...' : 'Creating account...');
+  addAccountTest.saving(addingMailToAccount() ? goferT("js.settings.account.adding_email") : goferT("js.settings.account.creating"));
 });
 // Creating failed: say why on the test step, where the person is. Managed
 // servers answer with an error status; others send an error card in place
@@ -1771,7 +1879,7 @@ document.body.addEventListener('htmx:afterRequest', function(event) {
     return;
   }
   var xhr = event.detail && event.detail.xhr;
-  addAccountTest.saveFailed(xhr && xhr.responseText ? xhr.responseText.trim() : 'Could not create the account.');
+  addAccountTest.saveFailed(xhr && xhr.responseText ? xhr.responseText.trim() : goferT("js.settings.account.create_failed"));
 });
 document.body.addEventListener('htmx:afterSwap', function(event) {
   var content = event.target;
@@ -1780,7 +1888,7 @@ document.body.addEventListener('htmx:afterSwap', function(event) {
   if (!errorCard) return;
   var message = errorCard.querySelector('p');
   content.textContent = '';
-  addAccountTest.saveFailed(message ? message.textContent : 'Could not create the account.');
+  addAccountTest.saveFailed(message ? message.textContent : goferT("js.settings.account.create_failed"));
 });
 document.addEventListener('input', function(event) {
   if (!event.target || !event.target.closest || !event.target.closest('#account-form') || addAccountCreated()) return;
@@ -1816,8 +1924,8 @@ function maybeGoAddContacts() {
   if (!addAccountCreated()) return;
   syncAddContactStep();
   addAccountTest.saved(addingMailToAccount()
-    ? 'Email added. Mail is syncing now. You can close this window, or continue to this account\'s contacts and calendar.'
-    : 'Account created. Mail is syncing now. You can close this window, or continue to set up this account\'s contacts and calendar.');
+    ? goferT("js.settings.account.email_added")
+    : goferT("js.settings.account.created"));
 }
 function syncWizardServiceContent(root) {
   root = root || document;
@@ -1913,15 +2021,15 @@ function saveWizardEmailService(toggle) {
   }).then(function(response) {
     if (!response.ok) {
       return response.text().then(function(message) {
-        throw new Error((message || '').trim() || 'Could not save email settings.');
+        throw new Error((message || '').trim() || goferT("js.settings.account.email_save_failed"));
       });
     }
     toggle.dataset.wizardServiceInitialEnabled = String(enabled);
   }).catch(function(error) {
     toggle.checked = initialEnabled;
     if (typeof showGoferToast === 'function') showGoferToast({
-      title: 'Could not save email settings',
-      description: error.message || 'Could not save email settings.',
+      title: goferT("js.settings.account.email_save_failed_title"),
+      description: error.message || goferT("js.settings.account.email_save_failed"),
       variant: 'error'
     });
   }).finally(function() {
@@ -1955,6 +2063,10 @@ function wizardServiceNext(button, service, step) {
   var contactForm = service === 'contacts' ? root.querySelector('[data-wizard-contact-form]') : null;
   var calendarForm = service === 'calendar' && enabled ? root.querySelector('[data-calendar-source-form]') : null;
   if (enabled && contactForm) {
+    // Done finishes the wizard once the contacts are saved (see the
+    // contact form's afterRequest below); Next goes on to its next step.
+    if (step === 'done') contactForm.dataset.wizardFinish = 'true';
+    else delete contactForm.dataset.wizardFinish;
     if (contactForm.requestSubmit) contactForm.requestSubmit(); else contactForm.submit();
     return;
   }
@@ -1978,7 +2090,7 @@ function wizardServiceNext(button, service, step) {
   }
   var wasDisabled = toggle.disabled;
   toggle.disabled = true;
-  wizardServiceStatus(root, service, 'Saving ' + service + ' settings...');
+  wizardServiceStatus(root, service, goferT("js.settings.service.saving." + service));
   var body = new URLSearchParams();
   body.append('service', service);
   body.append('enabled', enabled ? 'true' : 'false');
@@ -1990,14 +2102,14 @@ function wizardServiceNext(button, service, step) {
   }).then(function(response) {
   if (!response.ok) {
     return response.text().then(function(message) {
-      throw new Error((message || '').trim() || 'Could not save ' + service + ' settings.');
+      throw new Error((message || '').trim() || goferT("js.settings.service.failed." + service));
     });
   }
     toggle.dataset.wizardServiceInitialEnabled = String(enabled);
     wizardServiceAdvance(root, step);
   }).catch(function(error) {
     toggle.checked = initialEnabled === 'true';
-    wizardServiceStatus(root, service, error.message || 'Could not save ' + service + ' settings.');
+    wizardServiceStatus(root, service, error.message || goferT("js.settings.service.failed." + service));
   }).finally(function() {
     toggle.disabled = wasDisabled;
   });
@@ -2042,17 +2154,17 @@ function mailDiscoveryEscape(value) {
   });
 }
 function mailDiscoverySourceLabel(source) {
-  if (source === 'provider_xml') return 'Provider XML';
+  if (source === 'provider_xml') return goferT("js.settings.discovery.source.provider_xml");
   if (source === 'thunderbird_xml') return 'Thunderbird XML';
-  if (source === 'mx_provider_xml') return 'Provider via MX';
+  if (source === 'mx_provider_xml') return goferT("js.settings.discovery.source.mx");
   if (source === 'dns_srv') return 'DNS SRV';
-  if (source === 'heuristic') return 'Common hostnames';
-  return source || 'Discovery';
+  if (source === 'heuristic') return goferT("js.settings.discovery.source.heuristic");
+  return source || goferT("js.settings.discovery.source.default");
 }
 function mailDiscoveryProviderLabel(provider) {
   if (provider === 'gmail') return 'Google';
   if (provider === 'outlook') return 'Microsoft';
-  return 'provider';
+  return goferT("js.settings.discovery.provider_generic");
 }
 function mailDiscoverySetField(form, name, value) {
   var input = form.querySelector('[name="' + name + '"]');
@@ -2138,8 +2250,8 @@ function applyMailDiscoveryCandidate(index) {
     });
     var applied = status.querySelector('[data-mail-discovery-applied]');
     if (applied) {
-      var oauthHint = candidate.auth_method === 'oauth2' && candidate.provider ? ' Continue with ' + mailDiscoveryProviderLabel(candidate.provider) + ' sign-in to finish.' : '';
-      applied.textContent = 'Applied ' + label + ' settings: ' + summary + oauthHint;
+      var oauthHint = candidate.auth_method === 'oauth2' && candidate.provider ? ' ' + goferT("js.settings.discovery.oauth_hint", { provider: mailDiscoveryProviderLabel(candidate.provider) }) : '';
+      applied.textContent = goferT("js.settings.discovery.applied", { source: label, summary: summary }) + oauthHint;
     }
   }
 }
@@ -2147,10 +2259,10 @@ function renderMailDiscoveryCandidates(candidates) {
   var status = mailDiscoveryStatus();
   if (!status) return;
   if (!candidates.length) {
-    status.innerHTML = '<div class="rounded-md border border-border bg-background/60 px-3 py-2 text-xs text-muted-foreground">No automatic settings were found. Continue with manual setup.</div>';
+    status.innerHTML = '<div class="rounded-md border border-border bg-background/60 px-3 py-2 text-xs text-muted-foreground">' + mailDiscoveryEscape(goferT("js.settings.discovery.none")) + '</div>';
     return;
   }
-  var html = '<div class="rounded-lg border border-border bg-background/60 p-3 text-xs"><div class="flex items-start justify-between gap-3"><div><div class="font-semibold text-foreground" data-mail-discovery-applied>Choose a configuration to apply</div><div class="mt-0.5 text-muted-foreground">' + candidates.length + ' candidate' + (candidates.length === 1 ? '' : 's') + ' found</div></div></div>';
+  var html = '<div class="rounded-lg border border-border bg-background/60 p-3 text-xs"><div class="flex items-start justify-between gap-3"><div><div class="font-semibold text-foreground" data-mail-discovery-applied>' + mailDiscoveryEscape(goferT("js.settings.discovery.choose")) + '</div><div class="mt-0.5 text-muted-foreground">' + mailDiscoveryEscape(goferTn("js.settings.discovery.found", candidates.length)) + '</div></div></div>';
   html += '<div class="mt-3 grid gap-2">';
   candidates.forEach(function(candidate, index) {
     var title = mailDiscoverySourceLabel(candidate.source);
@@ -2192,7 +2304,7 @@ function setAddAccountMailService(service) {
   var username = form.querySelector('input[name="username"]');
   if (username) {
     username.required = !icloud && !jmap;
-    username.placeholder = icloud || jmap ? 'Same as the email address' : 'you@example.com';
+    username.placeholder = icloud || jmap ? goferT("js.settings.account.username_same") : 'you@example.com';
   }
   // JMAP has no IMAP or SMTP servers; their hidden fields must not block the form.
   ['imap_host', 'smtp_host'].forEach(function(name) {
@@ -2216,7 +2328,19 @@ function openAddAccountWizard(service) {
   setAddAccountMailService(service);
   var root = document.getElementById('add-account-dialog');
   if (root) delete root.dataset.addMail;
+  setAddAccountProxyRow('');
   goferSwitchDialog('choose-account-type-dialog', 'add-account-dialog');
+}
+// The add wizard's Proxy row is for the account being added, or, adding mail
+// to an account, that account's own: its choice is the one finding and
+// testing the servers go through, and changing it saves it to the account.
+function setAddAccountProxyRow(accountID) {
+  var slot = document.getElementById('add-account-proxy-row');
+  if (!slot || !window.htmx) return;
+  accountID = accountID || '';
+  if ((slot.dataset.account || '') === accountID) return;
+  slot.dataset.account = accountID;
+  htmx.ajax('GET', '/api/accounts/proxy-choice?sidebar=1&form=account-form&account=' + encodeURIComponent(accountID), { target: slot, swap: 'innerHTML' });
 }
 // An account with only calendars or contacts gets its mail through the add
 // wizard, which then saves the mailbox to that account instead of creating
@@ -2226,7 +2350,7 @@ function openAddMailChooser(accountID, name) {
   _addMailAccount = { id: accountID, name: name || '' };
   var chooser = document.getElementById('choose-mail-type-dialog');
   if (!chooser || !window.tui || !window.tui.dialog) return;
-  chooser.querySelectorAll('[data-add-mail-account-name]').forEach(function(label) { label.textContent = name || 'this account'; });
+  chooser.querySelectorAll('[data-add-mail-account-name]').forEach(function(label) { label.textContent = name || goferT("js.settings.account.this"); });
   if (window.tui.dialog.isOpen('edit-dav-account-dialog')) {
     goferSwitchDialog('edit-dav-account-dialog', 'choose-mail-type-dialog');
   } else {
@@ -2239,6 +2363,7 @@ function startAddMail(service) {
   if (!_addMailAccount || !root || !form) return;
   setAddAccountMailService(service);
   root.dataset.addMail = _addMailAccount.id;
+  setAddAccountProxyRow(_addMailAccount.id);
   var name = form.querySelector('input[name="display_name"]');
   if (name && !name.value) name.value = _addMailAccount.name;
   goferSwitchDialog('choose-mail-type-dialog', 'add-account-dialog');
@@ -2326,7 +2451,7 @@ function davAccountRequest(root, path, busyMessage, extra) {
     body: body.toString()
   }).then(function(response) {
     return response.text().then(function(body) {
-      if (!response.ok) throw new Error((body || '').trim() || 'Could not reach the server.');
+      if (!response.ok) throw new Error((body || '').trim() || goferT("js.settings.dav.unreachable"));
       davAccountStatus(root, '', '');
       return body;
     });
@@ -2339,7 +2464,7 @@ function davAccountRequest(root, path, busyMessage, extra) {
 function findDAVItems(button) {
   var root = davAccountRoot(button);
   if (!root) return;
-  davAccountRequest(root, '/find', 'Signing in...').then(function(html) {
+  davAccountRequest(root, '/find', goferT("js.settings.dav.signing_in")).then(function(html) {
     davAccountItems(root, html);
     davAccountBusy(root, false);
   }).catch(function() {});
@@ -2355,7 +2480,7 @@ function createDAVItem(button) {
     if (input) input.focus();
     return;
   }
-  davAccountRequest(root, '/find', 'Creating ' + name + '...', { create_name: name }).then(function(html) {
+  davAccountRequest(root, '/find', goferT("js.settings.dav.creating", { name: name }), { create_name: name }).then(function(html) {
     davAccountItems(root, html);
     davAccountBusy(root, false);
   }).catch(function() {});
@@ -2399,16 +2524,19 @@ function discoverMailSettings(button) {
   if (!form || !status) return;
   var email = form.querySelector('input[name="email_address"]');
   if (!email || !email.value.trim()) {
-    status.innerHTML = '<div class="rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">Enter an email address first.</div>';
+    status.innerHTML = '<div class="rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">' + mailDiscoveryEscape(goferT("js.settings.discovery.enter_email")) + '</div>';
     return;
   }
   var label = button ? button.querySelector('[data-mail-discovery-label]') : null;
   var originalLabel = label ? label.textContent : '';
   if (button) button.disabled = true;
-  if (label) label.textContent = 'Discovering...';
-  status.innerHTML = '<div class="rounded-lg border border-border bg-background/60 p-3 text-xs text-muted-foreground"><div class="flex items-center gap-2"><span class="size-3.5 rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground animate-spin"></span><span>Checking provider XML, MX provider records, DNS SRV, and verified common hostnames...</span></div></div>';
+  if (label) label.textContent = goferT("js.settings.discovery.discovering");
+  status.innerHTML = '<div class="rounded-lg border border-border bg-background/60 p-3 text-xs text-muted-foreground"><div class="flex items-center gap-2"><span class="size-3.5 rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground animate-spin"></span><span>' + mailDiscoveryEscape(goferT("js.settings.discovery.checking")) + '</span></div></div>';
   var body = new URLSearchParams();
   body.append('email_address', email.value.trim());
+  // Discovery connects through the proxy the account will use.
+  var proxy = form ? form.elements.namedItem('proxy') : null;
+  if (proxy && proxy.value !== undefined) body.append('proxy', proxy.value);
   fetch('/api/accounts/discover', {
     method: 'POST',
     credentials: 'same-origin',
@@ -2416,30 +2544,31 @@ function discoverMailSettings(button) {
     body: body.toString()
   }).then(function(resp) {
     return resp.json().then(function(data) {
-      if (!resp.ok) throw new Error(data && data.error ? data.error : 'Could not discover settings.');
+      if (!resp.ok) throw new Error(data && data.error ? data.error : goferT("js.settings.discovery.failed"));
       return data;
     });
   }).then(function(data) {
     window._mailDiscoveryCandidates = data.candidates || [];
     renderMailDiscoveryCandidates(window._mailDiscoveryCandidates);
   }).catch(function(err) {
-    status.innerHTML = '<div class="rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">' + mailDiscoveryEscape(err && err.message ? err.message : 'Could not discover settings.') + '</div>';
+    status.innerHTML = '<div class="rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">' + mailDiscoveryEscape(err && err.message ? err.message : goferT("js.settings.discovery.failed")) + '</div>';
   }).finally(function() {
     if (button) button.disabled = false;
-    if (label) label.textContent = originalLabel || 'Discover settings';
+    if (label) label.textContent = originalLabel || goferT("js.settings.discovery.discover");
   });
 }
 function contactSyncSaveButtons(accountID) {
   return document.querySelectorAll('[data-contact-sync-save-button][data-account-id="' + accountID + '"]');
 }
 function contactSyncSetSaveButton(accountID, label, disabled, continueMode) {
+  var saving = label === goferT("js.settings.status.saving_dots");
   contactSyncSaveButtons(accountID).forEach(function(button) {
     var buttonLabel = button.querySelector('[data-account-edit-submit-label]');
     if (buttonLabel) buttonLabel.textContent = label; else button.textContent = label;
     button.disabled = !!disabled;
-    button.setAttribute('aria-busy', label === 'Saving...' ? 'true' : 'false');
+    button.setAttribute('aria-busy', saving ? 'true' : 'false');
     var buttonSpinner = button.querySelector('[data-account-edit-submit-spinner]');
-    if (buttonSpinner) buttonSpinner.classList.toggle('hidden', label !== 'Saving...');
+    if (buttonSpinner) buttonSpinner.classList.toggle('hidden', !saving);
     if (continueMode) {
       button.type = 'button';
       button.removeAttribute('form');
@@ -2452,20 +2581,20 @@ function contactSyncSetSaveButton(accountID, label, disabled, continueMode) {
   });
 }
 function contactSyncSaving(accountID) {
-  contactSyncSetSaveButton(accountID, 'Saving...', true, false);
+  contactSyncSetSaveButton(accountID, goferT("js.settings.status.saving_dots"), true, false);
 }
 function contactSyncSaved(accountID, ok) {
   if (!ok) {
-    contactSyncSetSaveButton(accountID, 'Save', false, false);
+    contactSyncSetSaveButton(accountID, goferT("js.common.save"), false, false);
     return;
   }
-  contactSyncSetSaveButton(accountID, 'Success', true, false);
+  contactSyncSetSaveButton(accountID, goferT("js.settings.status.success"), true, false);
   window.setTimeout(function() {
-    contactSyncSetSaveButton(accountID, 'Continue', false, true);
+    contactSyncSetSaveButton(accountID, goferT("js.common.continue"), false, true);
   }, 2500);
 }
 function contactSyncResetSave(accountID) {
-  contactSyncSetSaveButton(accountID, 'Save', false, false);
+  contactSyncSetSaveButton(accountID, goferT("js.common.save"), false, false);
 }
 function toggleCardDAVAuth(checkbox) {
   var form = checkbox && checkbox.closest ? checkbox.closest('form') : null;
@@ -2538,7 +2667,7 @@ document.body.addEventListener('htmx:afterSwap', function(event) { syncProtocolC
 // rename_name} or {delete_target}.
 function discoverCardDAV(accountID, fieldsID, statusID, autodiscover, change) {
   change = change || {};
-  var busyLabel = change.create_name ? 'Creating ' + change.create_name + '...' : change.rename_name ? 'Renaming to ' + change.rename_name + '...' : change.delete_target ? 'Deleting the address book...' : '';
+  var busyLabel = change.create_name ? goferT("js.settings.dav.creating", { name: change.create_name }) : change.rename_name ? goferT("js.settings.address_book.renaming_to", { name: change.rename_name }) : change.delete_target ? goferT("js.settings.address_book.deleting") : '';
   var fields = document.getElementById(fieldsID);
   var status = document.getElementById(statusID);
   if (!fields || !status) return;
@@ -2554,7 +2683,7 @@ function discoverCardDAV(accountID, fieldsID, statusID, autodiscover, change) {
   var overJMAP = body.get('provider') === 'jmap';
   function renderDiscoveryProgress(completed, total, endpoint) {
     var percent = total > 0 ? Math.max(0, Math.min(100, Math.round((completed / total) * 100))) : 0;
-    var label = total > 0 ? 'Testing ' + Math.min(completed + 1, total) + ' of ' + total + ' CardDAV checks' : (busyLabel || (overJMAP ? 'Looking up JMAP address books...' : 'Preparing CardDAV discovery...'));
+    var label = mailDiscoveryEscape(total > 0 ? goferT("js.settings.address_book.testing", { current: Math.min(completed + 1, total), total: total }) : (busyLabel || (overJMAP ? goferT("js.settings.address_book.looking_jmap") : goferT("js.settings.address_book.preparing"))));
     var safeEndpoint = endpoint ? endpoint.replace(/[&<>"]/g, function(ch) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]); }) : '';
     status.innerHTML = '<div class="rounded-lg border border-border bg-background/60 p-3 text-xs text-muted-foreground"><div class="flex items-center justify-between gap-3"><span class="font-medium text-foreground">' + label + '</span><span class="tabular-nums">' + completed + '/' + (total || '?') + '</span></div><div class="mt-2 h-1.5 overflow-hidden rounded-md bg-muted"><div class="h-full rounded-md bg-primary transition-all" style="width:' + percent + '%"></div></div>' + (safeEndpoint ? '<div class="mt-2 truncate">' + safeEndpoint + '</div>' : '') + '</div>';
   }
@@ -2581,7 +2710,7 @@ function discoverCardDAV(accountID, fieldsID, statusID, autodiscover, change) {
         enableCreate();
         var err = document.createElement('div');
         err.className = 'rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive';
-        err.textContent = event.error || 'Could not discover CardDAV address books.';
+        err.textContent = event.error || goferT("js.settings.address_book.discover_failed");
         status.textContent = '';
         status.appendChild(err);
         return;
@@ -2609,7 +2738,7 @@ function discoverCardDAV(accountID, fieldsID, statusID, autodiscover, change) {
   }).catch(function(err) {
     if (timeout) window.clearTimeout(timeout);
     enableCreate();
-    var message = err && err.name === 'AbortError' ? 'CardDAV discovery timed out. Check the app logs for the attempted DNS and URL checks, or enter the provider\'s exact CardDAV base URL and try again.' : 'Could not discover CardDAV address books. Check the app logs for details.';
+    var message = mailDiscoveryEscape(err && err.name === 'AbortError' ? goferT("js.settings.address_book.timeout") : goferT("js.settings.address_book.discover_failed_logs"));
     status.innerHTML = '<div class="rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">' + message + '</div>';
   });
   function enableCreate() {
@@ -2625,12 +2754,12 @@ function discoverCardDAV(accountID, fieldsID, statusID, autodiscover, change) {
     field.className = 'min-w-0 flex-1';
     var label = document.createElement('label');
     label.className = 'mb-1.5 block text-xs font-medium text-muted-foreground';
-    label.textContent = 'New address book';
+    label.textContent = goferT("js.settings.address_book.new");
     var input = document.createElement('input');
     input.type = 'text';
     input.maxLength = 100;
     input.autocomplete = 'off';
-    input.placeholder = 'Address book name';
+    input.placeholder = goferT("js.settings.address_book.name");
     input.setAttribute('data-carddav-new-name', '');
     input.className = 'flex h-9 w-full min-w-0 rounded-md border border-input bg-input/30 px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none md:text-sm placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]';
     var button = document.createElement('button');
@@ -2642,7 +2771,7 @@ function discoverCardDAV(accountID, fieldsID, statusID, autodiscover, change) {
     button.dataset.carddavAutodiscover = autodiscover ? 'true' : 'false';
     button.className = 'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-3 text-xs font-semibold text-primary transition-colors hover:border-primary/45 hover:bg-primary/15 disabled:pointer-events-none disabled:opacity-60';
     button.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-3.5"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>';
-    button.appendChild(document.createTextNode('Create'));
+    button.appendChild(document.createTextNode(goferT("js.settings.calendar.create")));
     field.appendChild(label);
     field.appendChild(input);
     row.appendChild(field);
@@ -2655,19 +2784,19 @@ function discoverCardDAV(accountID, fieldsID, statusID, autodiscover, change) {
     var wrap = document.createElement('span');
     wrap.className = 'ml-auto flex shrink-0 items-center gap-0.5';
     [
-      { kind: 'rename', label: 'Rename', hover: 'hover:bg-accent hover:text-foreground', svg: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"></path><path d="m15 5 4 4"></path>' },
-      { kind: 'delete', label: 'Delete', hover: 'hover:bg-destructive/10 hover:text-destructive', svg: '<path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" x2="10" y1="11" y2="17"></line><line x1="14" x2="14" y1="11" y2="17"></line>' },
+      { kind: 'rename', label: goferT("js.common.rename"), aria: "js.settings.address_book.rename_named", hover: 'hover:bg-accent hover:text-foreground', svg: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"></path><path d="m15 5 4 4"></path>' },
+      { kind: 'delete', label: goferT("js.settings.address_book.delete_short"), aria: "js.settings.address_book.delete_named", hover: 'hover:bg-destructive/10 hover:text-destructive', svg: '<path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" x2="10" y1="11" y2="17"></line><line x1="14" x2="14" y1="11" y2="17"></line>' },
     ].forEach(function(action) {
       var button = document.createElement('button');
       button.type = 'button';
       button.className = 'inline-flex size-6 items-center justify-center rounded text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 ' + action.hover;
       button.setAttribute('data-address-book-' + action.kind, book.url || '');
-      button.dataset.addressBookName = book.name || 'Address book';
+      button.dataset.addressBookName = book.name || goferT("js.settings.address_book.untitled");
       button.dataset.accountId = accountID;
       button.dataset.fieldsId = fieldsID;
       button.dataset.statusId = statusID;
       button.dataset.carddavAutodiscover = autodiscover ? 'true' : 'false';
-      button.setAttribute('aria-label', action.label + ' ' + (book.name || 'address book'));
+      button.setAttribute('aria-label', goferT(action.aria, { name: book.name || goferT("js.settings.address_book.generic") }));
       button.title = action.label;
       button.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-3.5">' + action.svg + '</svg>';
       wrap.appendChild(button);
@@ -2682,10 +2811,10 @@ function discoverCardDAV(accountID, fieldsID, statusID, autodiscover, change) {
       none.className = pickerSection ? '' : 'rounded-lg border border-border bg-background/60 p-3';
       var noneTitle = document.createElement('div');
       noneTitle.className = 'text-xs font-semibold text-foreground';
-      noneTitle.textContent = 'No address books on this server yet';
+      noneTitle.textContent = goferT("js.settings.address_book.none");
       var noneHint = document.createElement('p');
       noneHint.className = 'mt-1 text-[11px] leading-relaxed text-muted-foreground';
-      noneHint.textContent = 'Create one to sync. It is made on the server, so your other apps see it too.';
+      noneHint.textContent = goferT("js.settings.address_book.none_hint");
       none.appendChild(noneTitle);
       none.appendChild(noneHint);
       none.appendChild(createRow());
@@ -2709,11 +2838,11 @@ function discoverCardDAV(accountID, fieldsID, statusID, autodiscover, change) {
     wrap.className = pickerSection ? '' : 'rounded-lg border border-border bg-background/60 p-3';
     var title = document.createElement('div');
     title.className = 'text-xs font-semibold text-foreground';
-    title.textContent = 'Choose address books';
+    title.textContent = goferT("js.settings.address_book.choose");
     wrap.appendChild(title);
     var hint = document.createElement('p');
     hint.className = 'mt-1 text-[11px] leading-relaxed text-muted-foreground';
-    hint.textContent = 'Select one or more address books to sync. The default is used for new contacts.';
+    hint.textContent = goferT("js.settings.address_book.choose_hint");
     wrap.appendChild(hint);
     var list = document.createElement('div');
     list.className = 'mt-3 space-y-2';
@@ -2747,7 +2876,7 @@ function discoverCardDAV(accountID, fieldsID, statusID, autodiscover, change) {
       content.className = 'min-w-0 flex-1';
       var name = document.createElement('div');
       name.className = 'font-semibold text-foreground';
-      name.textContent = book.name || 'Address book';
+      name.textContent = book.name || goferT("js.settings.address_book.untitled");
       var url = document.createElement('div');
       url.className = 'mt-0.5 truncate text-muted-foreground';
       url.textContent = overJMAP ? '' : (book.url || '');
@@ -2760,7 +2889,7 @@ function discoverCardDAV(accountID, fieldsID, statusID, autodiscover, change) {
       radio.disabled = !check.checked;
       radio.className = 'relative h-4 w-4 before:absolute before:left-1/2 before:top-1/2 before:h-1.5 before:w-1.5 before:-translate-x-1/2 before:-translate-y-1/2 appearance-none rounded-full border-2 border-primary before:content-[\'\'] before:rounded-full before:bg-background checked:border-primary checked:bg-primary checked:before:visible focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed';
       defaultWrap.appendChild(radio);
-      defaultWrap.appendChild(document.createTextNode('Default for new contacts'));
+      defaultWrap.appendChild(document.createTextNode(goferT("js.settings.address_book.default")));
       content.appendChild(name);
       content.appendChild(url);
       content.appendChild(defaultWrap);
@@ -2816,23 +2945,23 @@ document.addEventListener('click', function(event) {
   event.preventDefault();
   var rename = button.hasAttribute('data-address-book-rename');
   var target = rename ? button.getAttribute('data-address-book-rename') : button.getAttribute('data-address-book-delete');
-  var name = button.dataset.addressBookName || 'this address book';
+  var name = button.dataset.addressBookName || goferT("js.settings.address_book.this");
   var ask = rename
-    ? window.goferPrompt({ title: 'Rename address book', label: 'Address book name', value: name, confirmLabel: 'Rename' }).then(function(next) {
+    ? window.goferPrompt({ title: goferT("js.settings.address_book.rename_title"), label: goferT("js.settings.address_book.name"), value: name, confirmLabel: goferT("js.common.rename") }).then(function(next) {
       next = (next || '').trim();
       return next && next !== name ? { rename_target: target, rename_name: next } : null;
     })
     : window.goferConfirm({
-      title: 'Delete “' + name + '”?',
-      message: '“' + name + '” and all its contacts are deleted from the server, for every app and device that uses it. This can\'t be undone.',
-      confirmLabel: 'Delete address book',
+      title: goferT("js.settings.address_book.delete_title", { name: name }),
+      message: goferT("js.settings.address_book.delete_message", { name: name }),
+      confirmLabel: goferT("js.settings.address_book.delete"),
       destructive: true,
     }).then(function(accepted) { return accepted ? { delete_target: target } : null; });
   ask.then(function(change) {
     if (!change) return;
     var root = davAccountRoot(button);
     if (root) {
-      davAccountRequest(root, '/find', rename ? 'Renaming...' : 'Deleting...', change).then(function(html) {
+      davAccountRequest(root, '/find', rename ? goferT("js.settings.address_book.renaming") : goferT("js.settings.address_book.deleting_short"), change).then(function(html) {
         davAccountItems(root, html);
         davAccountBusy(root, false);
       }).catch(function() {});
@@ -2906,6 +3035,8 @@ document.body.addEventListener('htmx:afterRequest', function(event) {
   if (!form) return;
     var xhr = event.detail && event.detail.xhr ? event.detail.xhr : null;
     var ok = !!(event.detail && event.detail.successful) && (!xhr || xhr.getResponseHeader('X-Gofer-Status') !== 'error');
+    var finish = form.dataset.wizardFinish === 'true';
+    delete form.dataset.wizardFinish;
     if (!ok) return;
     var root = form.closest('#add-account-dialog,#edit-account-dialog');
     var toggle = root && root.querySelector('[data-wizard-service-switch="contacts"]');
@@ -2916,7 +3047,7 @@ document.body.addEventListener('htmx:afterRequest', function(event) {
       syncWizardServiceContent(root);
       if (root.id === 'add-account-dialog') syncAddContactStep();
     }
-    if (root) wizardServiceAdvance(root, Number(form.dataset.wizardNextStep || 0));
+    if (root) wizardServiceAdvance(root, finish ? 'done' : Number(form.dataset.wizardNextStep || 0));
   });
 function refreshCardDAVBaseURLActions(root) {
   (root || document).querySelectorAll('[data-carddav-base-url-action]').forEach(function(group) {
@@ -2998,8 +3129,8 @@ function newEditAccountTest() {
     form: 'edit-account-form',
     results: 'edit-account-test-results',
     footer: '#edit-wizard-footer [data-wizard-footer-step="3"]',
-    anywayLabel: 'Skip test and save',
-    anywayFailedLabel: 'Save anyway',
+    anywayLabel: function() { return goferT("js.settings.account.skip_save"); },
+    anywayFailedLabel: function() { return goferT("js.settings.account.save_anyway"); },
     request: function(key) {
       var results = document.getElementById('edit-account-test-results');
       var typed = results && results.dataset.testTyped === 'true';
@@ -3014,7 +3145,7 @@ function newEditAccountTest() {
     },
     onState: function() {
       var label = document.querySelector('#edit-wizard-footer [data-edit-account-save-label]');
-      if (label) label.textContent = editAccountChanged() ? 'Save changes' : 'Continue';
+      if (label) label.textContent = editAccountChanged() ? goferT("js.settings.account.save_changes") : goferT("js.common.continue");
     }
   });
 }
@@ -3049,7 +3180,7 @@ function updateReconnectGates() {
     button.classList.toggle('opacity-50', held);
     if (held) {
       button.setAttribute('aria-disabled', 'true');
-      button.title = 'Enter the password marked with ! first';
+      button.title = goferT("js.settings.reconnect.password_first");
     } else if (button.getAttribute('aria-disabled') === 'true') {
       button.removeAttribute('aria-disabled');
       button.removeAttribute('title');
@@ -3092,10 +3223,12 @@ document.addEventListener('htmx:afterRequest', function(event) {
   if (note && remaining.length === 0) {
     note.hidden = true;
   } else if (note) {
-    var labels = remaining.map(function(item) { return item === 'mail' ? 'Mail' : item.charAt(0).toUpperCase() + item.slice(1); });
+    var labels = remaining.map(function(item) { return goferT("js.settings.reconnect.item." + item); });
     var text = note.querySelector('[data-reconnect-note]');
-    var list = labels.length > 1 ? labels.slice(0, -1).join(', ') + ' and ' + labels[labels.length - 1] : labels[0];
-    if (text) text.textContent = 'Saved. ' + list + (labels.length > 1 ? ' still need their passwords' : ' still needs its password') + ', in the steps marked with !.';
+    var list = labels[0];
+    for (var i = 1; i < labels.length - 1; i++) list = goferT("js.common.list_comma", { first: list, next: labels[i] });
+    if (labels.length > 1) list = goferT("js.common.and", { first: list, second: labels[labels.length - 1] });
+    if (text) text.textContent = goferTn("js.settings.reconnect.saved", labels.length, { list: list });
   }
   updateReconnectGates();
 });
@@ -3136,7 +3269,7 @@ function editWizardGo(step, immediate) {
   setWizardFooter(root, step, !!immediate);
   if (step === 3) {
     if (reconnectMissingFields(document.getElementById('edit-account-form'))) {
-      editAccountTest.saveFailed('Enter the password marked with ! before testing.');
+      editAccountTest.saveFailed(goferT("js.settings.reconnect.password_before_test"));
     } else {
       editAccountTest.run(false);
     }

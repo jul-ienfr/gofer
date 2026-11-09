@@ -3,12 +3,16 @@ package handler
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,7 +36,7 @@ func (h *Handler) userComposeHandler(selectHandler func(*Handler) http.HandlerFu
 		// its handler; compose uses URL-encoded forms, uploads use their own route.
 		if r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/compose") {
 			if err := r.ParseForm(); err != nil {
-				writeComposeJSONError(w, 400, "invalid form data")
+				writeComposeJSONError(w, r, 400, "invalid form data")
 				return
 			}
 		}
@@ -40,10 +44,20 @@ func (h *Handler) userComposeHandler(selectHandler func(*Handler) http.HandlerFu
 			// A slow request body must not hold the owner's cache lease.
 			data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 64<<10))
 			if err != nil {
-				writeOutgoingSendError(w, 400, "invalid outgoing request", false)
+				writeOutgoingSendError(w, r, 400, "invalid outgoing request", false)
 				return
 			}
 			r.Body = io.NopCloser(bytes.NewReader(data))
+		}
+		if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/drafts/") && h.userIMAP != nil {
+			// A draft picked up from a thread may not have its body yet. Fetch
+			// it the way the reader does, before the storage lease below, so
+			// the editor gets the whole draft and not only its preview.
+			if id, err := strconv.ParseInt(r.PathValue("id"), 10, 64); err == nil && id > 0 {
+				if err := h.userIMAP.EnsureBody(ctx, h.userID(ctx), id); err != nil && !errors.Is(err, sql.ErrNoRows) {
+					log.Printf("user draft body message=%d: %v", id, err)
+				}
+			}
 		}
 		state := &userMessageMutationState{owner: h.userID(ctx), routing: h.userStorage, checked: make(map[string]bool), wake: make(map[string]bool), credentials: h.userCredentials != nil}
 		response := &userMutationResponse{header: make(http.Header)}
@@ -63,7 +77,7 @@ func (h *Handler) userComposeHandler(selectHandler func(*Handler) http.HandlerFu
 		})
 		if err != nil {
 			log.Printf("user compose unavailable: %v", err)
-			http.Error(w, "mailbox unavailable", 503)
+			http.Error(w, i18n.T(r.Context(), "server.error.mailbox_unavailable"), 503)
 			return
 		}
 		for _, event := range state.events {
@@ -120,7 +134,7 @@ func (h *Handler) saveUserComposeDraft(ctx context.Context, r *http.Request) (co
 	}
 	body, html := r.FormValue("body"), strings.TrimSpace(r.FormValue("html_body"))
 	if html != "" {
-		html = string(message.SanitizeHTML([]byte(html)))
+		html = string(message.SanitizeOutgoingHTML([]byte(html)))
 	}
 	attachments, _, err := h.collectComposeAttachments(r)
 	if err != nil {
@@ -129,9 +143,9 @@ func (h *Handler) saveUserComposeDraft(ctx context.Context, r *http.Request) (co
 	if err := validateComposeMessageSize(attachments, body, html); err != nil {
 		return fail(400, err.Error())
 	}
-	to, _ := message.ParseAddressList(r.FormValue("to"))
-	cc, _ := message.ParseAddressList(r.FormValue("cc"))
-	bcc, _ := message.ParseAddressList(r.FormValue("bcc"))
+	to := message.ParseDraftAddressList(r.FormValue("to"))
+	cc := message.ParseDraftAddressList(r.FormValue("cc"))
+	bcc := message.ParseDraftAddressList(r.FormValue("bcc"))
 	msg := &message.OutgoingMessage{To: to, CC: cc, Bcc: bcc, Subject: r.FormValue("subject"), TextBody: body, HTMLBody: html, InReplyTo: r.FormValue("in_reply_to"), References: r.FormValue("references"), MessageID: draftID, Date: time.Now().UTC(), Attachments: attachments}
 	sender.apply(msg)
 	reply, references := h.validComposeThreadHeaders(ctx, accountID, msg.Subject, msg.InReplyTo, msg.References)
@@ -153,7 +167,7 @@ func (h *Handler) saveUserComposeDraft(ctx context.Context, r *http.Request) (co
 			_ = candidate.DeleteMessage(accountID, stagedID)
 		}
 	}()
-	draft := storage.DraftMessageInput{AccountID: accountID, FolderID: folder, InternetMessageID: draftID, InReplyTo: msg.InReplyTo, References: msg.References, Subject: msg.Subject, FromName: msg.FromName, FromEmail: msg.FromEmail, Snippet: sentSnippet(body, msg.Subject), ToRecipients: parseDraftRecipients(r.FormValue("to")), CCRecipients: parseDraftRecipients(r.FormValue("cc")), BCCRecipients: parseDraftRecipients(r.FormValue("bcc")), Date: msg.Date}
+	draft := storage.DraftMessageInput{AccountID: accountID, FolderID: folder, InternetMessageID: draftID, InReplyTo: msg.InReplyTo, References: msg.References, Subject: msg.Subject, FromName: msg.FromName, FromEmail: msg.FromEmail, Snippet: sentSnippet(body, msg.Subject), ToRecipients: draftRecipients(to), CCRecipients: draftRecipients(cc), BCCRecipients: draftRecipients(bcc), Date: msg.Date}
 	id, err := h.db.PublishDraft(ctx, draft, func(id int64) (storage.DraftPublication, error) {
 		stagedID = id
 		c := storage.DraftPublication{}
@@ -259,12 +273,12 @@ func (h *Handler) handleUserDiscardDraft(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if draftID == "" {
-		writeComposeJSONError(w, 400, "draft id is required")
+		writeComposeJSONError(w, r, 400, "draft id is required")
 		return
 	}
 	folder, err := h.db.DiscardIMAPDraft(r.Context(), accountID, draftID)
 	if err != nil {
-		writeComposeJSONError(w, 500, "failed to discard draft")
+		writeComposeJSONError(w, r, 500, i18n.T(r.Context(), "server.msg.failed_to_discard_draft"))
 		return
 	}
 	if folder != "" {

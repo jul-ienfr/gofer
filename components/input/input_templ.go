@@ -15,6 +15,7 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"github.com/cristianadrielbraun/gofer/components/button"
 	"github.com/cristianadrielbraun/gofer/components/icon"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"github.com/cristianadrielbraun/gofer/utils"
 )
 
@@ -120,7 +121,7 @@ func Input(props ...Props) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(p.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/input/input.templ`, Line: 60, Col: 12}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/input/input.templ`, Line: 61, Col: 12}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -133,7 +134,7 @@ func Input(props ...Props) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(string(p.Type))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/input/input.templ`, Line: 61, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/input/input.templ`, Line: 62, Col: 24}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -151,7 +152,7 @@ func Input(props ...Props) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(p.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/input/input.templ`, Line: 63, Col: 17}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/input/input.templ`, Line: 64, Col: 17}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -170,7 +171,7 @@ func Input(props ...Props) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(p.Placeholder)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/input/input.templ`, Line: 66, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/input/input.templ`, Line: 67, Col: 31}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -189,7 +190,7 @@ func Input(props ...Props) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(p.Value)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/input/input.templ`, Line: 69, Col: 19}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/input/input.templ`, Line: 70, Col: 19}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -208,7 +209,7 @@ func Input(props ...Props) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(p.FileAccept)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/input/input.templ`, Line: 72, Col: 25}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/input/input.templ`, Line: 73, Col: 25}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -227,7 +228,7 @@ func Input(props ...Props) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(p.Form)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/input/input.templ`, Line: 75, Col: 17}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/input/input.templ`, Line: 76, Col: 17}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -326,7 +327,7 @@ func Input(props ...Props) templ.Component {
 				Size:       button.SizeIcon,
 				Variant:    button.VariantGhost,
 				Class:      "absolute right-0 top-1/2 -translate-y-1/2 opacity-50 cursor-pointer",
-				Attributes: templ.Attributes{"data-tui-input-toggle-password": p.ID, "aria-label": "Show password", "aria-pressed": "false"},
+				Attributes: templ.Attributes{"data-tui-input-toggle-password": p.ID, "aria-label": i18n.T(ctx, "input.show_password"), "aria-pressed": "false"},
 			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var11), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

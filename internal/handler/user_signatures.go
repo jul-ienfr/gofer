@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"net/http"
 	"strings"
 	"time"
@@ -30,6 +31,9 @@ func (h *Handler) registerUserSignatures(private func(string, http.HandlerFunc))
 		{"POST /api/accounts/{id}/identities", func(h *Handler) http.HandlerFunc { return h.handleSaveAccountIdentity }},
 		{"DELETE /api/accounts/{id}/identities/{identity}", func(h *Handler) http.HandlerFunc { return h.handleDeleteAccountIdentity }},
 		{"POST /api/accounts/{id}/identities/{identity}/move", func(h *Handler) http.HandlerFunc { return h.handleMoveAccountIdentity }},
+		{"GET /api/accounts/{id}/proxy/manage", func(h *Handler) http.HandlerFunc { return h.handleManageAccountProxy }},
+		{"GET /api/accounts/proxy-choice", func(h *Handler) http.HandlerFunc { return h.handleAccountProxyChoice }},
+		{"GET /api/accounts/proxy-dialog", func(h *Handler) http.HandlerFunc { return h.handleAccountProxyAddDialog }},
 		{"GET /api/accounts/{id}/folder-roles/manage", func(h *Handler) http.HandlerFunc { return h.handleManageFolderRoles }},
 		{"POST /api/accounts/{id}/folder-roles", func(h *Handler) http.HandlerFunc { return h.handleSaveFolderRoles }},
 	} {
@@ -51,7 +55,7 @@ func (h *Handler) userSignatureHandler(selectHandler func(*Handler) http.Handler
 			// Parse before leasing storage, using the same bound as compose.
 			r.Body = http.MaxBytesReader(w, r.Body, 2*composeAttachmentMaxBytes+1<<20)
 			if err := r.ParseForm(); err != nil {
-				http.Error(w, "invalid form data", http.StatusBadRequest)
+				http.Error(w, i18n.T(r.Context(), "server.error.invalid_form_data"), http.StatusBadRequest)
 				return
 			}
 		}

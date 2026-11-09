@@ -291,20 +291,20 @@ func migrateAISchema(db *sql.DB, version int, statements ...string) error {
 }
 
 func applyAIMigrations(db *sql.DB, currentVersion int) error {
-	if currentVersion >= 145 {
+	if currentVersion >= 153 {
 		return nil
 	}
 	for _, migrate := range []func(*sql.DB) error{
-		migrateV135ToV136,
-		migrateV136ToV137,
-		migrateV137ToV138,
-		migrateV138ToV139,
-		migrateV139ToV140,
-		migrateV140ToV141,
-		migrateV141ToV142,
-		migrateV142ToV143,
-		migrateV143ToV144,
-		migrateV144ToV145,
+		migrateAI144,
+		migrateAI145,
+		migrateAI146,
+		migrateAI147,
+		migrateAI148,
+		migrateAI149,
+		migrateAI150,
+		migrateAI151,
+		migrateAI152,
+		migrateAI153,
 	} {
 		if err := migrate(db); err != nil {
 			return err
@@ -313,39 +313,39 @@ func applyAIMigrations(db *sql.DB, currentVersion int) error {
 	return nil
 }
 
-func migrateV135ToV136(db *sql.DB) error {
-	return migrateAISchema(db, 136, aiAnalysisJobsTableSQL)
+func migrateAI144(db *sql.DB) error {
+	return migrateAISchema(db, 144, aiAnalysisJobsTableSQL)
 }
 
-func migrateV136ToV137(db *sql.DB) error {
-	return migrateAISchema(db, 137, aiAnalysisResultsTableSQL, aiAnalysisAnswersTableSQL)
+func migrateAI145(db *sql.DB) error {
+	return migrateAISchema(db, 145, aiAnalysisResultsTableSQL, aiAnalysisAnswersTableSQL)
 }
 
-func migrateV137ToV138(db *sql.DB) error {
-	return migrateAISchema(db, 138, aiLegitimacyProfilesTableSQL)
+func migrateAI146(db *sql.DB) error {
+	return migrateAISchema(db, 146, aiLegitimacyProfilesTableSQL)
 }
 
-func migrateV138ToV139(db *sql.DB) error {
-	return migrateAISchema(db, 139, aiProjectsTableSQL, aiProjectRoutesTableSQL, aiMessageProjectsTableSQL)
+func migrateAI147(db *sql.DB) error {
+	return migrateAISchema(db, 147, aiProjectsTableSQL, aiProjectRoutesTableSQL, aiMessageProjectsTableSQL)
 }
 
-func migrateV139ToV140(db *sql.DB) error {
-	return migrateAISchema(db, 140, aiConnectorsTableSQL, aiRoutingOutboxTableSQL)
+func migrateAI148(db *sql.DB) error {
+	return migrateAISchema(db, 148, aiConnectorsTableSQL, aiRoutingOutboxTableSQL)
 }
 
-func migrateV140ToV141(db *sql.DB) error {
-	return migrateAISchema(db, 141, aiLLMProvidersTableSQL, aiLLMGenerationsTableSQL)
+func migrateAI149(db *sql.DB) error {
+	return migrateAISchema(db, 149, aiLLMProvidersTableSQL, aiLLMGenerationsTableSQL)
 }
 
-func migrateV141ToV142(db *sql.DB) error {
-	return migrateAISchema(db, 142, aiAutomationActionsTableSQL, aiUnsubscribeAttemptsTableSQL)
+func migrateAI150(db *sql.DB) error {
+	return migrateAISchema(db, 150, aiAutomationActionsTableSQL, aiUnsubscribeAttemptsTableSQL)
 }
 
-func migrateV142ToV143(db *sql.DB) error {
-	return migrateAISchema(db, 143, aiAPITokensTableSQL, aiAuditEventsTableSQL)
+func migrateAI151(db *sql.DB) error {
+	return migrateAISchema(db, 151, aiAPITokensTableSQL, aiAuditEventsTableSQL)
 }
 
-func migrateV143ToV144(db *sql.DB) error {
+func migrateAI152(db *sql.DB) error {
 	tx, err := db.Begin()
 	if err != nil {
 		return err
@@ -355,11 +355,11 @@ func migrateV143ToV144(db *sql.DB) error {
 	if err := tx.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_version`).Scan(&current); err != nil {
 		return err
 	}
-	if current >= 144 {
+	if current >= 152 {
 		return nil
 	}
 	if _, err := tx.Exec(aiPromptVersionsTableSQL); err != nil {
-		return fmt.Errorf("apply schema 144: %w", err)
+		return fmt.Errorf("apply schema 152: %w", err)
 	}
 	appSettings, err := tableExistsTx(tx, "app_settings")
 	if err != nil {
@@ -400,13 +400,13 @@ func migrateV143ToV144(db *sql.DB) error {
 			}
 		}
 	}
-	if err := markSchemaVersion(tx, 144); err != nil {
+	if err := markSchemaVersion(tx, 152); err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
-func migrateV144ToV145(db *sql.DB) error {
+func migrateAI153(db *sql.DB) error {
 	tx, err := db.Begin()
 	if err != nil {
 		return err
@@ -416,7 +416,7 @@ func migrateV144ToV145(db *sql.DB) error {
 	if err := tx.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_version`).Scan(&current); err != nil {
 		return err
 	}
-	if current >= 145 {
+	if current >= 153 {
 		return nil
 	}
 	columns := []struct {
@@ -437,10 +437,10 @@ func migrateV144ToV145(db *sql.DB) error {
 			continue
 		}
 		if _, err := tx.Exec(column.sql); err != nil {
-			return fmt.Errorf("apply schema 145 (%s): %w", column.name, err)
+			return fmt.Errorf("apply schema 153 (%s): %w", column.name, err)
 		}
 	}
-	if err := markSchemaVersion(tx, 145); err != nil {
+	if err := markSchemaVersion(tx, 153); err != nil {
 		return err
 	}
 	return tx.Commit()

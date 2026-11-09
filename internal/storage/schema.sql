@@ -37,7 +37,9 @@ CREATE TABLE IF NOT EXISTS accounts (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     sort_order INTEGER NOT NULL DEFAULT 0,
     -- 1 when the user hid the account from the sidebar and move targets.
-    hidden INTEGER NOT NULL DEFAULT 0
+    hidden INTEGER NOT NULL DEFAULT 0,
+    -- '' uses the default proxy, 'direct' none, else an outbound_proxies id.
+    proxy_id TEXT NOT NULL DEFAULT ''
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_local_folders ON accounts(COALESCE(user_id, '')) WHERE provider = 'local';
 
@@ -592,6 +594,13 @@ ON message_recipients(email);
 
 CREATE INDEX IF NOT EXISTS idx_recipients_message
 ON message_recipients(message_id);
+
+-- Contacts' mail counts look up messages by normalized address.
+CREATE INDEX IF NOT EXISTS idx_recipients_contact_email
+ON message_recipients(lower(trim(email)), message_id);
+
+CREATE INDEX IF NOT EXISTS idx_messages_contact_email
+ON messages(lower(trim(from_email)), account_id);
 
 CREATE INDEX IF NOT EXISTS idx_attachments_message
 ON attachments(message_id);
@@ -1267,7 +1276,8 @@ CREATE TABLE IF NOT EXISTS contact_profiles (
     is_deleted INTEGER NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    trashed_at DATETIME
+    trashed_at DATETIME,
+    home TEXT NOT NULL DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_contact_profiles_trash
@@ -1327,6 +1337,20 @@ CREATE TABLE IF NOT EXISTS contact_sync_memberships (
 CREATE INDEX IF NOT EXISTS idx_contact_sync_memberships_profile
 ON contact_sync_memberships(user_id, profile_id, enabled);
 
+-- The places that deleted a contact with Gofer Sync on, while it waits to
+-- be resolved: deleted everywhere, or kept without those places.
+CREATE TABLE IF NOT EXISTS contact_remote_deletions (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    profile_id TEXT NOT NULL REFERENCES contact_profiles(id) ON DELETE CASCADE,
+    place TEXT NOT NULL,
+    account_id TEXT NOT NULL DEFAULT '',
+    detected_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, profile_id, place)
+);
+
+CREATE INDEX IF NOT EXISTS idx_contact_remote_deletions_account
+ON contact_remote_deletions(account_id);
+
 CREATE INDEX IF NOT EXISTS idx_contact_sync_memberships_account
 ON contact_sync_memberships(account_id, enabled);
 
@@ -1361,7 +1385,7 @@ CREATE TABLE IF NOT EXISTS contact_identities (
     confidence REAL NOT NULL DEFAULT 1.0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (user_id, kind, normalized_value)
+    PRIMARY KEY (user_id, kind, normalized_value, profile_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_contact_identities_profile
@@ -1449,7 +1473,7 @@ CREATE TABLE IF NOT EXISTS calendar_sources (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-    provider TEXT NOT NULL CHECK (provider IN ('gmail', 'outlook', 'caldav', 'jmap')),
+    provider TEXT NOT NULL CHECK (provider IN ('gmail', 'outlook', 'caldav', 'jmap', 'ics')),
     remote_id TEXT NOT NULL,
     name TEXT NOT NULL DEFAULT '',
     description TEXT NOT NULL DEFAULT '',
@@ -1463,6 +1487,7 @@ CREATE TABLE IF NOT EXISTS calendar_sources (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_in_gofer INTEGER NOT NULL DEFAULT 0,
+    refresh_minutes INTEGER NOT NULL DEFAULT 0,
     UNIQUE (account_id, remote_id)
 );
 
@@ -1699,7 +1724,7 @@ CREATE TABLE IF NOT EXISTS mail_security_exceptions (
         OR
         (kind = 'plaintext_transport' AND protocol IN ('http', 'imap', 'smtp') AND port BETWEEN 1 AND 65535)
         OR
-        (kind = 'private_target' AND protocol IN ('http', 'https', 'imap', 'smtp') AND port BETWEEN 1 AND 65535)
+        (kind = 'private_target' AND protocol IN ('http', 'https', 'imap', 'smtp', 'proxy') AND port BETWEEN 1 AND 65535)
     ),
     UNIQUE(kind, protocol, host, port)
 );
@@ -1859,4 +1884,39 @@ CREATE TABLE IF NOT EXISTS mail_rule_runs (
 );
 CREATE INDEX IF NOT EXISTS idx_mail_rule_runs_user ON mail_rule_runs(user_id, id);
 
-INSERT OR REPLACE INTO schema_version (version) VALUES (135);
+-- Outbound proxies accounts connect through: an administrator's, for
+-- everyone or for chosen people, or a person's own (owner_user_id).
+CREATE TABLE IF NOT EXISTS outbound_proxies (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL CHECK (name <> ''),
+    type TEXT NOT NULL CHECK (type IN ('http', 'socks5')),
+    host TEXT NOT NULL CHECK (host <> ''),
+    port INTEGER NOT NULL CHECK (port BETWEEN 1 AND 65535),
+    username TEXT NOT NULL DEFAULT '',
+    encrypted_password BLOB,
+    is_default INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0, 1)),
+    owner_user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+    everyone INTEGER NOT NULL DEFAULT 1 CHECK (everyone IN (0, 1)),
+    created_by TEXT NOT NULL DEFAULT '',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (owner_user_id IS NULL OR is_default = 0)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_outbound_proxies_name
+    ON outbound_proxies(COALESCE(owner_user_id, ''), name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_outbound_proxies_default
+    ON outbound_proxies(is_default) WHERE is_default = 1;
+
+CREATE TABLE IF NOT EXISTS outbound_proxy_users (
+    proxy_id TEXT NOT NULL REFERENCES outbound_proxies(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (proxy_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS outbound_proxy_policy (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    people_add INTEGER NOT NULL DEFAULT 0 CHECK (people_add IN (0, 1))
+);
+
+INSERT OR REPLACE INTO schema_version (version) VALUES (143);

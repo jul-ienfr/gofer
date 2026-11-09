@@ -1,6 +1,7 @@
 package views
 
 import (
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"github.com/cristianadrielbraun/gofer/components/checkbox"
 	"github.com/cristianadrielbraun/gofer/components/dialog"
 	"github.com/cristianadrielbraun/gofer/components/icon"
@@ -9,55 +10,55 @@ import (
 // The Export and import tab lists each action as a short row; an action that
 // takes choices opens a dialog for them. Mail jobs are listed under the
 // action that started them, and refresh when one starts.
-templ SettingsExportImportTab(uiSettings map[string]string) {
+templ SettingsExportImportTab() {
 	<div class="mt-6 space-y-6">
 		<div class="settings-card bg-card rounded-lg border p-6 space-y-5">
 			<div>
-				<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">{ tr(uiSettings, "profile.card.title") }</h3>
-				<p class="text-xs text-muted-foreground leading-relaxed">{ tr(uiSettings, "profile.card.description") }</p>
+				<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">{ i18n.T(ctx, "transfer.profile.heading") }</h3>
+				<p class="text-xs text-muted-foreground leading-relaxed">{ i18n.T(ctx, "transfer.profile.intro") }</p>
 			</div>
-			@dataActionRow(tr(uiSettings, "profile.card.export"), tr(uiSettings, "profile.card.export_description"), "profile-export-dialog", "", "", tr(uiSettings, "profile.card.export_button"), icon.Download(icon.Props{Class: "size-3.5"}))
-			@dataActionRow(tr(uiSettings, "profile.card.import"), tr(uiSettings, "profile.card.import_description"), "profile-import-dialog", "profile-import-panel", "/api/profile/import/upload", tr(uiSettings, "profile.card.import_button"), icon.Upload(icon.Props{Class: "size-3.5"}))
+			@dataActionRow(i18n.T(ctx, "transfer.profile.export"), i18n.T(ctx, "transfer.profile.export_detail"), "profile-export-dialog", "", "", i18n.T(ctx, "transfer.export_button"), icon.Download(icon.Props{Class: "size-3.5"}))
+			@dataActionRow(i18n.T(ctx, "transfer.profile.import"), i18n.T(ctx, "transfer.profile.import_detail"), "profile-import-dialog", "profile-import-panel", "/api/profile/import/upload", i18n.T(ctx, "transfer.import_button"), icon.Upload(icon.Props{Class: "size-3.5"}))
 		</div>
 		<div class="settings-card bg-card rounded-lg border p-6 space-y-5">
 			<div>
 				<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">Thunderbird</h3>
-				<p class="text-xs text-muted-foreground leading-relaxed">{ tr(uiSettings, "thunderbird.card.description") }</p>
+				<p class="text-xs text-muted-foreground leading-relaxed">{ i18n.T(ctx, "thunderbird.card.description") }</p>
 			</div>
-			@dataActionRow(tr(uiSettings, "thunderbird.card.action"), tr(uiSettings, "thunderbird.card.action_description"), "thunderbird-import-dialog", "thunderbird-import-panel", "/api/thunderbird/import/upload", tr(uiSettings, "thunderbird.card.button"), icon.Upload(icon.Props{Class: "size-3.5"}))
+			@dataActionRow(i18n.T(ctx, "thunderbird.card.action"), i18n.T(ctx, "thunderbird.card.action_detail"), "thunderbird-import-dialog", "thunderbird-import-panel", "/api/thunderbird/import/upload", i18n.T(ctx, "thunderbird.card.button"), icon.Upload(icon.Props{Class: "size-3.5"}))
 		</div>
 		<div class="settings-card bg-card rounded-lg border p-6 space-y-5">
 			<div>
-				<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">{ tr(uiSettings, "mail.card.title") }</h3>
-				<p class="text-xs text-muted-foreground leading-relaxed">{ tr(uiSettings, "mail.card.description") }</p>
+				<h3 class="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">{ i18n.T(ctx, "transfer.mail.heading") }</h3>
+				<p class="text-xs text-muted-foreground leading-relaxed">{ i18n.T(ctx, "transfer.mail.intro") }</p>
 			</div>
-			@dataActionRow(tr(uiSettings, "mail.export.title"), tr(uiSettings, "mail.export.description"), "mail-export-dialog", "", "/api/mail/exports", tr(uiSettings, "mail.export.button"), icon.Download(icon.Props{Class: "size-3.5"})) {
+			@dataActionRow(i18n.T(ctx, "transfer.mail.export"), i18n.T(ctx, "transfer.mail.export_detail"), "mail-export-dialog", "", "/api/mail/exports", i18n.T(ctx, "transfer.export_button"), icon.Download(icon.Props{Class: "size-3.5"})) {
 				@dataJobList("/api/mail/exports/jobs")
 			}
-			@dataActionRow(tr(uiSettings, "mail.import.title"), tr(uiSettings, "mail.import.description"), "mail-import-dialog", "", "/api/mail/imports", tr(uiSettings, "mail.import.button"), icon.Upload(icon.Props{Class: "size-3.5"})) {
+			@dataActionRow(i18n.T(ctx, "transfer.mail.import"), i18n.T(ctx, "transfer.mail.import_detail"), "mail-import-dialog", "", "/api/mail/imports", i18n.T(ctx, "transfer.import_button"), icon.Upload(icon.Props{Class: "size-3.5"})) {
 				@dataJobList("/api/mail/imports/jobs")
 			}
-			@dataActionRow(tr(uiSettings, "mail.transfer.title"), tr(uiSettings, "mail.transfer.description"), "mail-transfer-dialog", "", "/api/mail/transfers", tr(uiSettings, "mail.transfer.button"), icon.ArrowRightLeft(icon.Props{Class: "size-3.5"})) {
+			@dataActionRow(i18n.T(ctx, "transfer.mail.transfer"), i18n.T(ctx, "transfer.mail.transfer_detail"), "mail-transfer-dialog", "", "/api/mail/transfers", i18n.T(ctx, "transfer.mail.transfer_button"), icon.ArrowRightLeft(icon.Props{Class: "size-3.5"})) {
 				@dataJobList("/api/mail/transfers/jobs")
 			}
 		</div>
-		@dataActionDialog("profile-export-dialog", "", tr(uiSettings, "profile.dialog.export"), "sm:max-w-lg") {
-			@ProfileExportForm(uiSettings)
+		@dataActionDialog("profile-export-dialog", "", i18n.T(ctx, "transfer.profile.export"), "sm:max-w-lg") {
+			@ProfileExportForm()
 		}
-		@dataActionDialog("profile-import-dialog", "profile-import-panel", tr(uiSettings, "profile.dialog.import"), "sm:max-w-2xl") {
-			@dataDialogLoading(tr(uiSettings, "common.loading"))
+		@dataActionDialog("profile-import-dialog", "profile-import-panel", i18n.T(ctx, "transfer.profile.import"), "sm:max-w-2xl") {
+			@dataDialogLoading()
 		}
-		@dataActionDialog("thunderbird-import-dialog", "thunderbird-import-panel", tr(uiSettings, "thunderbird.dialog.title"), "sm:max-w-2xl") {
-			@dataDialogLoading(tr(uiSettings, "common.loading"))
+		@dataActionDialog("thunderbird-import-dialog", "thunderbird-import-panel", i18n.T(ctx, "thunderbird.dialog.title"), "sm:max-w-2xl") {
+			@dataDialogLoading()
 		}
-		@dataActionDialog("mail-export-dialog", "", tr(uiSettings, "mail.dialog.export"), "sm:max-w-xl") {
-			@dataDialogLoading(tr(uiSettings, "common.loading"))
+		@dataActionDialog("mail-export-dialog", "", i18n.T(ctx, "transfer.mail.export"), "sm:max-w-xl") {
+			@dataDialogLoading()
 		}
-		@dataActionDialog("mail-import-dialog", "", tr(uiSettings, "mail.dialog.import"), "sm:max-w-2xl") {
-			@dataDialogLoading(tr(uiSettings, "common.loading"))
+		@dataActionDialog("mail-import-dialog", "", i18n.T(ctx, "transfer.mail.import"), "sm:max-w-2xl") {
+			@dataDialogLoading()
 		}
-		@dataActionDialog("mail-transfer-dialog", "", tr(uiSettings, "mail.dialog.transfer"), "sm:max-w-2xl") {
-			@dataDialogLoading(tr(uiSettings, "common.loading"))
+		@dataActionDialog("mail-transfer-dialog", "", i18n.T(ctx, "transfer.mail.transfer"), "sm:max-w-2xl") {
+			@dataDialogLoading()
 		}
 	</div>
 }
@@ -139,29 +140,29 @@ templ dataDialogFooter() {
 	}
 }
 
-templ ProfileExportForm(uiSettings map[string]string) {
+templ ProfileExportForm() {
 	<form method="get" action="/api/profile/export" class={ dataDialogFormClass } data-close-dialog-on-submit="profile-export-dialog">
 		@dataDialogScroll("space-y-4 pb-4") {
 			<label class="flex items-start gap-2.5 text-sm text-foreground">
 				@checkbox.Checkbox(checkbox.Props{ID: "profile-export-contacts", Name: "contacts", Value: "1", Checked: true})
 				<span>
-					<span class="font-medium">{ tr(uiSettings, "profile.export.include_contacts") }</span>
-					<span class="block text-xs text-muted-foreground mt-0.5">{ tr(uiSettings, "profile.export.include_contacts_description") }</span>
+					<span class="font-medium">{ i18n.T(ctx, "transfer.profile.include_contacts") }</span>
+					<span class="block text-xs text-muted-foreground mt-0.5">{ i18n.T(ctx, "transfer.profile.include_contacts_detail") }</span>
 				</span>
 			</label>
-			<p class="text-xs text-muted-foreground leading-relaxed">{ tr(uiSettings, "profile.export.no_secrets") }</p>
+			<p class="text-xs text-muted-foreground leading-relaxed">{ i18n.T(ctx, "transfer.profile.no_secrets") }</p>
 		}
 		@dataDialogFooter() {
 			<button type="submit" class={ profilePrimaryButtonClass } data-profile-export>
 				@icon.Download(icon.Props{Class: "size-3.5"})
-				{ tr(uiSettings, "profile.export.submit") }
+				{ i18n.T(ctx, "transfer.profile.export") }
 			</button>
 		}
 	</form>
 }
 
-templ dataDialogLoading(label string) {
+templ dataDialogLoading() {
 	@dataDialogScroll("pb-6") {
-		<p class="text-xs text-muted-foreground">Loading…</p>
+		<p class="text-xs text-muted-foreground">{ i18n.T(ctx, "transfer.loading") }</p>
 	}
 }

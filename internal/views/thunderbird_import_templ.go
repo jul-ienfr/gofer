@@ -80,7 +80,7 @@ func ThunderbirdImportUploadForm(locale i18n.Locale, message string) templ.Compo
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var3 string
-			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "thunderbird.upload.label"))
+			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.L(locale, "thunderbird.upload.label"))
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/thunderbird_import.templ`, Line: 46, Col: 134}
 			}
@@ -119,7 +119,7 @@ func ThunderbirdImportUploadForm(locale i18n.Locale, message string) templ.Compo
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var6 string
-			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "thunderbird.upload.review"))
+			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.L(locale, "thunderbird.upload.review"))
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/thunderbird_import.templ`, Line: 51, Col: 50}
 			}
@@ -132,7 +132,7 @@ func ThunderbirdImportUploadForm(locale i18n.Locale, message string) templ.Compo
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var7 string
-			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "thunderbird.upload.help"))
+			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.L(locale, "thunderbird.upload.help"))
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/thunderbird_import.templ`, Line: 55, Col: 47}
 			}
@@ -180,25 +180,25 @@ func ThunderbirdImportUploadForm(locale i18n.Locale, message string) templ.Compo
 func thunderbirdStatusLabel(locale i18n.Locale, status string) string {
 	switch status {
 	case "exists":
-		return i18n.T(locale, "thunderbird.status.exists")
+		return i18n.L(locale, "thunderbird.status.exists")
 	case "unsupported":
-		return i18n.T(locale, "thunderbird.status.unsupported")
+		return i18n.L(locale, "thunderbird.status.unsupported")
 	default:
-		return i18n.T(locale, "thunderbird.status.ready")
+		return i18n.L(locale, "thunderbird.status.ready")
 	}
 }
 
 func thunderbirdStatusDescription(locale i18n.Locale, account ThunderbirdImportAccount) string {
 	switch account.Status {
 	case "exists":
-		return i18n.T(locale, "thunderbird.status.exists_description")
+		return i18n.L(locale, "thunderbird.status.exists_description")
 	case "unsupported":
-		return i18n.T(locale, "thunderbird.status.unsupported_description")
+		return i18n.L(locale, "thunderbird.status.unsupported_description")
 	}
 	if account.Provider == providers.ProviderGmail || account.Provider == providers.ProviderOutlook {
-		return i18n.T(locale, "thunderbird.status.ready_oauth_description")
+		return i18n.L(locale, "thunderbird.status.ready_oauth_description")
 	}
-	return i18n.T(locale, "thunderbird.status.ready_description")
+	return i18n.L(locale, "thunderbird.status.ready_description")
 }
 
 func thunderbirdJoin(locale i18n.Locale, items []string) string {
@@ -208,9 +208,9 @@ func thunderbirdJoin(locale i18n.Locale, items []string) string {
 	case 1:
 		return items[0]
 	case 2:
-		return items[0] + i18n.T(locale, "list.and") + items[1]
+		return items[0] + i18n.L(locale, "list.and") + items[1]
 	default:
-		return strings.Join(items[:len(items)-1], ", ") + i18n.T(locale, "list.and_serial") + items[len(items)-1]
+		return strings.Join(items[:len(items)-1], ", ") + i18n.L(locale, "list.and_serial") + items[len(items)-1]
 	}
 }
 
@@ -219,7 +219,7 @@ func thunderbirdFailureMessage(locale i18n.Locale, emails []string) string {
 	if len(emails) == 1 {
 		key = "thunderbird.result.failed_one"
 	}
-	return i18n.Tf(locale, key, thunderbirdJoin(locale, emails))
+	return i18n.Lf(locale, key, thunderbirdJoin(locale, emails))
 }
 
 func thunderbirdAccountLabel(account ThunderbirdImportAccount) string {
@@ -340,7 +340,7 @@ func ThunderbirdImportPreview(locale i18n.Locale, data ThunderbirdImportPreviewD
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var15 string
-				templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "thunderbird.preview.empty"))
+				templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.L(locale, "thunderbird.preview.empty"))
 				if templ_7745c5c3_Err != nil {
 					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/thunderbird_import.templ`, Line: 134, Col: 90}
 				}
@@ -358,7 +358,7 @@ func ThunderbirdImportPreview(locale i18n.Locale, data ThunderbirdImportPreviewD
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var16 string
-				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "thunderbird.preview.accounts"))
+				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.L(locale, "thunderbird.preview.accounts"))
 				if templ_7745c5c3_Err != nil {
 					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/thunderbird_import.templ`, Line: 137, Col: 137}
 				}
@@ -551,7 +551,7 @@ func ThunderbirdImportPreview(locale i18n.Locale, data ThunderbirdImportPreviewD
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var27 string
-				templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "thunderbird.preview.signatures"))
+				templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.L(locale, "thunderbird.preview.signatures"))
 				if templ_7745c5c3_Err != nil {
 					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/thunderbird_import.templ`, Line: 171, Col: 139}
 				}
@@ -563,7 +563,7 @@ func ThunderbirdImportPreview(locale i18n.Locale, data ThunderbirdImportPreviewD
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = profileImportSection("signatures", i18n.TP(locale, data.Signatures, "thunderbird.count.signature_one", "thunderbird.count.signature_other", data.Signatures), i18n.T(locale, "thunderbird.preview.signatures_description"), true).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = profileImportSection("signatures", i18n.LTP(locale, data.Signatures, "thunderbird.count.signature_one", "thunderbird.count.signature_other", data.Signatures), i18n.L(locale, "thunderbird.preview.signatures_description"), true).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -613,7 +613,7 @@ func ThunderbirdImportPreview(locale i18n.Locale, data ThunderbirdImportPreviewD
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var31 string
-			templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "thunderbird.action.cancel"))
+			templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.L(locale, "thunderbird.action.cancel"))
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/thunderbird_import.templ`, Line: 178, Col: 49}
 			}
@@ -652,7 +652,7 @@ func ThunderbirdImportPreview(locale i18n.Locale, data ThunderbirdImportPreviewD
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var34 string
-			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "thunderbird.action.import"))
+			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.L(locale, "thunderbird.action.import"))
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/thunderbird_import.templ`, Line: 182, Col: 49}
 			}
@@ -746,7 +746,7 @@ func ThunderbirdImportResult(locale i18n.Locale, result ThunderbirdImportResultD
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var39 string
-			templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "thunderbird.result.title"))
+			templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.L(locale, "thunderbird.result.title"))
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/thunderbird_import.templ`, Line: 194, Col: 72}
 			}
@@ -764,9 +764,9 @@ func ThunderbirdImportResult(locale i18n.Locale, result ThunderbirdImportResultD
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var40 string
-				templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.TP(locale, len(result.Added), "thunderbird.result.added_one", "thunderbird.result.added_other", len(result.Added), thunderbirdJoin(locale, result.Added)))
+				templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.LTP(locale, len(result.Added), "thunderbird.result.added_one", "thunderbird.result.added_other", len(result.Added), thunderbirdJoin(locale, result.Added)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/thunderbird_import.templ`, Line: 197, Col: 171}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/thunderbird_import.templ`, Line: 197, Col: 172}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 				if templ_7745c5c3_Err != nil {
@@ -783,9 +783,9 @@ func ThunderbirdImportResult(locale i18n.Locale, result ThunderbirdImportResultD
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var41 string
-				templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.TP(locale, result.Signatures, "thunderbird.result.signature_one", "thunderbird.result.signature_other", result.Signatures))
+				templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.LTP(locale, result.Signatures, "thunderbird.result.signature_one", "thunderbird.result.signature_other", result.Signatures))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/thunderbird_import.templ`, Line: 200, Col: 140}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/thunderbird_import.templ`, Line: 200, Col: 141}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 				if templ_7745c5c3_Err != nil {
@@ -802,9 +802,9 @@ func ThunderbirdImportResult(locale i18n.Locale, result ThunderbirdImportResultD
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var42 string
-				templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.TP(locale, result.Skipped, "thunderbird.result.skipped_one", "thunderbird.result.skipped_other", result.Skipped))
+				templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.LTP(locale, result.Skipped, "thunderbird.result.skipped_one", "thunderbird.result.skipped_other", result.Skipped))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/thunderbird_import.templ`, Line: 203, Col: 130}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/thunderbird_import.templ`, Line: 203, Col: 131}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var42))
 				if templ_7745c5c3_Err != nil {
@@ -821,7 +821,7 @@ func ThunderbirdImportResult(locale i18n.Locale, result ThunderbirdImportResultD
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var43 string
-				templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "thunderbird.result.none_selected"))
+				templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.L(locale, "thunderbird.result.none_selected"))
 				if templ_7745c5c3_Err != nil {
 					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/thunderbird_import.templ`, Line: 206, Col: 63}
 				}
@@ -844,7 +844,7 @@ func ThunderbirdImportResult(locale i18n.Locale, result ThunderbirdImportResultD
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var44 string
-				templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "thunderbird.result.no_passwords"))
+				templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.L(locale, "thunderbird.result.no_passwords"))
 				if templ_7745c5c3_Err != nil {
 					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/thunderbird_import.templ`, Line: 210, Col: 98}
 				}
@@ -929,7 +929,7 @@ func ThunderbirdImportResult(locale i18n.Locale, result ThunderbirdImportResultD
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var49 string
-			templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "thunderbird.action.import_another"))
+			templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.L(locale, "thunderbird.action.import_another"))
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/thunderbird_import.templ`, Line: 223, Col: 57}
 			}
@@ -965,7 +965,7 @@ func ThunderbirdImportResult(locale i18n.Locale, result ThunderbirdImportResultD
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var52 string
-				templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "thunderbird.action.accounts"))
+				templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.L(locale, "thunderbird.action.accounts"))
 				if templ_7745c5c3_Err != nil {
 					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/thunderbird_import.templ`, Line: 226, Col: 116}
 				}

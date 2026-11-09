@@ -15,7 +15,7 @@ func TestComposeFieldLabelsRecipientInput(t *testing.T) {
 	html := out.String()
 	for _, want := range []string{
 		`role="textbox"`,
-		`aria-label="To recipients"`,
+		`aria-label="To"`,
 		`data-placeholder="recipient@example.com"`,
 	} {
 		if !strings.Contains(html, want) {

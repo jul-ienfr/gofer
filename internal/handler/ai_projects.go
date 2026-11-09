@@ -44,23 +44,23 @@ func (h *Handler) handleAIProjects(w http.ResponseWriter, r *http.Request) {
 			list, err = db.ListAIProjects(r.Context(), userID)
 			return err
 		}); err != nil {
-			writeComposeJSONError(w, http.StatusInternalServerError, "failed to list projects")
+			writeComposeJSONError(w, r, http.StatusInternalServerError, "failed to list projects")
 			return
 		}
 		writeAIJSON(w, http.StatusOK, map[string]any{"projects": projectsOrEmpty(list)})
 	case http.MethodPost:
 		var payload aiProjectPayload
 		if err := decodeAIBody(w, r, &payload); err != nil {
-			writeComposeJSONError(w, http.StatusBadRequest, "invalid project payload")
+			writeComposeJSONError(w, r, http.StatusBadRequest, "invalid project payload")
 			return
 		}
 		classification := strings.ToLower(strings.TrimSpace(payload.DataClassification))
 		if !validAIClassification(classification) {
-			writeComposeJSONError(w, http.StatusBadRequest, "invalid data classification")
+			writeComposeJSONError(w, r, http.StatusBadRequest, "invalid data classification")
 			return
 		}
 		if !classificationAllowsExternal(classification) && boolValue(payload.AllowExternalRouting) {
-			writeComposeJSONError(w, http.StatusBadRequest, "this data classification cannot route externally")
+			writeComposeJSONError(w, r, http.StatusBadRequest, "this data classification cannot route externally")
 			return
 		}
 		var created storage.AIProject
@@ -75,7 +75,7 @@ func (h *Handler) handleAIProjects(w http.ResponseWriter, r *http.Request) {
 			})
 			return err
 		}); err != nil {
-			writeComposeJSONError(w, http.StatusBadRequest, "failed to create project")
+			writeComposeJSONError(w, r, http.StatusBadRequest, "failed to create project")
 			return
 		}
 		writeAIJSON(w, http.StatusCreated, created)
@@ -99,7 +99,7 @@ func (h *Handler) handleAIProjectDefaults(w http.ResponseWriter, r *http.Request
 		list, err = db.ListAIProjects(r.Context(), userID)
 		return err
 	}); err != nil {
-		writeComposeJSONError(w, http.StatusInternalServerError, "failed to create default projects")
+		writeComposeJSONError(w, r, http.StatusInternalServerError, "failed to create default projects")
 		return
 	}
 	writeAIJSON(w, http.StatusOK, map[string]any{"projects": projectsOrEmpty(list)})
@@ -109,7 +109,7 @@ func (h *Handler) handleAIProject(w http.ResponseWriter, r *http.Request) {
 	userID := h.userID(r.Context())
 	id := strings.TrimSpace(r.PathValue("id"))
 	if id == "" {
-		writeComposeJSONError(w, http.StatusBadRequest, "missing project id")
+		writeComposeJSONError(w, r, http.StatusBadRequest, "missing project id")
 		return
 	}
 	switch r.Method {
@@ -121,26 +121,26 @@ func (h *Handler) handleAIProject(w http.ResponseWriter, r *http.Request) {
 			return err
 		}); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				writeComposeJSONError(w, http.StatusNotFound, "project not found")
+				writeComposeJSONError(w, r, http.StatusNotFound, "project not found")
 				return
 			}
-			writeComposeJSONError(w, http.StatusInternalServerError, "failed to read project")
+			writeComposeJSONError(w, r, http.StatusInternalServerError, "failed to read project")
 			return
 		}
 		writeAIJSON(w, http.StatusOK, project)
 	case http.MethodPut, http.MethodPatch:
 		var payload aiProjectPayload
 		if err := decodeAIBody(w, r, &payload); err != nil {
-			writeComposeJSONError(w, http.StatusBadRequest, "invalid project payload")
+			writeComposeJSONError(w, r, http.StatusBadRequest, "invalid project payload")
 			return
 		}
 		classification := strings.ToLower(strings.TrimSpace(payload.DataClassification))
 		if !validAIClassification(classification) {
-			writeComposeJSONError(w, http.StatusBadRequest, "invalid data classification")
+			writeComposeJSONError(w, r, http.StatusBadRequest, "invalid data classification")
 			return
 		}
 		if !classificationAllowsExternal(classification) && payload.AllowExternalRouting != nil && *payload.AllowExternalRouting {
-			writeComposeJSONError(w, http.StatusBadRequest, "this data classification cannot route externally")
+			writeComposeJSONError(w, r, http.StatusBadRequest, "this data classification cannot route externally")
 			return
 		}
 		var updated storage.AIProject
@@ -187,10 +187,10 @@ func (h *Handler) handleAIProject(w http.ResponseWriter, r *http.Request) {
 			return err
 		}); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				writeComposeJSONError(w, http.StatusNotFound, "project not found")
+				writeComposeJSONError(w, r, http.StatusNotFound, "project not found")
 				return
 			}
-			writeComposeJSONError(w, http.StatusBadRequest, "failed to update project")
+			writeComposeJSONError(w, r, http.StatusBadRequest, "failed to update project")
 			return
 		}
 		writeAIJSON(w, http.StatusOK, updated)
@@ -199,10 +199,10 @@ func (h *Handler) handleAIProject(w http.ResponseWriter, r *http.Request) {
 			return db.DeleteAIProject(r.Context(), userID, id)
 		}); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				writeComposeJSONError(w, http.StatusNotFound, "project not found")
+				writeComposeJSONError(w, r, http.StatusNotFound, "project not found")
 				return
 			}
-			writeComposeJSONError(w, http.StatusInternalServerError, "failed to delete project")
+			writeComposeJSONError(w, r, http.StatusInternalServerError, "failed to delete project")
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -215,7 +215,7 @@ func (h *Handler) handleAIProjectRoutes(w http.ResponseWriter, r *http.Request) 
 	userID := h.userID(r.Context())
 	projectID := strings.TrimSpace(r.PathValue("id"))
 	if projectID == "" {
-		writeComposeJSONError(w, http.StatusBadRequest, "missing project id")
+		writeComposeJSONError(w, r, http.StatusBadRequest, "missing project id")
 		return
 	}
 	switch r.Method {
@@ -226,22 +226,22 @@ func (h *Handler) handleAIProjectRoutes(w http.ResponseWriter, r *http.Request) 
 			routes, err = db.ListAIProjectRoutes(r.Context(), userID, projectID)
 			return err
 		}); err != nil {
-			writeComposeJSONError(w, http.StatusNotFound, "project not found")
+			writeComposeJSONError(w, r, http.StatusNotFound, "project not found")
 			return
 		}
 		writeAIJSON(w, http.StatusOK, map[string]any{"routes": routesOrEmpty(routes)})
 	case http.MethodPost:
 		var payload aiRoutePayload
 		if err := decodeAIBody(w, r, &payload); err != nil {
-			writeComposeJSONError(w, http.StatusBadRequest, "invalid route payload")
+			writeComposeJSONError(w, r, http.StatusBadRequest, "invalid route payload")
 			return
 		}
 		if _, err := projects.ParseMatch(payload.MatchJSON); err != nil {
-			writeComposeJSONError(w, http.StatusBadRequest, err.Error())
+			writeComposeJSONError(w, r, http.StatusBadRequest, err.Error())
 			return
 		}
 		if _, err := projects.ParseActions(payload.ActionsJSON); err != nil {
-			writeComposeJSONError(w, http.StatusBadRequest, err.Error())
+			writeComposeJSONError(w, r, http.StatusBadRequest, err.Error())
 			return
 		}
 		var created storage.AIProjectRoute
@@ -266,7 +266,7 @@ func (h *Handler) handleAIProjectRoutes(w http.ResponseWriter, r *http.Request) 
 			}
 			return err
 		}); err != nil {
-			writeComposeJSONError(w, http.StatusBadRequest, "failed to create route")
+			writeComposeJSONError(w, r, http.StatusBadRequest, "failed to create route")
 			return
 		}
 		writeAIJSON(w, http.StatusCreated, created)
@@ -294,10 +294,10 @@ func (h *Handler) handleAIRoute(w http.ResponseWriter, r *http.Request) {
 			return nil
 		}); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				writeComposeJSONError(w, http.StatusNotFound, "route not found")
+				writeComposeJSONError(w, r, http.StatusNotFound, "route not found")
 				return
 			}
-			writeComposeJSONError(w, http.StatusInternalServerError, "failed to delete route")
+			writeComposeJSONError(w, r, http.StatusInternalServerError, "failed to delete route")
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -318,7 +318,7 @@ func (h *Handler) handleAILegitimacyProfiles(w http.ResponseWriter, r *http.Requ
 			writeAIJSON(w, http.StatusOK, map[string]any{"profiles": []any{}})
 			return
 		}
-		writeComposeJSONError(w, http.StatusInternalServerError, "failed to read account")
+		writeComposeJSONError(w, r, http.StatusInternalServerError, "failed to read account")
 		return
 	}
 	var profiles []storage.AILegitimacyProfile
@@ -327,7 +327,7 @@ func (h *Handler) handleAILegitimacyProfiles(w http.ResponseWriter, r *http.Requ
 		profiles, err = db.ListAILegitimacyProfiles(r.Context(), accountID, 200)
 		return err
 	}); err != nil {
-		writeComposeJSONError(w, http.StatusInternalServerError, "failed to list legitimacy profiles")
+		writeComposeJSONError(w, r, http.StatusInternalServerError, "failed to list legitimacy profiles")
 		return
 	}
 	if profiles == nil {
@@ -349,7 +349,7 @@ func (h *Handler) handleAILegitimacyProfile(w http.ResponseWriter, r *http.Reque
 		Blocked     *bool `json:"blocked"`
 	}
 	if err := decodeAIBody(w, r, &payload); err != nil {
-		writeComposeJSONError(w, http.StatusBadRequest, "invalid legitimacy payload")
+		writeComposeJSONError(w, r, http.StatusBadRequest, "invalid legitimacy payload")
 		return
 	}
 	var updated storage.AILegitimacyProfile
@@ -396,7 +396,7 @@ func (h *Handler) handleAILegitimacyProfile(w http.ResponseWriter, r *http.Reque
 		return err
 	})
 	if err != nil {
-		writeComposeJSONError(w, http.StatusBadRequest, "failed to update legitimacy profile")
+		writeComposeJSONError(w, r, http.StatusBadRequest, "failed to update legitimacy profile")
 		return
 	}
 	writeAIJSON(w, http.StatusOK, updated)

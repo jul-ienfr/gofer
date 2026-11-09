@@ -9,12 +9,13 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
+	"context"
 	"fmt"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"strings"
 
 	"github.com/cristianadrielbraun/gofer/components/checkbox"
 	"github.com/cristianadrielbraun/gofer/components/icon"
-	"github.com/cristianadrielbraun/gofer/internal/i18n"
 )
 
 type MailExportAccount struct {
@@ -67,7 +68,7 @@ type MailExportPanelData struct {
 }
 
 // MailExportPanel lists the accounts to export, in the Export mail dialog.
-func MailExportPanel(locale i18n.Locale, data MailExportPanelData) templ.Component {
+func MailExportPanel(data MailExportPanelData) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -112,7 +113,7 @@ func MailExportPanel(locale i18n.Locale, data MailExportPanelData) templ.Compone
 				var templ_7745c5c3_Var3 string
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(data.Message)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 67, Col: 91}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 68, Col: 91}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -129,9 +130,9 @@ func MailExportPanel(locale i18n.Locale, data MailExportPanelData) templ.Compone
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var4 string
-				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.export.no_accounts"))
+				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.export.no_accounts"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 70, Col: 89}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 71, Col: 90}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
@@ -150,7 +151,7 @@ func MailExportPanel(locale i18n.Locale, data MailExportPanelData) templ.Compone
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(account.Email)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 73, Col: 148}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 74, Col: 148}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -160,7 +161,7 @@ func MailExportPanel(locale i18n.Locale, data MailExportPanelData) templ.Compone
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = mailExportAccountSummary(locale, account).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = mailExportAccountSummary(account).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -189,7 +190,7 @@ func MailExportPanel(locale i18n.Locale, data MailExportPanelData) templ.Compone
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs("/api/mail/exports/new?account=" + account.ID)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 75, Col: 111}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 76, Col: 111}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -204,9 +205,9 @@ func MailExportPanel(locale i18n.Locale, data MailExportPanelData) templ.Compone
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var9 string
-				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.export.button"))
+				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.export_button"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 77, Col: 45}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 78, Col: 46}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -231,7 +232,7 @@ func MailExportPanel(locale i18n.Locale, data MailExportPanelData) templ.Compone
 	})
 }
 
-func mailExportAccountSummary(locale i18n.Locale, account MailExportAccount) templ.Component {
+func mailExportAccountSummary(account MailExportAccount) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -259,7 +260,7 @@ func mailExportAccountSummary(locale i18n.Locale, account MailExportAccount) tem
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(accountColorStyle(account.Color))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 87, Col: 91}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 88, Col: 91}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {
@@ -273,7 +274,7 @@ func mailExportAccountSummary(locale i18n.Locale, account MailExportAccount) tem
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(account.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 92, Col: 19}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 93, Col: 19}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -283,7 +284,7 @@ func mailExportAccountSummary(locale i18n.Locale, account MailExportAccount) tem
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(account.Email)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 94, Col: 20}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 95, Col: 20}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -301,7 +302,7 @@ func mailExportAccountSummary(locale i18n.Locale, account MailExportAccount) tem
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(accountProviderName(account.Provider))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 99, Col: 43}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 100, Col: 43}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 		if templ_7745c5c3_Err != nil {
@@ -319,7 +320,7 @@ func mailExportAccountSummary(locale i18n.Locale, account MailExportAccount) tem
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(account.Email)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 103, Col: 77}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 104, Col: 77}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -336,9 +337,9 @@ func mailExportAccountSummary(locale i18n.Locale, account MailExportAccount) tem
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var16 string
-			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.export.pending"))
+			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.export.pending"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 106, Col: 97}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 107, Col: 98}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {
@@ -357,7 +358,7 @@ func mailExportAccountSummary(locale i18n.Locale, account MailExportAccount) tem
 	})
 }
 
-func MailExportForm(locale i18n.Locale, data MailExportFormData) templ.Component {
+func MailExportForm(data MailExportFormData) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -419,7 +420,7 @@ func MailExportForm(locale i18n.Locale, data MailExportFormData) templ.Component
 			var templ_7745c5c3_Var21 string
 			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(data.Account.ID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 120, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 121, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 			if templ_7745c5c3_Err != nil {
@@ -429,7 +430,7 @@ func MailExportForm(locale i18n.Locale, data MailExportFormData) templ.Component
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = mailExportAccountSummary(locale, data.Account).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = mailExportAccountSummary(data.Account).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -445,7 +446,7 @@ func MailExportForm(locale i18n.Locale, data MailExportFormData) templ.Component
 				var templ_7745c5c3_Var22 string
 				templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(data.Message)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 125, Col: 90}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 126, Col: 90}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 				if templ_7745c5c3_Err != nil {
@@ -466,9 +467,9 @@ func MailExportForm(locale i18n.Locale, data MailExportFormData) templ.Component
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var23 string
-				templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.export.no_folders"))
+				templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.export.no_folders"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 128, Col: 87}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 129, Col: 88}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 				if templ_7745c5c3_Err != nil {
@@ -483,14 +484,14 @@ func MailExportForm(locale i18n.Locale, data MailExportFormData) templ.Component
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = checkbox.Checkbox(checkbox.Props{Group: "mail-export-folders", GroupParent: true, Checked: true, Attributes: templ.Attributes{"aria-label": i18n.T(locale, "mail.export.folders")}}).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = checkbox.Checkbox(checkbox.Props{Group: "mail-export-folders", GroupParent: true, Checked: true, Attributes: templ.Attributes{"aria-label": i18n.T(ctx, "transfer.all_folders")}}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var24 string
-				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.export.folders"))
+				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "mail.move.folders"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 133, Col: 45}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 134, Col: 40}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 				if templ_7745c5c3_Err != nil {
@@ -508,7 +509,7 @@ func MailExportForm(locale i18n.Locale, data MailExportFormData) templ.Component
 					var templ_7745c5c3_Var25 string
 					templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(folder.Path)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 137, Col: 148}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 138, Col: 148}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 					if templ_7745c5c3_Err != nil {
@@ -529,7 +530,7 @@ func MailExportForm(locale i18n.Locale, data MailExportFormData) templ.Component
 					var templ_7745c5c3_Var26 string
 					templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(folder.Path)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 139, Col: 59}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 140, Col: 59}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 					if templ_7745c5c3_Err != nil {
@@ -540,9 +541,9 @@ func MailExportForm(locale i18n.Locale, data MailExportFormData) templ.Component
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var27 string
-					templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(mailLocaleCount(locale, folder.Messages, "mail.count.message_one", "mail.count.message_other"))
+					templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(mailExportCount(ctx, folder.Messages))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 140, Col: 170}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 141, Col: 113}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 					if templ_7745c5c3_Err != nil {
@@ -558,9 +559,9 @@ func MailExportForm(locale i18n.Locale, data MailExportFormData) templ.Component
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var28 string
-				templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.export.spam_note"))
+				templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.export.spam_trash"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 144, Col: 87}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 145, Col: 89}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 				if templ_7745c5c3_Err != nil {
@@ -579,9 +580,9 @@ func MailExportForm(locale i18n.Locale, data MailExportFormData) templ.Component
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var29 string
-				templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.export.saved_only"))
+				templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.export.saved_only"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 149, Col: 74}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 150, Col: 75}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 				if templ_7745c5c3_Err != nil {
@@ -592,9 +593,9 @@ func MailExportForm(locale i18n.Locale, data MailExportFormData) templ.Component
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var30 string
-				templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.export.saved_only_description"))
+				templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.export.saved_only_detail"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 150, Col: 117}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 151, Col: 113}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 				if templ_7745c5c3_Err != nil {
@@ -652,9 +653,9 @@ func MailExportForm(locale i18n.Locale, data MailExportFormData) templ.Component
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var34 string
-			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.export.back"))
+			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.back"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 159, Col: 174}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 160, Col: 168}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 			if templ_7745c5c3_Err != nil {
@@ -692,9 +693,9 @@ func MailExportForm(locale i18n.Locale, data MailExportFormData) templ.Component
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var37 string
-				templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.export.start"))
+				templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.export.start"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 163, Col: 42}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 164, Col: 43}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 				if templ_7745c5c3_Err != nil {
@@ -736,7 +737,7 @@ func mailExportJobsRunning(jobs []MailExportJob) bool {
 	return false
 }
 
-func MailExportJobs(locale i18n.Locale, jobs []MailExportJob) templ.Component {
+func MailExportJobs(jobs []MailExportJob) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -777,9 +778,9 @@ func MailExportJobs(locale i18n.Locale, jobs []MailExportJob) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var39 string
-			templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.export.jobs"))
+			templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.export.jobs"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 198, Col: 123}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 199, Col: 124}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 			if templ_7745c5c3_Err != nil {
@@ -790,7 +791,7 @@ func MailExportJobs(locale i18n.Locale, jobs []MailExportJob) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			for _, job := range jobs {
-				templ_7745c5c3_Err = mailExportJobRow(locale, job).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = mailExportJobRow(job).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -800,9 +801,9 @@ func MailExportJobs(locale i18n.Locale, jobs []MailExportJob) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var40 string
-			templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.export.kept"))
+			templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.export.kept"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 202, Col: 80}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 203, Col: 81}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 			if templ_7745c5c3_Err != nil {
@@ -821,7 +822,7 @@ func MailExportJobs(locale i18n.Locale, jobs []MailExportJob) templ.Component {
 	})
 }
 
-func mailExportJobRow(locale i18n.Locale, job MailExportJob) templ.Component {
+func mailExportJobRow(job MailExportJob) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -849,7 +850,7 @@ func mailExportJobRow(locale i18n.Locale, job MailExportJob) templ.Component {
 		var templ_7745c5c3_Var42 string
 		templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs(job.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 208, Col: 109}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 209, Col: 109}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var42))
 		if templ_7745c5c3_Err != nil {
@@ -862,7 +863,7 @@ func mailExportJobRow(locale i18n.Locale, job MailExportJob) templ.Component {
 		var templ_7745c5c3_Var43 string
 		templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(job.State)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 208, Col: 146}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 209, Col: 146}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 		if templ_7745c5c3_Err != nil {
@@ -875,7 +876,7 @@ func mailExportJobRow(locale i18n.Locale, job MailExportJob) templ.Component {
 		var templ_7745c5c3_Var44 string
 		templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(job.Account)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 211, Col: 82}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 212, Col: 82}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 		if templ_7745c5c3_Err != nil {
@@ -886,9 +887,9 @@ func mailExportJobRow(locale i18n.Locale, job MailExportJob) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var45 string
-		templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(mailExportJobStatus(locale, job))
+		templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(mailExportJobStatus(ctx, job))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 212, Col: 88}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 213, Col: 85}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 		if templ_7745c5c3_Err != nil {
@@ -925,7 +926,7 @@ func mailExportJobRow(locale i18n.Locale, job MailExportJob) templ.Component {
 			var templ_7745c5c3_Var48 string
 			templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs("/api/mail/exports/" + job.ID + "/cancel")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 217, Col: 108}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 218, Col: 108}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 			if templ_7745c5c3_Err != nil {
@@ -936,9 +937,9 @@ func mailExportJobRow(locale i18n.Locale, job MailExportJob) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var49 string
-			templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.action.cancel"))
+			templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "common.cancel"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 217, Col: 199}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 218, Col: 191}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 			if templ_7745c5c3_Err != nil {
@@ -974,7 +975,7 @@ func mailExportJobRow(locale i18n.Locale, job MailExportJob) templ.Component {
 			var templ_7745c5c3_Var52 string
 			templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinStringErrs("/api/mail/exports/" + job.ID + "/resume")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 219, Col: 115}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 220, Col: 115}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
 			if templ_7745c5c3_Err != nil {
@@ -985,9 +986,9 @@ func mailExportJobRow(locale i18n.Locale, job MailExportJob) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var53 string
-			templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.action.continue"))
+			templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "common.continue"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 219, Col: 208}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 220, Col: 200}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
 			if templ_7745c5c3_Err != nil {
@@ -1022,7 +1023,7 @@ func mailExportJobRow(locale i18n.Locale, job MailExportJob) templ.Component {
 			var templ_7745c5c3_Var56 string
 			templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinStringErrs("/api/mail/exports/" + job.ID + "/delete")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 220, Col: 108}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 221, Col: 108}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
 			if templ_7745c5c3_Err != nil {
@@ -1033,9 +1034,9 @@ func mailExportJobRow(locale i18n.Locale, job MailExportJob) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var57 string
-			templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.action.delete"))
+			templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.delete"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 220, Col: 199}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 221, Col: 193}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 			if templ_7745c5c3_Err != nil {
@@ -1058,7 +1059,7 @@ func mailExportJobRow(locale i18n.Locale, job MailExportJob) templ.Component {
 			var templ_7745c5c3_Var59 templ.SafeURL
 			templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/api/mail/exports/" + job.ID + "/download"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 222, Col: 74}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 223, Col: 74}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var59))
 			if templ_7745c5c3_Err != nil {
@@ -1086,9 +1087,9 @@ func mailExportJobRow(locale i18n.Locale, job MailExportJob) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var61 string
-			templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.action.download"))
+			templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "mail.actions.download"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 224, Col: 47}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 225, Col: 45}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var61))
 			if templ_7745c5c3_Err != nil {
@@ -1123,7 +1124,7 @@ func mailExportJobRow(locale i18n.Locale, job MailExportJob) templ.Component {
 			var templ_7745c5c3_Var64 string
 			templ_7745c5c3_Var64, templ_7745c5c3_Err = templ.JoinStringErrs("/api/mail/exports/" + job.ID + "/delete")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 226, Col: 108}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 227, Col: 108}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var64))
 			if templ_7745c5c3_Err != nil {
@@ -1134,9 +1135,9 @@ func mailExportJobRow(locale i18n.Locale, job MailExportJob) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var65 string
-			templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.action.delete"))
+			templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.delete"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 226, Col: 199}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 227, Col: 193}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var65))
 			if templ_7745c5c3_Err != nil {
@@ -1172,7 +1173,7 @@ func mailExportJobRow(locale i18n.Locale, job MailExportJob) templ.Component {
 			var templ_7745c5c3_Var68 string
 			templ_7745c5c3_Var68, templ_7745c5c3_Err = templ.JoinStringErrs("/api/mail/exports/" + job.ID + "/delete")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 228, Col: 108}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 229, Col: 108}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var68))
 			if templ_7745c5c3_Err != nil {
@@ -1183,9 +1184,9 @@ func mailExportJobRow(locale i18n.Locale, job MailExportJob) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var69 string
-			templ_7745c5c3_Var69, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.action.delete"))
+			templ_7745c5c3_Var69, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.delete"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 228, Col: 199}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 229, Col: 193}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var69))
 			if templ_7745c5c3_Err != nil {
@@ -1208,7 +1209,7 @@ func mailExportJobRow(locale i18n.Locale, job MailExportJob) templ.Component {
 			var templ_7745c5c3_Var70 string
 			templ_7745c5c3_Var70, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(mailExportProgressStyle(job))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 234, Col: 120}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 235, Col: 120}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var70))
 			if templ_7745c5c3_Err != nil {
@@ -1225,9 +1226,9 @@ func mailExportJobRow(locale i18n.Locale, job MailExportJob) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var71 string
-			templ_7745c5c3_Var71, templ_7745c5c3_Err = templ.JoinStringErrs(job.Error)
+			templ_7745c5c3_Var71, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Stored(ctx, "jobs.", job.Error))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 238, Col: 50}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 239, Col: 77}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var71))
 			if templ_7745c5c3_Err != nil {
@@ -1244,9 +1245,9 @@ func mailExportJobRow(locale i18n.Locale, job MailExportJob) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var72 string
-			templ_7745c5c3_Var72, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Tf(locale, "mail.export.failed_summary", mailLocaleCount(locale, job.Failed, "mail.count.message_one", "mail.count.message_other")))
+			templ_7745c5c3_Var72, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.N(ctx, "transfer.export.failed_summary", job.Failed, "count", i18n.Number(ctx, job.Failed)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 242, Col: 174}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 243, Col: 134}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var72))
 			if templ_7745c5c3_Err != nil {
@@ -1264,7 +1265,7 @@ func mailExportJobRow(locale i18n.Locale, job MailExportJob) templ.Component {
 				var templ_7745c5c3_Var73 string
 				templ_7745c5c3_Var73, templ_7745c5c3_Err = templ.JoinStringErrs(skipped)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 245, Col: 19}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_export.templ`, Line: 246, Col: 19}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var73))
 				if templ_7745c5c3_Err != nil {
@@ -1296,54 +1297,53 @@ func mailExportProgressStyle(job MailExportJob) templ.SafeCSS {
 	return templ.SafeCSS(fmt.Sprintf("width: %d%%;", percent))
 }
 
-func mailExportJobStatus(locale i18n.Locale, job MailExportJob) string {
+func mailExportJobStatus(ctx context.Context, job MailExportJob) string {
 	var parts []string
 	switch job.State {
 	case "running":
 		if job.Waiting {
-			parts = append(parts, i18n.T(locale, "mail.export.waiting"))
+			parts = append(parts, i18n.T(ctx, "transfer.export.status.waiting"))
 		} else if job.Folder != "" {
-			parts = append(parts, i18n.Tf(locale, "mail.export.exporting", job.Folder, mailExportNumber(job.Processed), mailLocaleCount(locale, job.Total, "mail.count.message_one", "mail.count.message_other")))
+			parts = append(parts, i18n.T(ctx, "transfer.export.status.exporting", "folder", job.Folder, "done", i18n.Number(ctx, job.Processed), "total", mailExportCount(ctx, job.Total)))
 		} else {
-			parts = append(parts, i18n.T(locale, "mail.export.starting"))
+			parts = append(parts, i18n.T(ctx, "transfer.status.starting"))
 		}
 	case "paused":
-		parts = append(parts, i18n.Tf(locale, "mail.export.paused", mailExportNumber(job.Processed), mailLocaleCount(locale, job.Total, "mail.count.message_one", "mail.count.message_other")))
+		parts = append(parts, mailTransferPausedStatus(ctx, job.Processed, job.Total))
 	case "canceled":
-		parts = append(parts, i18n.T(locale, "mail.export.canceled"))
+		parts = append(parts, i18n.T(ctx, "transfer.status.canceled"))
 	default:
-		parts = append(parts, i18n.Tf(locale, "mail.export.exported", mailLocaleCount(locale, job.Exported, "mail.count.message_one", "mail.count.message_other")))
+		parts = append(parts, mailExportCountOf(ctx, "transfer.export.status.exported", job.Exported))
 		if job.NotSaved > 0 {
-			parts = append(parts, i18n.Tf(locale, "mail.export.not_saved", mailExportNumber(job.NotSaved)))
+			parts = append(parts, mailExportCountOf(ctx, "transfer.export.status.not_saved", job.NotSaved))
 		}
 		if job.Failed > 0 {
-			parts = append(parts, i18n.Tf(locale, "mail.export.failed", mailExportNumber(job.Failed)))
+			parts = append(parts, mailExportCountOf(ctx, "transfer.export.status.failed", job.Failed))
 		}
 	}
 	if job.SavedOnly {
-		parts = append(parts, i18n.T(locale, "mail.export.saved_only_status"))
+		parts = append(parts, i18n.T(ctx, "transfer.export.status.saved_only"))
 	}
-	parts = append(parts, i18n.Tf(locale, "mail.export.started", job.Started))
+	parts = append(parts, i18n.T(ctx, "transfer.status.started", "date", job.Started))
 	return strings.Join(parts, " · ")
 }
 
-func mailLocaleCount(locale i18n.Locale, n int, oneKey, otherKey string) string {
-	return i18n.TP(locale, n, oneKey, otherKey, n)
+// mailExportCount says how many messages there are: "1 message",
+// "1,234 messages".
+func mailExportCount(ctx context.Context, n int) string {
+	return mailExportCountOf(ctx, "transfer.messages", n)
 }
 
-func mailExportNumber(n int) string {
-	s := fmt.Sprintf("%d", n)
-	for i := len(s) - 3; i > 0; i -= 3 {
-		s = s[:i] + "," + s[i:]
-	}
-	return s
+// mailExportCountOf fills a counted message with n, written with the
+// language's digit grouping.
+func mailExportCountOf(ctx context.Context, key string, n int) string {
+	return i18n.N(ctx, key, n, "count", i18n.Number(ctx, n))
 }
 
-func mailExportCount(n int, singular, plural string) string {
-	if n == 1 {
-		return "1 " + singular
-	}
-	return mailExportNumber(n) + " " + plural
+// mailTransferPausedStatus says how far a paused export, import or transfer
+// got.
+func mailTransferPausedStatus(ctx context.Context, done, total int) string {
+	return i18n.T(ctx, "transfer.status.paused", "done", i18n.Number(ctx, done), "total", mailExportCount(ctx, total))
 }
 
 var _ = templruntime.GeneratedTemplate

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"log"
 	"net/http"
 	"strings"
@@ -46,6 +47,8 @@ func (h *Handler) registerOwnerMailSecurityRoutes(register func(string, http.Han
 	register("POST "+ownerMailSecurityBase+"/plaintext", h.ownerMailSecurity(h.handleAddPlaintextTransportException))
 	register("POST "+ownerMailSecurityBase+"/private-target", h.ownerMailSecurity(h.handleAddPrivateTargetException))
 	register("POST "+ownerMailSecurityBase+"/exceptions/{id}/delete", h.ownerMailSecurity(h.handleDeleteMailSecurityException))
+	register("POST "+ownerMailSecurityBase+"/proxies", h.ownerMailSecurity(h.handleSaveOutboundProxy))
+	register("POST "+ownerMailSecurityBase+"/proxies/{id}/delete", h.ownerMailSecurity(h.handleDeleteOutboundProxy))
 }
 
 // ownerMailSecurityData loads the owner's exceptions for the security
@@ -73,6 +76,9 @@ func (h *Handler) ownerMailSecurityData(r *http.Request) (*models.MailSecurityAd
 		action := ownerMailSecurityBase + "/exceptions/" + item.ID + "/delete"
 		data.CSRFTokens[action] = auth.CSRFToken(ctx, http.MethodPost, action)
 	}
+	if err := h.addOutboundProxyData(ctx, data, ownerMailSecurityBase); err != nil {
+		return nil, err
+	}
 	return data, nil
 }
 
@@ -84,7 +90,7 @@ func (h *Handler) renderOpenSecurityTab(w http.ResponseWriter, r *http.Request) 
 	data, err := h.ownerMailSecurityData(r)
 	if err != nil || data == nil {
 		log.Printf("load open mode mail security exceptions: %v", err)
-		http.Error(w, "failed to load security settings", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.failed_to_load_security_settings"), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
@@ -96,7 +102,7 @@ func (h *Handler) renderOpenSecurityTab(w http.ResponseWriter, r *http.Request) 
 	uiSettings, err := h.securityUISettings(ctx, h.userID(ctx))
 	if err != nil {
 		log.Printf("load security display preferences: %v", err)
-		http.Error(w, "user settings unavailable", http.StatusServiceUnavailable)
+		http.Error(w, i18n.T(r.Context(), "server.error.user_settings_unavailable"), http.StatusServiceUnavailable)
 		return
 	}
 	_ = views.OpenSecurityLayout(uiSettings, *data).Render(ctx, w)

@@ -1,11 +1,14 @@
 package imap
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"math"
+	"net/textproto"
 	"slices"
 	"strings"
 	"time"
@@ -13,6 +16,7 @@ import (
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"github.com/cristianadrielbraun/gofer/internal/mail/keywords"
 	"github.com/cristianadrielbraun/gofer/internal/mail/message"
 	"github.com/cristianadrielbraun/gofer/internal/storage"
@@ -59,7 +63,7 @@ func finalizeSyncMessage(syncMsg *storage.SyncMessage, folderID string, dates me
 		syncMsg.MessageID = fmt.Sprintf("<%s-%d@sync.gofer>", folderID, syncMsg.RemoteUID)
 	}
 	if syncMsg.Subject == "" {
-		syncMsg.Subject = "(no subject)"
+		syncMsg.Subject = i18n.NoSubject
 	}
 	syncMsg.Snippet = truncate(syncMsg.Subject, 200)
 }
@@ -185,6 +189,14 @@ func (c *Client) SyncFolder(ctx context.Context, folderID, remoteName string, op
 						for _, addr := range item.Envelope.Cc {
 							if email := addr.Addr(); email != "" {
 								syncMsg.CCRecipients = append(syncMsg.CCRecipients, storage.Recipient{
+									Name:  message.DecodeHeader(addr.Name),
+									Email: email,
+								})
+							}
+						}
+						for _, addr := range item.Envelope.Bcc {
+							if email := addr.Addr(); email != "" {
+								syncMsg.BCCRecipients = append(syncMsg.BCCRecipients, storage.Recipient{
 									Name:  message.DecodeHeader(addr.Name),
 									Email: email,
 								})
@@ -355,6 +367,14 @@ func (c *Client) SyncFolderIncremental(ctx context.Context, folderID, remoteName
 					for _, addr := range item.Envelope.Cc {
 						if email := addr.Addr(); email != "" {
 							syncMsg.CCRecipients = append(syncMsg.CCRecipients, storage.Recipient{
+								Name:  message.DecodeHeader(addr.Name),
+								Email: email,
+							})
+						}
+					}
+					for _, addr := range item.Envelope.Bcc {
+						if email := addr.Addr(); email != "" {
+							syncMsg.BCCRecipients = append(syncMsg.BCCRecipients, storage.Recipient{
 								Name:  message.DecodeHeader(addr.Name),
 								Email: email,
 							})
@@ -619,12 +639,22 @@ func (c *Client) findUIDByHeaderWithValidity(ctx context.Context, remoteName, he
 			Value: headerValue,
 		}},
 	}, nil)
+	var uids []imap.UID
 	searchData, err := searchCmd.Wait()
-	if err != nil {
+	switch {
+	case err == nil:
+		uids = searchData.AllUIDs()
+	case isIMAPCommandRejection(err):
+		// Some servers, Yahoo among them, refuse SEARCH HEADER. Read the
+		// header from the newest messages instead.
+		uids, err = c.findUIDsByHeaderFetchLocked(selectData.NumMessages, headerName, headerValue)
+		if err != nil {
+			return 0, uidValidity, fmt.Errorf("find %s %s %s: %w", remoteName, headerName, headerValue, err)
+		}
+	default:
 		return 0, uidValidity, fmt.Errorf("uid search %s %s %s: %w", remoteName, headerName, headerValue, err)
 	}
 
-	uids := searchData.AllUIDs()
 	if unique && len(uids) > 1 {
 		return 0, uidValidity, fmt.Errorf("ambiguous IMAP %s match in %s", headerName, remoteName)
 	}
@@ -632,6 +662,72 @@ func (c *Client) findUIDByHeaderWithValidity(ctx context.Context, remoteName, he
 		return 0, uidValidity, nil
 	}
 	return uint32(uids[0]), uidValidity, nil
+}
+
+// headerFetchWindow bounds the header read that replaces a refused SEARCH
+// HEADER. Callers look for a message they appended themselves, which sits
+// among the newest in the folder.
+const headerFetchWindow = 200
+
+// findUIDsByHeaderFetchLocked matches like SEARCH HEADER, a case-insensitive
+// substring of the field, over the newest messages of the selected folder.
+func (c *Client) findUIDsByHeaderFetchLocked(numMessages uint32, headerName, headerValue string) ([]imap.UID, error) {
+	if numMessages == 0 {
+		return nil, nil
+	}
+	first := uint32(1)
+	if numMessages > headerFetchWindow {
+		first = numMessages - headerFetchWindow + 1
+	}
+	var seqSet imap.SeqSet
+	seqSet.AddRange(first, numMessages)
+	cmd := c.client.Fetch(seqSet, &imap.FetchOptions{
+		UID: true,
+		BodySection: []*imap.FetchItemBodySection{{
+			Specifier:    imap.PartSpecifierHeader,
+			HeaderFields: []string{headerName},
+			Peek:         true,
+		}},
+	})
+	want := strings.ToLower(headerValue)
+	var uids []imap.UID
+	for {
+		msg := cmd.Next()
+		if msg == nil {
+			break
+		}
+		var uid imap.UID
+		matched := false
+		for {
+			item := msg.Next()
+			if item == nil {
+				break
+			}
+			switch item := item.(type) {
+			case imapclient.FetchItemDataUID:
+				uid = item.UID
+			case imapclient.FetchItemDataBodySection:
+				body, err := io.ReadAll(item.Literal)
+				if err != nil {
+					continue
+				}
+				header, _ := textproto.NewReader(bufio.NewReader(bytes.NewReader(append(body, '\r', '\n')))).ReadMIMEHeader()
+				for _, value := range header.Values(headerName) {
+					if strings.Contains(strings.ToLower(value), want) {
+						matched = true
+					}
+				}
+			}
+		}
+		if matched && uid != 0 {
+			uids = append(uids, uid)
+		}
+	}
+	if err := cmd.Close(); err != nil {
+		return nil, err
+	}
+	slices.Sort(uids)
+	return uids, nil
 }
 
 type FlagUpdate struct {

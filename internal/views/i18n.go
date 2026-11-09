@@ -1,15 +1,12 @@
 package views
 
-import "github.com/cristianadrielbraun/gofer/internal/i18n"
+import (
+	"context"
 
-func uiLocale(settings map[string]string) i18n.Locale {
-	return i18n.Resolve(settings["language"])
-}
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
+)
 
-func uiLang(settings map[string]string) string {
-	return uiLocale(settings).String()
-}
-
-func tr(settings map[string]string, key string) string {
-	return i18n.T(uiLocale(settings), key)
+// pageLang is the HTML lang attribute for the request's language.
+func pageLang(ctx context.Context) string {
+	return i18n.Lang(ctx)
 }

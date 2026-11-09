@@ -12,24 +12,6 @@ import (
 	"github.com/cristianadrielbraun/gofer/internal/storage"
 )
 
-func TestNormalizeLanguageSetting(t *testing.T) {
-	updates := map[string]string{"language": "fr-CA"}
-	normalizeLanguageSetting(updates)
-	if updates["language"] != "fr" {
-		t.Fatalf("normalized language = %q", updates["language"])
-	}
-	updates = map[string]string{"language": "de"}
-	normalizeLanguageSetting(updates)
-	if updates["language"] != "en" {
-		t.Fatalf("unsupported language = %q, want en", updates["language"])
-	}
-	updates = map[string]string{"theme": "dark"}
-	normalizeLanguageSetting(updates)
-	if _, exists := updates["language"]; exists {
-		t.Fatal("unrelated settings gained a language")
-	}
-}
-
 func TestEffectiveIDLEFolderStatusKeepsConfiguredModeSeparateFromFallback(t *testing.T) {
 	retryAt := time.Now().Add(2 * time.Minute).UTC().Truncate(time.Second)
 	effective, reason, retry := effectiveIDLEFolderStatus(true, mail.IDLEFolderRuntimeStatus{

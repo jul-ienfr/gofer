@@ -129,6 +129,7 @@ func RunShared(rootCtx context.Context) error {
 		log.Fatalf("failed to provision authentication setup token: %v", err)
 	}
 	mailCredentials := mailauth.New(mailboxOAuthConfig, db, secretKey)
+	mailCredentials.SetAccountProxyResolver(accountStore.AccountProxy)
 	if err := mailCredentials.SecureOAuthCredentials(context.Background()); err != nil {
 		log.Fatalf("failed to secure mailbox OAuth credentials: %v", err)
 	}
@@ -167,6 +168,7 @@ func RunShared(rootCtx context.Context) error {
 	mux := http.NewServeMux()
 	h := handler.New(db, accountStore, syncer, blobStore, authManager, vapidPublicKey, mailCredentials)
 	syncer.OnOutlookServiceChange(h.OutlookServiceChanged)
+	syncer.OnJMAPContactsChange(h.JMAPContactsChanged)
 	h.SetTestPushSender(notificationService.SendTestPush)
 	aiBus := aievents.NewBus()
 	h.SetAIEvents(aiBus)
@@ -221,7 +223,7 @@ func RunShared(rootCtx context.Context) error {
 	h.StartAccountDeletionCleanup(ctx)
 
 	compress := handler.CompressResponses
-	var handler http.Handler = views.WithListViewCookie(mux)
+	var handler http.Handler = h.LocaleMiddleware(views.WithListViewCookie(mux))
 	handler = authManager.Middleware(handler)
 	handler = compress(handler)
 	handler = httpConfig.Middleware(handler)

@@ -1,6 +1,8 @@
 package views
 
 import (
+	"context"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"github.com/cristianadrielbraun/gofer/internal/assetver"
 	"fmt"
 	"net/url"
@@ -10,10 +12,13 @@ import (
 	"github.com/cristianadrielbraun/gofer/internal/auth"
 	"github.com/cristianadrielbraun/gofer/internal/models"
 
+	"github.com/cristianadrielbraun/gofer/components/collapsible"
 	"github.com/cristianadrielbraun/gofer/components/dialog"
 	"github.com/cristianadrielbraun/gofer/components/dropdown"
 	"github.com/cristianadrielbraun/gofer/components/icon"
+	"github.com/cristianadrielbraun/gofer/components/input"
 	"github.com/cristianadrielbraun/gofer/components/popover"
+	"github.com/cristianadrielbraun/gofer/components/radio"
 	"github.com/cristianadrielbraun/gofer/components/tooltip"
 )
 
@@ -38,7 +43,7 @@ templ MailSidebarBody(accounts []models.Account, activeFolder string, uiSettings
 		<div class="px-4 pb-4" data-sidebar-create>
 			<button id="sidebar-compose-btn" type="button" data-on-click='["openNewCompose"]' class="btn-skeuo flex cursor-pointer items-center justify-center gap-2 w-full h-10 rounded-lg text-sidebar-primary-foreground font-semibold text-sm">
 				@icon.Pen(icon.Props{Class: "size-4"})
-				Compose
+				{ i18n.T(ctx, "mail.compose") }
 			</button>
 		</div>
 		<hr class="divider-etched mx-4"/>
@@ -58,49 +63,52 @@ templ SidebarContextMenu() {
 			Placement:  popover.PlacementBottomStart,
 			Offset:     2,
 			Class:      "z-50 w-52 rounded-md border border-border bg-popover p-1 shadow-md focus:outline-none",
-			Attributes: templ.Attributes{"role": "menu", "aria-label": "Folder actions"},
+			Attributes: templ.Attributes{"role": "menu", "aria-label": i18n.T(ctx, "mail.folder_menu.label")},
 		}) {
 			@dropdown.Label(dropdown.LabelProps{Class: "truncate text-xs font-medium text-muted-foreground", Attributes: templ.Attributes{"data-sidebar-context-title": ""}})
-			@sidebarContextItem("mark-read", "Mark all as read", "") {
+			@sidebarContextItem("mark-read", i18n.T(ctx, "mail.folder_menu.mark_read"), "") {
 				@icon.CheckCheck(icon.Props{Class: "size-4"})
 			}
-			@sidebarContextItem("empty-trash", "Empty trash", "text-destructive "+menuDestructiveClass) {
+			@sidebarContextItem("empty-trash", i18n.T(ctx, "mail.folder_menu.empty_trash"), "text-destructive "+menuDestructiveClass) {
 				@icon.Trash2(icon.Props{Class: "size-4"})
 			}
-			@sidebarContextItem("spam-to-trash", "Move all to Trash", "") {
+			@sidebarContextItem("spam-to-trash", i18n.T(ctx, "mail.folder_menu.spam_to_trash"), "") {
 				@icon.Trash2(icon.Props{Class: "size-4"})
 			}
-			@sidebarContextItem("sync-account", "Sync this account", "") {
+			@sidebarContextItem("sync-account", i18n.T(ctx, "mail.folder_menu.sync_account"), "") {
 				@icon.RefreshCw(icon.Props{Class: "size-4"})
 			}
-			@sidebarContextItem("mailbox-size", "Mailbox size", "") {
+			@sidebarContextItem("mailbox-size", i18n.T(ctx, "mail.folder_menu.mailbox_size"), "") {
 				@icon.ChartPie(icon.Props{Class: "size-4"})
 			}
-			@sidebarContextItem("new-folder", "New folder…", "") {
+			@sidebarContextItem("new-folder", i18n.T(ctx, "mail.folder_menu.new_folder"), "") {
 				@icon.FolderPlus(icon.Props{Class: "size-4"})
 			}
-			@sidebarContextItem("new-subfolder", "New subfolder…", "") {
+			@sidebarContextItem("new-subfolder", i18n.T(ctx, "mail.folder_menu.new_subfolder"), "") {
 				@icon.FolderPlus(icon.Props{Class: "size-4"})
 			}
-			@sidebarContextItem("new-label", "New label…", "") {
+			@sidebarContextItem("new-label", i18n.T(ctx, "mail.folder_menu.new_label"), "") {
 				@icon.Tag(icon.Props{Class: "size-4"})
 			}
-			@sidebarContextItem("folder-appearance", "Appearance…", "") {
+			@sidebarContextItem("folder-appearance", i18n.T(ctx, "mail.folder_menu.appearance"), "") {
 				@icon.Palette(icon.Props{Class: "size-4"})
 			}
-			@sidebarContextItem("rename-folder", "Rename folder…", "") {
+			@sidebarContextItem("rename-folder", i18n.T(ctx, "mail.folder_menu.rename_folder"), "") {
 				@icon.FolderPen(icon.Props{Class: "size-4"})
 			}
-			@sidebarContextItem("rename-label", "Rename label…", "") {
+			@sidebarContextItem("rename-label", i18n.T(ctx, "mail.folder_menu.rename_label"), "") {
 				@icon.Pencil(icon.Props{Class: "size-4"})
 			}
-			@sidebarContextItem("restore-folder", "Move out of Trash", "") {
+			@sidebarContextItem("move-folder", i18n.T(ctx, "mail.folder_menu.move_folder"), "") {
+				@icon.FolderInput(icon.Props{Class: "size-4"})
+			}
+			@sidebarContextItem("restore-folder", i18n.T(ctx, "mail.folder_menu.restore_folder"), "") {
 				@icon.FolderOutput(icon.Props{Class: "size-4"})
 			}
-			@sidebarContextItem("delete-folder", "Delete folder…", "text-destructive "+menuDestructiveClass) {
+			@sidebarContextItem("delete-folder", i18n.T(ctx, "mail.folder_menu.delete_folder"), "text-destructive "+menuDestructiveClass) {
 				@icon.FolderX(icon.Props{Class: "size-4"})
 			}
-			@sidebarContextItem("delete-label", "Delete label…", "text-destructive "+menuDestructiveClass) {
+			@sidebarContextItem("delete-label", i18n.T(ctx, "mail.folder_menu.delete_label"), "text-destructive "+menuDestructiveClass) {
 				@icon.Trash2(icon.Props{Class: "size-4"})
 			}
 		}
@@ -120,13 +128,17 @@ templ ContactsSidebarBody(accounts []models.Account, activeFolder string, uiSett
 	<div id="sidebar-app-body" class="flex min-h-0 flex-1 flex-col" data-sidebar-app-body="contacts">
 		<div class="px-4 pb-4" data-sidebar-create>
 			<div class="inline-flex w-full items-stretch rounded-lg shadow-sm">
-				<a href="/contacts?new=1" hx-get="/contacts?new=1" hx-target="#main-content" hx-swap="outerHTML" hx-push-url="/contacts?new=1" class="btn-skeuo flex h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-l-lg rounded-r-none text-sidebar-primary-foreground font-semibold text-sm">
-					@icon.UserPlus(icon.Props{Class: "size-4"})
-					New contact
-				</a>
+				// The new contact dialog is on the contacts page, over the contact
+				// being read.
+				@dialog.Trigger(dialog.TriggerProps{For: contactNewDialogID, Class: "flex min-w-0 flex-1"}) {
+					<button type="button" class="btn-skeuo flex h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-l-lg rounded-r-none text-sidebar-primary-foreground font-semibold text-sm" data-contact-edit-trigger data-contact-edit-dialog={ contactNewDialogID }>
+						@icon.UserPlus(icon.Props{Class: "size-4"})
+						{ i18n.T(ctx, "contacts.new") }
+					</button>
+				}
 				@dropdown.Dropdown() {
 					@dropdown.Trigger() {
-						<button type="button" class="btn-skeuo inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-l-none rounded-r-lg border-l border-sidebar-border/70 text-sidebar-primary-foreground" aria-label="Contact actions">
+						<button type="button" class="btn-skeuo inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-l-none rounded-r-lg border-l border-sidebar-border/70 text-sidebar-primary-foreground" aria-label={ i18n.T(ctx, "contacts.actions") }>
 							@icon.EllipsisVertical(icon.Props{Class: "size-4"})
 						</button>
 					}
@@ -134,12 +146,12 @@ templ ContactsSidebarBody(accounts []models.Account, activeFolder string, uiSett
 						@dialog.Trigger(dialog.TriggerProps{For: "contacts-import-dialog"}) {
 							<button type="button" class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground">
 								@icon.Upload(icon.Props{Class: "size-4 text-muted-foreground"})
-								Import vCard
+								{ i18n.T(ctx, "contacts.import_vcard") }
 							</button>
 						}
 						<a href="/api/contacts/export" class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground">
 							@icon.Download(icon.Props{Class: "size-4 text-muted-foreground"})
-							Export all
+							{ i18n.T(ctx, "contacts.export_all") }
 						</a>
 					}
 				}
@@ -147,8 +159,8 @@ templ ContactsSidebarBody(accounts []models.Account, activeFolder string, uiSett
 		</div>
 		<hr class="divider-etched mx-4"/>
 		<nav class="flex-1 overflow-y-auto px-3 pt-2 pb-3">
-			@ContactsSidebarItem("", "All contacts", filters)
-			@ContactsSidebarItem("local", "Local", filters)
+			@ContactsSidebarItem("", i18n.T(ctx, "contacts.all"), filters)
+			@ContactsSidebarItem("stored_in:local", i18n.T(ctx, "contacts.local"), filters)
 			for _, account := range accounts {
 				if contactSidebarAccountVisible(account) {
 					@ContactsSidebarAccountSection(account, filters, uiSettings)
@@ -158,8 +170,11 @@ templ ContactsSidebarBody(accounts []models.Account, activeFolder string, uiSett
 		// Below the scrolling address books, always in view.
 		<div class="shrink-0 px-3 pb-2" data-contacts-sidebar-trash>
 			<hr class="divider-etched mx-1 mb-2"/>
+			@ContactsSidebarUnresolvedItem()
 			@ContactsSidebarTrashItem(filters)
 		</div>
+		@ContactsSidebarContextMenu()
+		@ContactsBookStopDialog()
 	</div>
 }
 
@@ -168,24 +183,29 @@ templ ContactsSidebarAccountSection(account models.Account, filters models.Conta
 	{{ sectionID := contactSidebarAccountSectionID(account) }}
 	{{ collapsed := sidebarAccountCollapsed(uiSettings, sectionID, active) }}
 	<div class="mb-1.5" data-sidebar-account={ sectionID } data-sidebar-account-active?={ active } data-sidebar-account-collapsed={ fmt.Sprintf("%t", collapsed) }>
-		<button
-			type="button"
-			class="sidebar-account-toggle flex w-full items-center gap-2.5 px-2 py-2 text-sm font-semibold text-sidebar-accent-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
-			data-sidebar-account-toggle={ sectionID }
-			aria-expanded={ fmt.Sprintf("%t", !collapsed) }
-		>
-			<div class="account-color-marker size-2.5 shrink-0" style={ accountColorStyle(account.Color) } data-account-marker={ account.ID }></div>
-			<span class="flex-1 truncate text-left">{ contactSidebarAccountName(account) }</span>
-			@icon.ChevronDown(icon.Props{Class: "sidebar-account-chevron size-3.5 shrink-0 text-sidebar-foreground transition-transform duration-200"})
-		</button>
+		@contactSidebarRow(contactSidebarMenuTarget{Kind: "heading", AccountID: account.ID, Provider: account.ContactSyncProvider, Name: contactSidebarAccountName(account)}, "right-7 top-1/2 -translate-y-1/2") {
+			<button
+				type="button"
+				class="sidebar-account-toggle flex w-full items-center gap-2.5 px-2 py-2 text-sm font-semibold text-sidebar-accent-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+				data-sidebar-account-toggle={ sectionID }
+				aria-expanded={ fmt.Sprintf("%t", !collapsed) }
+			>
+				<div class="account-color-marker size-2.5 shrink-0" style={ accountColorStyle(account.Color) } data-account-marker={ account.ID }></div>
+				<span class="flex-1 truncate text-left group-hover/row:pr-6 group-focus-within/row:pr-6">{ contactSidebarAccountName(account) }</span>
+				@icon.ChevronDown(icon.Props{Class: "sidebar-account-chevron size-3.5 shrink-0 text-sidebar-foreground transition-transform duration-200"})
+			</button>
+		}
 		<div class="sidebar-account-folders" data-sidebar-account-folders={ sectionID }>
 			<div class="sidebar-account-folders-inner space-y-px mt-0.5">
 				if len(account.ContactAddressBooks) > 0 {
 					for _, book := range account.ContactAddressBooks {
-						@ContactsSidebarBookItem(book, filters)
+						@ContactsSidebarBookItem(account, book, filters)
 					}
 				} else {
 					@ContactsSidebarAccountItem(account, filters)
+				}
+				if contactSidebarHasBooks(account) {
+					@ContactsSidebarOtherBooks(account)
 				}
 			</div>
 		</div>
@@ -194,6 +214,16 @@ templ ContactsSidebarAccountSection(account models.Account, filters models.Conta
 
 templ ContactsSidebarItem(target string, label string, filters models.ContactFilters) {
 	{{ active := contactSidebarActiveTarget(filters) == target }}
+	{{ menu := contactSidebarMenuTarget{Kind: "all", Name: label} }}
+	if target == "stored_in:local" {
+		{{ menu = contactSidebarMenuTarget{Kind: "local", Place: "local", Name: label} }}
+	}
+	@contactSidebarRow(menu, "right-1 top-1/2 -translate-y-1/2") {
+		@contactsSidebarItemLink(target, label, filters, active)
+	}
+}
+
+templ contactsSidebarItemLink(target string, label string, filters models.ContactFilters, active bool) {
 	<a
 		href={ templ.URL(contactSidebarURL(filters, target)) }
 		hx-get={ templ.URL(contactSidebarURL(filters, target)) }
@@ -203,7 +233,7 @@ templ ContactsSidebarItem(target string, label string, filters models.ContactFil
 		data-contact-sidebar-link
 		data-contact-sidebar-target={ target }
 		class={
-			"flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-md text-[13px] transition-all duration-150 mb-1",
+			"flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-md text-[13px] transition-all duration-150 group-hover/row:pr-8 group-focus-within/row:pr-8",
 			templ.KV("bg-sidebar-accent text-sidebar-primary font-medium", active),
 			templ.KV("text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground", !active),
 		}
@@ -211,7 +241,7 @@ templ ContactsSidebarItem(target string, label string, filters models.ContactFil
 		<span class="flex size-5 shrink-0 items-center justify-center rounded text-sidebar-foreground">
 			// The express theme swaps these for its own icons.
 			switch target {
-				case "local":
+				case "stored_in:local":
 					@icon.Monitor(icon.Props{Class: "size-4"})
 				default:
 					@icon.Users(icon.Props{Class: "size-4"})
@@ -242,10 +272,37 @@ templ ContactsSidebarTrashItem(filters models.ContactFilters) {
 		<span class="flex size-5 shrink-0 items-center justify-center rounded text-sidebar-foreground">
 			@icon.Trash2(icon.Props{Class: "size-4"})
 		</span>
-		<span class="flex-1 truncate">Trash</span>
+		<span class="flex-1 truncate">{ i18n.T(ctx, "folder.trash") }</span>
 		// Its own target: the link's #main-content would be inherited otherwise.
 		<span hx-get="/contacts/trash-count" hx-trigger="load, contacts-trash-changed from:body" hx-target="this" hx-swap="innerHTML" hx-push-url="false" data-contacts-trash-count></span>
 	</a>
+}
+
+// ContactsSidebarUnresolvedItem opens the resolver, which lists the synced
+// contacts that one of their places deleted. It shows only while there are
+// some: its count loads on its own, and again whenever contacts go to the
+// Trash, leave it or are resolved.
+templ ContactsSidebarUnresolvedItem() {
+	<button
+		type="button"
+		data-contacts-open-resolver
+		data-contacts-sidebar-unresolved
+		class="flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-md text-[13px] text-left transition-all duration-150 mb-1 text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground [&:not(:has([data-contacts-unresolved-number]))]:hidden"
+	>
+		<span class="flex size-5 shrink-0 items-center justify-center rounded text-sidebar-foreground">
+			@icon.TriangleAlert(icon.Props{Class: "size-4"})
+		</span>
+		<span class="flex-1 truncate">{ i18n.T(ctx, "contacts.unresolved.title") }</span>
+		<span hx-get="/contacts/unresolved-count" hx-trigger="load, contacts-trash-changed from:body, contacts-unresolved-changed from:body" hx-target="this" hx-swap="innerHTML" data-contacts-unresolved-count></span>
+	</button>
+}
+
+// ContactsUnresolvedCount is the count beside the sidebar's Por resolver,
+// none when nothing waits. It is solid to stand out on every theme.
+templ ContactsUnresolvedCount(count int) {
+	if count > 0 {
+		<span class="flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-600 px-1.5 text-[11px] font-semibold tabular-nums text-white dark:bg-amber-400 dark:text-amber-950" data-contacts-unresolved-number>{ fmt.Sprint(count) }</span>
+	}
 }
 
 // ContactsTrashCount is the count beside the sidebar's Trash, none when it
@@ -256,9 +313,10 @@ templ ContactsTrashCount(count int) {
 	}
 }
 
-templ ContactsSidebarBookItem(book models.ContactAddressBook, filters models.ContactFilters) {
-	{{ target := "source:book:" + book.ID }}
+templ ContactsSidebarBookItem(account models.Account, book models.ContactAddressBook, filters models.ContactFilters) {
+	{{ target := "stored_in:book:" + book.ID }}
 	{{ active := contactSidebarActiveTarget(filters) == target }}
+	@contactSidebarRow(contactSidebarMenuTarget{Kind: "book", Place: "book:" + book.ID, AccountID: account.ID, BookID: book.ID, Provider: account.ContactSyncProvider, Name: contactSidebarBookName(ctx, book)}, "right-1 top-1/2 -translate-y-1/2") {
 	<a
 		href={ templ.URL(contactSidebarURL(filters, target)) }
 		hx-get={ templ.URL(contactSidebarURL(filters, target)) }
@@ -268,7 +326,7 @@ templ ContactsSidebarBookItem(book models.ContactAddressBook, filters models.Con
 		data-contact-sidebar-link
 		data-contact-sidebar-target={ target }
 		class={
-			"flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-md text-[13px] transition-all duration-150 mb-1 pl-7",
+			"flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-md text-[13px] transition-all duration-150 pl-7 group-hover/row:pr-8 group-focus-within/row:pr-8",
 			templ.KV("bg-sidebar-accent text-sidebar-primary font-medium", active),
 			templ.KV("text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground", !active),
 		}
@@ -276,13 +334,15 @@ templ ContactsSidebarBookItem(book models.ContactAddressBook, filters models.Con
 		<span class="flex size-4 shrink-0 items-center justify-center rounded text-sidebar-foreground">
 			@icon.BookUser(icon.Props{Class: "size-3.5"})
 		</span>
-		<span class="flex-1 truncate">{ contactSidebarBookName(book) }</span>
+		<span class="flex-1 truncate">{ contactSidebarBookName(ctx, book) }</span>
 	</a>
+	}
 }
 
 templ ContactsSidebarAccountItem(account models.Account, filters models.ContactFilters) {
-	{{ target := "source:synced:" + account.ID }}
+	{{ target := "stored_in:account:" + account.ID }}
 	{{ active := contactSidebarActiveTarget(filters) == target }}
+	@contactSidebarRow(contactSidebarMenuTarget{Kind: "account", Place: "account:" + account.ID, AccountID: account.ID, Provider: account.ContactSyncProvider, Name: contactSidebarAccountItemName(ctx, account)}, "right-1 top-1/2 -translate-y-1/2") {
 	<a
 		href={ templ.URL(contactSidebarURL(filters, target)) }
 		hx-get={ templ.URL(contactSidebarURL(filters, target)) }
@@ -292,7 +352,7 @@ templ ContactsSidebarAccountItem(account models.Account, filters models.ContactF
 		data-contact-sidebar-link
 		data-contact-sidebar-target={ target }
 		class={
-			"flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-md text-[13px] transition-all duration-150 mb-1 pl-7",
+			"flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-md text-[13px] transition-all duration-150 pl-7 group-hover/row:pr-8 group-focus-within/row:pr-8",
 			templ.KV("bg-sidebar-accent text-sidebar-primary font-medium", active),
 			templ.KV("text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground", !active),
 		}
@@ -300,13 +360,14 @@ templ ContactsSidebarAccountItem(account models.Account, filters models.ContactF
 		<span class="flex size-4 shrink-0 items-center justify-center rounded text-sidebar-foreground">
 			@icon.BookUser(icon.Props{Class: "size-3.5"})
 		</span>
-		<span class="flex-1 truncate">{ contactSidebarAccountItemName(account) }</span>
+		<span class="flex-1 truncate">{ contactSidebarAccountItemName(ctx, account) }</span>
 	</a>
+	}
 }
 
-// Sidebar targets name one contact filter: "trash" lists the Trash,
-// "source:<origin>" filters by origin (accounts and address books), anything
-// else by sync location.
+// Sidebar targets name one contact filter: "" lists all, "trash" lists the
+// Trash, and "stored_in:<place>" filters by main location (Gofer Local,
+// accounts and address books).
 func contactSidebarURL(filters models.ContactFilters, target string) string {
 	values := url.Values{}
 	if strings.TrimSpace(filters.Query) != "" {
@@ -314,10 +375,8 @@ func contactSidebarURL(filters models.ContactFilters, target string) string {
 	}
 	if target == "trash" {
 		values.Set("trash", "1")
-	} else if source, ok := strings.CutPrefix(target, "source:"); ok {
-		values.Set("source", source)
-	} else if target != "" {
-		values.Set("save_target", target)
+	} else if place, ok := strings.CutPrefix(target, "stored_in:"); ok {
+		values.Set("stored_in", place)
 	}
 	if filters.View == "table" {
 		values.Set("view", "table")
@@ -329,20 +388,46 @@ func contactSidebarURL(filters models.ContactFilters, target string) string {
 }
 
 // contactSidebarActiveTarget is the sidebar target the filters match, or
-// "-" when they mix an origin with a sync location and no item matches.
+// "-" when no item matches: several places, an origin or a sync location.
+// Mirrored by sidebarTargetFor in app.js.
 func contactSidebarActiveTarget(filters models.ContactFilters) string {
 	switch {
 	case filters.Trash:
 		return "trash"
-	case filters.Source == "":
-		return filters.SaveTarget
-	case filters.SaveTarget != "":
+	case filters.Unresolved:
+		// No sidebar item lists only the contacts to resolve.
 		return "-"
-	case strings.HasPrefix(filters.Source, "synced:"), strings.HasPrefix(filters.Source, "book:"):
-		return "source:" + filters.Source
+	case strings.Contains(filters.StoredIn, ","):
+		// A sidebar item stands for one place, never several.
+		return "-"
+	case filters.Source != "", filters.SaveTarget != "":
+		// No sidebar item filters by origin or sync location.
+		return "-"
+	case filters.StoredIn == "":
+		return ""
 	default:
-		return "-"
+		return "stored_in:" + filters.StoredIn
 	}
+}
+
+// contactSidebarMenuTarget is what a contacts sidebar row's menu acts on:
+// all contacts, Gofer Local, an account's single place or one of its address
+// books, or the account's heading. app.js reads it from the row.
+type contactSidebarMenuTarget struct {
+	Kind      string
+	Place     string
+	AccountID string
+	BookID    string
+	Provider  string
+	Name      string
+}
+
+// contactSidebarHasBooks says whether an account syncs address books Gofer
+// can list and choose from, as CardDAV and JMAP accounts do; Google and
+// Outlook have a single place for contacts.
+func contactSidebarHasBooks(account models.Account) bool {
+	provider := strings.TrimSpace(account.ContactSyncProvider)
+	return provider == "carddav" || provider == "jmap"
 }
 
 func contactSidebarAccountName(account models.Account) string {
@@ -362,63 +447,63 @@ func contactSidebarAccountSectionID(account models.Account) string {
 }
 
 func contactSidebarAccountActive(account models.Account, filters models.ContactFilters) bool {
-	target := strings.TrimSpace(filters.SaveTarget)
-	if target == "account:"+account.ID {
+	target := contactSidebarActiveTarget(filters)
+	if target == "stored_in:account:"+account.ID {
 		return true
 	}
 	for _, book := range account.ContactAddressBooks {
-		if target == "book:"+book.ID {
+		if target == "stored_in:book:"+book.ID {
 			return true
 		}
 	}
 	return false
 }
 
-func contactSidebarAccountItemName(account models.Account) string {
+func contactSidebarAccountItemName(ctx context.Context, account models.Account) string {
 	switch strings.TrimSpace(account.ContactSyncProvider) {
 	case "gmail":
-		return "Google Contacts"
+		return i18n.T(ctx, "contacts.google_contacts")
 	case "outlook":
-		return "Outlook Contacts"
+		return i18n.T(ctx, "contacts.outlook_contacts")
 	}
-	return "Contacts"
+	return i18n.T(ctx, "contacts.title")
 }
 
-func contactSidebarBookName(book models.ContactAddressBook) string {
+func contactSidebarBookName(ctx context.Context, book models.ContactAddressBook) string {
 	if strings.TrimSpace(book.Name) != "" {
 		return strings.TrimSpace(book.Name)
 	}
-	return "Address book"
+	return i18n.T(ctx, "contacts.address_book")
 }
 
-templ SettingsSidebar(activeTab string, width string, uiSettings map[string]string) {
+templ SettingsSidebar(activeTab string, width string) {
 	<aside class="app-drawer flex flex-col surface-leather text-sidebar-foreground h-full overflow-hidden" style={ "width:" + width }>
 		<div class="px-4 pt-5 pb-4">
 			<div class="flex items-center gap-2.5 mb-5">
 				<img src={ assetver.URL("/assets/logo.svg") } alt="Gofer" class="h-8 w-8 shrink-0"/>
-				<span class="text-lg font-bold tracking-tight text-sidebar-accent-foreground" style="font-family: var(--font-serif)">{ tr(uiSettings, "settings.title") }</span>
+				<span class="text-lg font-bold tracking-tight text-sidebar-accent-foreground" style="font-family: var(--font-serif)">{ i18n.T(ctx, "settings.section.default.title") }</span>
 			</div>
 			<a href="/" class="flex items-center justify-center gap-2 w-full h-10 rounded-lg border border-sidebar-border bg-sidebar-accent/35 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors font-semibold text-sm">
 				@icon.ArrowLeft(icon.Props{Class: "size-4"})
-				{ tr(uiSettings, "settings.back") }
+				{ i18n.T(ctx, "settings.back_to_inbox") }
 			</a>
 		</div>
 		<hr class="divider-etched mx-4"/>
 		<nav class="flex-1 overflow-y-auto px-3 pt-3 pb-3">
-			<div class="px-2.5 pb-2 text-[11px] text-sidebar-foreground uppercase tracking-wider font-semibold">{ tr(uiSettings, "settings.categories") }</div>
-			@SettingsSidebarItem(activeTab, "accounts", tr(uiSettings, "settings.nav.accounts"))
-			@SettingsSidebarItem(activeTab, "sync", tr(uiSettings, "settings.nav.sync"))
-			@SettingsSidebarItem(activeTab, "rules", tr(uiSettings, "settings.nav.rules"))
-			@SettingsSidebarItem(activeTab, "operations", tr(uiSettings, "settings.nav.operations"))
-			@SettingsSidebarItem(activeTab, "contacts", tr(uiSettings, "settings.nav.contacts"))
-			@SettingsSidebarItem(activeTab, "appearance", tr(uiSettings, "settings.nav.appearance"))
-			@SettingsSidebarItem(activeTab, "regional", tr(uiSettings, "settings.nav.regional"))
-			@SettingsSidebarItem(activeTab, "compose-display", tr(uiSettings, "settings.nav.compose"))
-			@SettingsSidebarItem(activeTab, "ai", tr(uiSettings, "settings.nav.ai"))
-			@SettingsSidebarItem(activeTab, "security", tr(uiSettings, "settings.nav.security"))
-			@SettingsSidebarItem(activeTab, "advanced", tr(uiSettings, "settings.nav.advanced"))
-			@SettingsSidebarItem(activeTab, "export-import", tr(uiSettings, "settings.nav.export_import"))
-			@SettingsSidebarItem(activeTab, "about", tr(uiSettings, "settings.nav.about"))
+			<div class="px-2.5 pb-2 text-[11px] text-sidebar-foreground uppercase tracking-wider font-semibold">{ i18n.T(ctx, "settings.categories") }</div>
+			@SettingsSidebarItem(activeTab, "accounts", i18n.T(ctx, "settings.section.accounts.title"))
+			@SettingsSidebarItem(activeTab, "sync", i18n.T(ctx, "settings.sidebar.sync"))
+			@SettingsSidebarItem(activeTab, "rules", i18n.T(ctx, "settings.section.rules.title"))
+			@SettingsSidebarItem(activeTab, "operations", i18n.T(ctx, "settings.section.operations.title"))
+			@SettingsSidebarItem(activeTab, "contacts", i18n.T(ctx, "settings.section.contacts.title"))
+			@SettingsSidebarItem(activeTab, "appearance", i18n.T(ctx, "settings.section.appearance.title"))
+			@SettingsSidebarItem(activeTab, "regional", i18n.T(ctx, "settings.section.regional.title"))
+			@SettingsSidebarItem(activeTab, "compose-display", i18n.T(ctx, "settings.section.compose-display.title"))
+			@SettingsSidebarItem(activeTab, "ai", i18n.T(ctx, "settings.section.ai.title"))
+			@SettingsSidebarItem(activeTab, "security", i18n.T(ctx, "settings.section.security.title"))
+			@SettingsSidebarItem(activeTab, "advanced", i18n.T(ctx, "settings.section.advanced.title"))
+			@SettingsSidebarItem(activeTab, "export-import", i18n.T(ctx, "settings.section.export-import.title"))
+			@SettingsSidebarItem(activeTab, "about", i18n.T(ctx, "settings.section.about.title"))
 		</nav>
 		<div class="shrink-0 px-4 pb-3">
 			@WebmailSidebarLogout()
@@ -494,7 +579,7 @@ templ SidebarHeader(accounts []models.Account, activeApp string) {
 				@SidebarSyncControls(accounts, activeApp)
 			</div>
 		</div>
-		<div class="sidebar-app-nav relative grid h-8 w-full grid-cols-3 gap-0.5 rounded-lg border border-sidebar-border bg-sidebar-accent/35 p-0.5 mb-3" data-sidebar-app-nav>
+		<div class="sidebar-app-nav relative grid h-8 w-full grid-cols-3 gap-0.5 rounded-lg border border-sidebar-border bg-sidebar-accent/35 p-0.5" data-sidebar-app-nav>
 			<div data-sidebar-app-indicator class="absolute top-0.5 bottom-0.5 left-0.5 rounded-md border border-sidebar-border bg-sidebar-accent shadow-sm transition-transform duration-200 ease-out" style={ sidebarAppIndicatorStyle(activeApp) }></div>
 			<a
 				href="/"
@@ -507,7 +592,7 @@ templ SidebarHeader(accounts []models.Account, activeApp string) {
 				hx-push-url="/"
 				data-sidebar-app-button="mail"
 				aria-current?={ activeApp == "mail" }
-				aria-label="Mail"
+				aria-label={ i18n.T(ctx, "app.mail") }
 				class={
 					"sidebar-app-nav-item relative z-10 inline-flex h-7 min-w-0 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium transition-colors duration-200",
 					templ.KV("text-sidebar-accent-foreground", activeApp == "mail"),
@@ -515,7 +600,7 @@ templ SidebarHeader(accounts []models.Account, activeApp string) {
 				}
 			>
 				@icon.Mail(icon.Props{Class: "size-3.5"})
-				<span class="sidebar-app-nav-label truncate">Mail</span>
+				<span class="sidebar-app-nav-label truncate">{ i18n.T(ctx, "app.mail") }</span>
 			</a>
 			<a
 				href="/contacts"
@@ -528,7 +613,7 @@ templ SidebarHeader(accounts []models.Account, activeApp string) {
 				hx-push-url="/contacts"
 				data-sidebar-app-button="contacts"
 				aria-current?={ activeApp == "contacts" }
-				aria-label="Contacts"
+				aria-label={ i18n.T(ctx, "contacts.title") }
 				class={
 					"sidebar-app-nav-item relative z-10 inline-flex h-7 min-w-0 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium transition-colors duration-200",
 					templ.KV("text-sidebar-accent-foreground", activeApp == "contacts"),
@@ -536,7 +621,7 @@ templ SidebarHeader(accounts []models.Account, activeApp string) {
 				}
 			>
 				@icon.BookUser(icon.Props{Class: "size-3.5"})
-				<span class="sidebar-app-nav-label truncate">Contacts</span>
+				<span class="sidebar-app-nav-label truncate">{ i18n.T(ctx, "contacts.title") }</span>
 			</a>
 			<a
 				href="/calendar"
@@ -549,7 +634,7 @@ templ SidebarHeader(accounts []models.Account, activeApp string) {
 				hx-push-url="/calendar"
 				data-sidebar-app-button="calendar"
 				aria-current?={ activeApp == "calendar" }
-				aria-label="Calendar"
+				aria-label={ i18n.T(ctx, "app.calendar") }
 				class={
 					"sidebar-app-nav-item relative z-10 inline-flex h-7 min-w-0 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium transition-colors duration-200",
 					templ.KV("text-sidebar-accent-foreground", activeApp == "calendar"),
@@ -557,7 +642,7 @@ templ SidebarHeader(accounts []models.Account, activeApp string) {
 				}
 			>
 				@icon.CalendarDays(icon.Props{Class: "size-3.5"})
-				<span class="sidebar-app-nav-label truncate">Calendar</span>
+				<span class="sidebar-app-nav-label truncate">{ i18n.T(ctx, "app.calendar") }</span>
 			</a>
 		</div>
 	</div>
@@ -582,21 +667,21 @@ templ SidebarSyncControls(accounts []models.Account, activeApp string) {
 								data-on-htmx-send-abort='["handleCalendarSyncAbort","$event"]'
 								data-calendar-sync-button
 								class="inline-flex h-8 w-8 items-center justify-center text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground disabled:cursor-wait"
-								aria-label="Refresh calendars"
+								aria-label={ i18n.T(ctx, "calendar.sync.refresh_all") }
 							>
 								@icon.RefreshCw(icon.Props{Class: "size-4"})
 							</button>
 						} else {
-							<button type="button" disabled class="inline-flex h-8 w-8 items-center justify-center text-sidebar-foreground opacity-45 disabled:cursor-not-allowed" aria-label="No calendars selected">
+							<button type="button" disabled class="inline-flex h-8 w-8 items-center justify-center text-sidebar-foreground opacity-45 disabled:cursor-not-allowed" aria-label={ i18n.T(ctx, "calendar.sync.none_selected") }>
 								@icon.RefreshCw(icon.Props{Class: "size-4"})
 							</button>
 						}
 					}
 					@tooltip.Content(tooltip.ContentProps{Position: tooltip.PositionBottom, ShowArrow: true, Class: "sidebar-account-error-tooltip w-fit whitespace-nowrap border-sidebar-border bg-sidebar px-3 py-2 text-left text-xs leading-relaxed text-sidebar-foreground shadow-raised [&_[data-tui-popover-arrow]]:!bg-sidebar"}) {
 						if len(calendarConfiguredAccounts(accounts)) > 0 {
-							<span>Refresh calendars for all accounts.</span>
+							<span>{ i18n.T(ctx, "calendar.sync.refresh_all_tip") }</span>
 						} else {
-							<span>Choose calendars in account setup to enable refresh.</span>
+							<span>{ i18n.T(ctx, "calendar.sync.none_selected_tip") }</span>
 						}
 					}
 				}
@@ -606,13 +691,13 @@ templ SidebarSyncControls(accounts []models.Account, activeApp string) {
 							type="button"
 							disabled?={ len(calendarConfiguredAccounts(accounts)) == 0 }
 							class="inline-flex h-8 w-7 items-center justify-center rounded-r-md border-l border-sidebar-border/70 text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[tui-popover-open=true]:bg-sidebar-accent data-[tui-popover-open=true]:text-sidebar-accent-foreground disabled:cursor-not-allowed disabled:opacity-50"
-							aria-label="Choose account to sync"
+							aria-label={ i18n.T(ctx, "sync.choose_account") }
 						>
 							@icon.ChevronDown(icon.Props{Class: "size-3.5"})
 						</button>
 					}
 					@popover.Content(popover.ContentProps{Placement: popover.PlacementBottomEnd, Offset: 10, ShowArrow: true, Class: "sidebar-shortcuts-popover w-64 border-sidebar-border bg-sidebar p-2 text-sidebar-foreground shadow-raised [&_[data-tui-popover-arrow]]:!bg-sidebar"}) {
-						<div class="px-2 py-1.5 text-[11px] font-semibold uppercase text-sidebar-foreground">Refresh calendars by account</div>
+						<div class="px-2 py-1.5 text-[11px] font-semibold uppercase text-sidebar-foreground">{ i18n.T(ctx, "calendar.sync.by_account") }</div>
 						<div class="space-y-1">
 							for _, account := range calendarConfiguredAccounts(accounts) {
 								<button
@@ -629,12 +714,12 @@ templ SidebarSyncControls(accounts []models.Account, activeApp string) {
 									data-calendar-sync-button
 									data-calendar-account-sync-button={ account.ID }
 									class="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground disabled:cursor-wait"
-									aria-label={ "Refresh calendars for " + calendarAccountDisplayName(account) }
+									aria-label={ i18n.T(ctx, "calendar.sync.refresh_account", "account", calendarAccountName(ctx, account)) }
 								>
 									@icon.RefreshCw(icon.Props{Class: "size-3.5 shrink-0"})
 									<span class="min-w-0 flex-1">
-										<span class="block truncate font-medium">{ calendarAccountDisplayName(account) }</span>
-										<span class="block truncate text-[11px] text-sidebar-foreground">{ accountAddress(account) }</span>
+										<span class="block truncate font-medium">{ calendarAccountName(ctx, account) }</span>
+										<span class="block truncate text-[11px] text-sidebar-foreground">{ accountAddressIn(ctx, account) }</span>
 									</span>
 								</button>
 							}
@@ -658,7 +743,7 @@ templ SidebarSyncControls(accounts []models.Account, activeApp string) {
 								data-on-htmx-after-request='["handleContactSidebarSyncResult","$event"]'
 								data-contact-sidebar-sync-button
 								class="inline-flex h-8 w-8 items-center justify-center text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[syncing=true]:text-sidebar-accent-foreground"
-								aria-label="Sync all contacts"
+								aria-label={ i18n.T(ctx, "contacts.sync.all") }
 							>
 								@icon.RefreshCw(icon.Props{Class: "size-4"})
 							</button>
@@ -671,7 +756,7 @@ templ SidebarSyncControls(accounts []models.Account, activeApp string) {
 								data-on-htmx-after-request='["handleMailSidebarSyncResult","$event"]'
 								data-mail-sidebar-sync-button
 								class="inline-flex h-8 w-8 items-center justify-center text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[syncing=true]:text-sidebar-accent-foreground"
-								aria-label="Force sync all mail, including IDLE folders"
+								aria-label={ i18n.T(ctx, "mail.sync.force_all") }
 							>
 								@icon.RefreshCw(icon.Props{Class: "size-4"})
 							</button>
@@ -679,9 +764,9 @@ templ SidebarSyncControls(accounts []models.Account, activeApp string) {
 					}
 					@tooltip.Content(tooltip.ContentProps{Position: tooltip.PositionBottom, ShowArrow: true, Class: "sidebar-account-error-tooltip w-fit whitespace-nowrap border-sidebar-border bg-sidebar px-3 py-2 text-left text-xs leading-relaxed text-sidebar-foreground shadow-raised [&_[data-tui-popover-arrow]]:!bg-sidebar"}) {
 						if activeApp == "contacts" {
-							<span>Sync contacts.</span>
+							<span>{ i18n.T(ctx, "contacts.sync.tip") }</span>
 						} else {
-							<span data-mail-sidebar-sync-tooltip>Force sync, including IDLE folders.</span>
+							<span data-mail-sidebar-sync-tooltip>{ i18n.T(ctx, "mail.sync.force_tip") }</span>
 						}
 					}
 				}
@@ -690,14 +775,14 @@ templ SidebarSyncControls(accounts []models.Account, activeApp string) {
 						<button
 							type="button"
 							class="inline-flex h-8 w-7 items-center justify-center rounded-r-md border-l border-sidebar-border/70 text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[tui-popover-open=true]:bg-sidebar-accent data-[tui-popover-open=true]:text-sidebar-accent-foreground"
-							aria-label="Choose account to sync"
+							aria-label={ i18n.T(ctx, "sync.choose_account") }
 						>
 							@icon.ChevronDown(icon.Props{Class: "size-3.5"})
 						</button>
 					}
 					@popover.Content(popover.ContentProps{Placement: popover.PlacementBottomEnd, Offset: 10, ShowArrow: true, Class: "sidebar-shortcuts-popover w-64 border-sidebar-border bg-sidebar p-2 text-sidebar-foreground shadow-raised [&_[data-tui-popover-arrow]]:!bg-sidebar"}) {
 						if activeApp == "contacts" {
-							<div class="px-2 py-1.5 text-[11px] font-semibold uppercase text-sidebar-foreground">Sync individual contact account</div>
+							<div class="px-2 py-1.5 text-[11px] font-semibold uppercase text-sidebar-foreground">{ i18n.T(ctx, "contacts.sync.by_account") }</div>
 							<div class="space-y-1">
 								for _, account := range accounts {
 									if contactSidebarAccountVisible(account) {
@@ -710,19 +795,19 @@ templ SidebarSyncControls(accounts []models.Account, activeApp string) {
 											data-on-htmx-after-request='["handleContactSidebarSyncResult","$event"]'
 											data-contact-account-sync-button={ account.ID }
 											class="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-											aria-label={ "Sync contacts for " + contactSidebarAccountName(account) }
+											aria-label={ i18n.T(ctx, "contacts.sync.account", "account", contactSidebarAccountName(account)) }
 										>
 											@icon.RefreshCw(icon.Props{Class: "size-3.5 shrink-0"})
 											<span class="min-w-0 flex-1">
 												<span class="block truncate font-medium">{ contactSidebarAccountName(account) }</span>
-												<span class="block truncate text-[11px] text-sidebar-foreground">{ accountAddress(account) }</span>
+												<span class="block truncate text-[11px] text-sidebar-foreground">{ accountAddressIn(ctx, account) }</span>
 											</span>
 										</button>
 									}
 								}
 							</div>
 						} else {
-							<div class="px-2 py-1.5 text-[11px] font-semibold uppercase text-sidebar-foreground">Force sync individual account, including IDLE folders</div>
+							<div class="px-2 py-1.5 text-[11px] font-semibold uppercase text-sidebar-foreground">{ i18n.T(ctx, "mail.sync.by_account") }</div>
 							<div class="space-y-1">
 								for _, account := range accounts {
 									if accountIsLocalFolders(account) {
@@ -738,7 +823,7 @@ templ SidebarSyncControls(accounts []models.Account, activeApp string) {
 											data-on-htmx-after-request='["handleMailSidebarSyncResult","$event"]'
 											data-mail-account-sync-button={ account.ID }
 											class="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-											aria-label={ "Force sync " + account.Name + ", including IDLE folders" }
+											aria-label={ i18n.T(ctx, "mail.sync.force_account", "account", account.Name) }
 										>
 											@icon.RefreshCw(icon.Props{Class: "size-3.5 shrink-0"})
 											<span class="min-w-0 flex-1">
@@ -797,7 +882,7 @@ templ SidebarMailSyncErrorSummaryTooltip(accounts []models.Account) {
 				data-mail-sync-error-indicator
 				hidden?={ mailSyncErrorCount(accounts) == 0 }
 				class={ "inline-flex h-8 w-8 items-center justify-center border-r border-sidebar-border/70 text-destructive transition-colors hover:bg-sidebar-accent", }
-				aria-label={ fmt.Sprintf("%d mail sync issue(s)", mailSyncErrorCount(accounts)) }
+				aria-label={ i18n.N(ctx, "mail.sync.issues", mailSyncErrorCount(accounts)) }
 			>
 				@icon.CircleAlert(icon.Props{Class: "size-4"})
 			</button>
@@ -810,9 +895,9 @@ templ SidebarMailSyncErrorSummaryTooltip(accounts []models.Account) {
 							<div class="truncate font-semibold">{ account.Name }</div>
 							<div class="truncate text-[11px] opacity-70">{ account.Email }</div>
 							if strings.TrimSpace(account.EmailSyncErrorAt) != "" {
-								<div class="mt-1 opacity-85">Last failure: { formatAccountSyncErrorAt(account.EmailSyncErrorAt, nil) }</div>
+								<div class="mt-1 opacity-85">{ i18n.T(ctx, "mail.sync.last_failure", "time", formatAccountSyncErrorAt(ctx, account.EmailSyncErrorAt, nil)) }</div>
 							}
-							<div class="mt-1 break-words opacity-90">{ strings.TrimSpace(account.EmailSyncError) }</div>
+							<div class="mt-1 break-words opacity-90">{ i18n.ServerText(ctx, strings.TrimSpace(account.EmailSyncError)) }</div>
 						</div>
 					}
 				}
@@ -861,7 +946,7 @@ templ SidebarUnifiedSection(accounts []models.Account, activeFolder string, uiSe
 				<span class="flex size-4 shrink-0 items-center justify-center text-sidebar-primary">
 					@icon.Folders(icon.Props{Class: "size-4"})
 				</span>
-				<span class="flex-1 truncate text-left">Unified folders</span>
+				<span class="flex-1 truncate text-left">{ i18n.T(ctx, "mail.unified_folders") }</span>
 				@icon.ChevronDown(icon.Props{Class: "sidebar-account-chevron size-3.5 shrink-0 text-sidebar-foreground transition-transform duration-200"})
 			</button>
 			<div class="sidebar-account-folders" data-sidebar-account-folders="__unified__">
@@ -927,7 +1012,7 @@ templ SidebarTagGroup(labels []models.Label, activeFolder string, filters models
 				<span class="flex size-5 shrink-0 items-center justify-center rounded text-sidebar-foreground">
 					@icon.Tags(icon.Props{Class: "size-4"})
 				</span>
-				<span class="flex-1 truncate text-left">Tags</span>
+				<span class="flex-1 truncate text-left">{ i18n.T(ctx, "mail.tags") }</span>
 				@icon.ChevronDown(icon.Props{Class: "sidebar-tag-chevron size-3.5 shrink-0 text-sidebar-foreground transition-transform duration-200"})
 			</button>
 			<div class="sidebar-tag-children" data-sidebar-tag-children={ sidebarTagGroupID(accountID) }>
@@ -942,19 +1027,18 @@ templ SidebarTagGroup(labels []models.Label, activeFolder string, filters models
 }
 
 templ SidebarTagFilterLink(label models.Label, folderID string, activeFolder string, filters models.EmailFilters, accountID string) {
-	{{ active := sidebarTagActive(activeFolder, folderID, filters, label, accountID) }}
+	{{ active := sidebarTagActive(activeFolder, filters, label, accountID) }}
 	<a
 		href={ sidebarTagFilterURL(folderID, label, accountID) }
-		hx-get={ sidebarTagFilterURL(folderID, label, accountID) }
-		hx-target="#mail-list"
-		hx-swap="outerHTML settle:0s"
 		data-sidebar-tag-filter
 		data-sidebar-tag-label={ strings.TrimSpace(label.Name) }
 		data-sidebar-tag-id={ label.ID }
 		data-sidebar-tag-account={ strings.TrimSpace(accountID) }
 		data-tag-appearance-unified?={ label.IsUnified }
 		class={
-			"flex items-center gap-2.5 w-full rounded-md px-2.5 py-1.5 text-[13px] transition-all duration-150",
+			// Colors only: a weight that eases re-lays its text out every
+			// frame, which stalls whatever else is moving then.
+			"flex items-center gap-2.5 w-full rounded-md px-2.5 py-1.5 text-[13px] transition-colors duration-150",
 			templ.KV("bg-sidebar-accent text-sidebar-primary font-medium", active),
 			templ.KV("text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground", !active),
 		}
@@ -987,19 +1071,19 @@ templ SidebarFolderItem(folder models.Folder, activeFolder string, accountID str
 				data-mail-drop-folder={ folder.ID }
 				data-mail-drop-account={ accountID }
 				class={
-					"flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] transition-all duration-150",
+					"flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] transition-colors duration-150",
 					templ.KV("bg-sidebar-accent text-sidebar-primary font-medium", activeFolder == folder.ID),
 					templ.KV("text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground", activeFolder != folder.ID),
 				}
 				data-sidebar-folder-row
 				data-sidebar-folder-toggle={ groupID }
-				aria-label={ "Toggle " + folder.Name }
+				aria-label={ i18n.T(ctx, "mail.folder.toggle", "folder", i18n.FolderName(ctx, folder.Role, folder.Name)) }
 				aria-expanded={ fmt.Sprintf("%t", !collapsed) }
 			>
 				<span class="flex size-5 shrink-0 items-center justify-center rounded text-sidebar-foreground">
 					@FolderAppearanceIcon(folder)
 				</span>
-				<span class="flex-1 truncate text-left">{ folder.Name }</span>
+				<span class="flex-1 truncate text-left">{ i18n.FolderName(ctx, folder.Role, folder.Name) }</span>
 				if folder.Unread > 0 {
 					<span
 						data-folder-unread={ folder.ID }
@@ -1045,7 +1129,8 @@ templ SidebarFolderLink(folder models.Folder, activeFolder string, accountID str
 		data-mail-drop-folder={ folder.ID }
 		data-mail-drop-account={ accountID }
 		class={
-			"flex min-w-0 flex-1 items-center gap-2.5 w-full px-2.5 py-1.5 rounded-md text-[13px] transition-all duration-150",
+			// Colors only, as a tag's link.
+			"flex min-w-0 flex-1 items-center gap-2.5 w-full px-2.5 py-1.5 rounded-md text-[13px] transition-colors duration-150",
 			templ.KV("bg-sidebar-accent text-sidebar-primary font-medium", activeFolder == folder.ID),
 			templ.KV("text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground", activeFolder != folder.ID),
 		}
@@ -1053,7 +1138,7 @@ templ SidebarFolderLink(folder models.Folder, activeFolder string, accountID str
 		<span class="flex size-5 shrink-0 items-center justify-center rounded text-sidebar-foreground">
 			@FolderAppearanceIcon(folder)
 		</span>
-		<span class="flex-1 truncate">{ folder.Name }</span>
+		<span class="flex-1 truncate">{ i18n.FolderName(ctx, folder.Role, folder.Name) }</span>
 		if folder.Unread > 0 {
 			<span
 				data-folder-unread={ folder.ID }
@@ -1076,26 +1161,26 @@ templ SidebarAccountSyncErrorTooltip(account models.Account, uiSettings map[stri
 				data-account-sync-error={ account.ID }
 				data-account-sync-error-name={ account.Name }
 				data-account-sync-error-email={ account.Email }
-				data-account-sync-error-message={ strings.TrimSpace(account.EmailSyncError) }
+				data-account-sync-error-message={ i18n.ServerText(ctx, strings.TrimSpace(account.EmailSyncError)) }
 				data-account-sync-error-failed-at={ strings.TrimSpace(account.EmailSyncErrorAt) }
 				class="inline-flex size-5 shrink-0 items-center justify-center rounded-md text-destructive"
-				aria-label="Mail sync failed"
+				aria-label={ i18n.T(ctx, "mail.sync.failed") }
 			>
 				@icon.CircleAlert(icon.Props{Class: "size-4"})
 			</span>
 		}
 		@tooltip.Content(tooltip.ContentProps{Position: tooltip.PositionRight, ShowArrow: true, Class: "sidebar-account-error-tooltip w-72 border-sidebar-border bg-sidebar px-3 py-2 text-left text-xs leading-relaxed text-sidebar-foreground shadow-raised [&_[data-tui-popover-arrow]]:!bg-sidebar"}) {
 			<div class="space-y-1">
-				<div class="font-semibold">Mail sync failed</div>
+				<div class="font-semibold">{ i18n.T(ctx, "mail.sync.failed") }</div>
 				if strings.TrimSpace(account.EmailSyncErrorAt) != "" {
 					<div class="opacity-85">
-						Last failure:
+						{ i18n.T(ctx, "mail.sync.last_failure_label") }
 						<span data-account-sync-error-at={ strings.TrimSpace(account.EmailSyncErrorAt) }>
-							{ formatAccountSyncErrorAt(account.EmailSyncErrorAt, uiSettings) }
+							{ formatAccountSyncErrorAt(ctx, account.EmailSyncErrorAt, uiSettings) }
 						</span>
 					</div>
 				}
-				<div class="break-words opacity-90">Details: { strings.TrimSpace(account.EmailSyncError) }</div>
+				<div class="break-words opacity-90">{ i18n.T(ctx, "mail.sync.details", "details", i18n.ServerText(ctx, strings.TrimSpace(account.EmailSyncError))) }</div>
 			</div>
 		}
 	}
@@ -1107,7 +1192,7 @@ templ SidebarAccountJMAPPausedTooltip(account models.Account) {
 			<span
 				data-account-jmap-paused={ account.ID }
 				class="inline-flex size-5 shrink-0 items-center justify-center rounded-md text-amber-600 dark:text-amber-400"
-				aria-label="Paused: JMAP is turned off"
+				aria-label={ i18n.T(ctx, "mail.jmap_paused.title") }
 			>
 				@icon.TriangleAlert(icon.Props{Class: "size-4"})
 			</span>
@@ -1127,7 +1212,7 @@ templ SidebarPausedAccountSyncRow(account models.Account) {
 			<div
 				data-mail-account-sync-paused={ account.ID }
 				aria-disabled="true"
-				aria-label={ account.Name + " can't sync: JMAP is turned off" }
+				aria-label={ i18n.T(ctx, "mail.jmap_paused.account", "account", account.Name) }
 				class="flex w-full cursor-not-allowed items-center gap-2 rounded-md px-2 py-2 text-left text-xs text-sidebar-foreground/50"
 			>
 				@icon.RefreshCw(icon.Props{Class: "size-3.5 shrink-0"})
@@ -1146,10 +1231,10 @@ templ SidebarPausedAccountSyncRow(account models.Account) {
 
 templ JMAPPausedExplanation() {
 	<div class="space-y-1">
-		<div class="font-semibold">Paused: JMAP is turned off</div>
+		<div class="font-semibold">{ i18n.T(ctx, "mail.jmap_paused.title") }</div>
 		<div class="opacity-90">
-			JMAP accounts are experimental and turned off on this server, so this account doesn't sync or send. Its mail stays here.
-			To turn JMAP on, start Gofer with <code class="font-mono">GOFER_JMAP_EXPERIMENT=true</code>.
+			{ i18n.T(ctx, "mail.jmap_paused.body") }
+			{ i18n.T(ctx, "mail.jmap_paused.turn_on") } <code class="font-mono">GOFER_JMAP_EXPERIMENT=true</code>.
 		</div>
 	</div>
 }
@@ -1191,38 +1276,38 @@ templ SidebarFooter() {
 				<span class="flex size-4 shrink-0 items-center justify-center">
 					@icon.Settings(icon.Props{Class: "size-4"})
 				</span>
-				<span class="truncate">Settings</span>
+				<span class="truncate">{ i18n.T(ctx, "settings.section.default.title") }</span>
 			</a>
 			@popover.Root(popover.RootProps{ID: "sidebar-shortcuts", Class: "hidden shrink-0 lg:block"}) {
 				@popover.Trigger() {
 					<button
 						type="button"
 						class="inline-flex size-7 items-center justify-center rounded-md text-sidebar-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground data-[tui-popover-open=true]:bg-sidebar-accent data-[tui-popover-open=true]:text-sidebar-accent-foreground"
-						aria-label="Show keyboard navigation hints"
+						aria-label={ i18n.T(ctx, "shortcuts.show") }
 					>
 						@icon.CircleQuestionMark(icon.Props{Class: "size-4"})
 					</button>
 				}
 				@popover.Content(popover.ContentProps{Placement: popover.PlacementTopStart, Offset: 10, ShowArrow: true, Class: "sidebar-shortcuts-popover w-72 border-sidebar-border bg-sidebar p-3 text-sidebar-foreground shadow-raised [&_[data-tui-popover-arrow]]:!bg-sidebar"}) {
 					<div class="mb-2">
-						<h3 class="text-sm font-bold tracking-tight text-sidebar-accent-foreground" style="font-family: var(--font-serif)">Keyboard navigation</h3>
-						<p class="mt-0.5 text-[11px] leading-relaxed text-sidebar-foreground">Shortcuts for moving through mail.</p>
+						<h3 class="text-sm font-bold tracking-tight text-sidebar-accent-foreground" style="font-family: var(--font-serif)">{ i18n.T(ctx, "shortcuts.title") }</h3>
+						<p class="mt-0.5 text-[11px] leading-relaxed text-sidebar-foreground">{ i18n.T(ctx, "shortcuts.description") }</p>
 					</div>
 					<div class="space-y-1 text-[12px] leading-relaxed">
-						@SidebarShortcutHint("Next email", "j / Down")
-						@SidebarShortcutHint("Previous email", "k / Up")
-						@SidebarShortcutHint("Open email", "Enter / o")
-						@SidebarShortcutHint("Search", "/")
-						@SidebarShortcutHint("Compose", "c")
-						@SidebarShortcutHint("Reply", "r")
-						@SidebarShortcutHint("Reply all", "a")
-						@SidebarShortcutHint("Forward", "f")
-						@SidebarShortcutHint("Archive", "e")
-						@SidebarShortcutHint("Delete", "Del / #")
-						@SidebarShortcutHint("Star", "s")
-						@SidebarShortcutHint("Toggle read", "u")
-						@SidebarShortcutHint("Select all loaded", "Ctrl+A")
-						@SidebarShortcutHint("Clear selection", "Esc")
+						@SidebarShortcutHint(i18n.T(ctx, "shortcuts.next"), "j / "+i18n.T(ctx, "shortcuts.key.down"))
+						@SidebarShortcutHint(i18n.T(ctx, "shortcuts.previous"), "k / "+i18n.T(ctx, "shortcuts.key.up"))
+						@SidebarShortcutHint(i18n.T(ctx, "shortcuts.open"), "Enter / o")
+						@SidebarShortcutHint(i18n.T(ctx, "shortcuts.search"), "/")
+						@SidebarShortcutHint(i18n.T(ctx, "shortcuts.compose"), "c")
+						@SidebarShortcutHint(i18n.T(ctx, "shortcuts.reply"), "r")
+						@SidebarShortcutHint(i18n.T(ctx, "shortcuts.reply_all"), "a")
+						@SidebarShortcutHint(i18n.T(ctx, "shortcuts.forward"), "f")
+						@SidebarShortcutHint(i18n.T(ctx, "shortcuts.archive"), "e")
+						@SidebarShortcutHint(i18n.T(ctx, "shortcuts.delete"), i18n.T(ctx, "shortcuts.key.delete")+" / #")
+						@SidebarShortcutHint(i18n.T(ctx, "shortcuts.star"), "s")
+						@SidebarShortcutHint(i18n.T(ctx, "shortcuts.toggle_read"), "u")
+						@SidebarShortcutHint(i18n.T(ctx, "shortcuts.select_all"), "Ctrl+A")
+						@SidebarShortcutHint(i18n.T(ctx, "shortcuts.clear_selection"), "Esc")
 					</div>
 				}
 			}
@@ -1244,7 +1329,7 @@ templ WebmailSidebarLogout() {
 			<input type="hidden" name="_csrf" value={ auth.CSRFToken(ctx, "POST", "/auth/logout") }/>
 			<button type="submit" class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-sidebar-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground">
 				@icon.LogOut(icon.Props{Class: "size-4 shrink-0"})
-				Log out
+				{ i18n.T(ctx, "auth.log_out") }
 			</button>
 		</form>
 	}
@@ -1255,7 +1340,7 @@ templ WebmailSidebarLogout() {
 // events) belongs to each section's floating button.
 templ MobileTopBar() {
 	<header class="mobile-topbar surface-leather text-sidebar-foreground" data-mobile-topbar>
-		<button type="button" class="mobile-topbar-button" data-mobile-nav-toggle aria-label="Open navigation" aria-expanded="false">
+		<button type="button" class="mobile-topbar-button" data-mobile-nav-toggle aria-label={ i18n.T(ctx, "nav.open") } aria-expanded="false">
 			@icon.Menu(icon.Props{Class: "size-5"})
 		</button>
 		<a href="/" class="mobile-topbar-brand flex min-w-0 items-center gap-2">
@@ -1265,24 +1350,24 @@ templ MobileTopBar() {
 		<div class="mobile-topbar-title hidden min-w-0 items-baseline gap-2" data-mobile-topbar-title>
 			<span class="truncate text-lg font-bold tracking-tight text-sidebar-accent-foreground" style="font-family: var(--font-serif)" data-mobile-topbar-title-text></span>
 			<span class="shrink-0 text-xs font-medium tabular-nums text-sidebar-foreground" data-mobile-topbar-title-count></span>
-			<button type="button" class="mobile-topbar-sync hidden shrink-0 text-xs font-medium" aria-label="Sync now" data-mobile-topbar-sync></button>
+			<button type="button" class="mobile-topbar-sync hidden shrink-0 text-xs font-medium" data-mobile-topbar-sync></button>
 		</div>
 		<div class="flex-1"></div>
 		<div class="mobile-topbar-mail-actions hidden items-center" data-mobile-topbar-mail-actions>
-			<button type="button" class="mobile-topbar-button" data-mobile-mail-action="search" aria-label="Search mail">
+			<button type="button" class="mobile-topbar-button" data-mobile-mail-action="search" aria-label={ i18n.T(ctx, "mail.search.label") }>
 				@icon.Search(icon.Props{Class: "size-5"})
 			</button>
-			<button type="button" class="mobile-topbar-button" data-mobile-mail-action="sort" aria-label="Sort messages">
+			<button type="button" class="mobile-topbar-button" data-mobile-mail-action="sort" aria-label={ i18n.T(ctx, "mail.sort.label") }>
 				@icon.ArrowUpDown(icon.Props{Class: "size-5"})
 			</button>
-			<button type="button" class="mobile-topbar-button relative" data-mobile-mail-action="filter" aria-label="Filters">
+			<button type="button" class="mobile-topbar-button relative" data-mobile-mail-action="filter" aria-label={ i18n.T(ctx, "mail.filters.title") }>
 				@icon.SlidersHorizontal(icon.Props{Class: "size-5"})
 				<span data-mail-filter-count-mirror class="absolute right-0.5 top-0.5 hidden min-w-4 rounded-full bg-primary px-1 text-center text-[10px] leading-4 text-primary-foreground"></span>
 			</button>
 			<div class="mobile-topbar-contacts-more">
 				@dropdown.Dropdown() {
 					@dropdown.Trigger() {
-						<button type="button" class="mobile-topbar-button" aria-label="Contact actions">
+						<button type="button" class="mobile-topbar-button" aria-label={ i18n.T(ctx, "contacts.actions") }>
 							@icon.EllipsisVertical(icon.Props{Class: "size-5"})
 						</button>
 					}
@@ -1290,12 +1375,12 @@ templ MobileTopBar() {
 						@dialog.Trigger(dialog.TriggerProps{For: "contacts-import-dialog"}) {
 							<button type="button" class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground">
 								@icon.Upload(icon.Props{Class: "size-4 text-muted-foreground"})
-								Import vCard
+								{ i18n.T(ctx, "contacts.import_vcard") }
 							</button>
 						}
 						<a href="/api/contacts/export" class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground">
 							@icon.Download(icon.Props{Class: "size-4 text-muted-foreground"})
-							Export all
+							{ i18n.T(ctx, "contacts.export_all") }
 						</a>
 					}
 				}
@@ -1304,4 +1389,291 @@ templ MobileTopBar() {
 	</header>
 	<div class="mobile-nav-backdrop" data-mobile-nav-close aria-hidden="true"></div>
 	<script src={ assetver.URL("/assets/js/mobile-nav.js") }></script>
+}
+
+// contactSidebarRow is a contacts sidebar row with its menu: opened with a
+// right-click, or from the ⋯ that shows while the row is hovered or focused.
+templ contactSidebarRow(target contactSidebarMenuTarget, buttonPlace string) {
+	<div
+		class={ "group/row relative", templ.KV("mb-1", target.Kind != "heading") }
+		data-contact-sidebar-row
+		data-contact-sidebar-kind={ target.Kind }
+		data-contact-sidebar-place={ target.Place }
+		data-contact-sidebar-account={ target.AccountID }
+		data-contact-sidebar-book={ target.BookID }
+		data-contact-sidebar-provider={ target.Provider }
+		data-contact-sidebar-name={ target.Name }
+	>
+		{ children... }
+		<button
+			type="button"
+			class={ "absolute inline-flex size-6 items-center justify-center rounded text-sidebar-foreground opacity-0 transition-opacity hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:opacity-100 group-hover/row:opacity-100 aria-expanded:opacity-100 " + buttonPlace }
+			aria-label={ i18n.T(ctx, "contacts.sidebar_menu.options", "place", target.Name) }
+			aria-haspopup="menu"
+			aria-expanded="false"
+			data-contact-sidebar-menu
+		>
+			@icon.Ellipsis(icon.Props{Class: "size-3.5"})
+		</button>
+	</div>
+}
+
+// ContactsSidebarContextMenu is the contacts sidebar rows' menu; app.js shows
+// the items that apply to the row it opened on.
+templ ContactsSidebarContextMenu() {
+	@popover.Root(popover.RootProps{ID: "contacts-sidebar-context-menu", Attributes: templ.Attributes{"data-contacts-sidebar-context-menu": ""}}) {
+		@popover.Trigger() {
+			<span class="pointer-events-none fixed left-0 top-0 size-px" aria-hidden="true" data-point-popover-anchor></span>
+		}
+		@popover.Content(popover.ContentProps{
+			Placement:  popover.PlacementBottomStart,
+			Offset:     2,
+			Class:      "z-50 w-56 rounded-md border border-border bg-popover p-1 shadow-md focus:outline-none",
+			Attributes: templ.Attributes{"role": "menu", "aria-label": i18n.T(ctx, "contacts.sidebar_menu.label")},
+		}) {
+			@dropdown.Label(dropdown.LabelProps{Class: "truncate text-xs font-medium text-muted-foreground", Attributes: templ.Attributes{"data-sidebar-context-title": ""}})
+			@sidebarContextItem("new-here", i18n.T(ctx, "contacts.sidebar_menu.new_here"), "") {
+				@icon.UserPlus(icon.Props{Class: "size-4"})
+			}
+			@sidebarContextItem("import-here", i18n.T(ctx, "contacts.sidebar_menu.import_here"), "") {
+				@icon.Upload(icon.Props{Class: "size-4"})
+			}
+			@sidebarContextItem("export-here", i18n.T(ctx, "contacts.sidebar_menu.export_here"), "") {
+				@icon.Download(icon.Props{Class: "size-4"})
+			}
+			@sidebarContextItem("export-all", i18n.T(ctx, "contacts.export_all"), "") {
+				@icon.Download(icon.Props{Class: "size-4"})
+			}
+			@sidebarContextItem("sync-now", i18n.T(ctx, "contacts.sidebar_menu.sync_now"), "") {
+				@icon.RefreshCw(icon.Props{Class: "size-4"})
+			}
+			@sidebarContextItem("find-books", i18n.T(ctx, "contacts.sidebar_menu.find_books"), "") {
+				@icon.Radar(icon.Props{Class: "size-4"})
+			}
+			@sidebarContextItem("account-settings", i18n.T(ctx, "contacts.sidebar_menu.account_settings"), "") {
+				@icon.Settings(icon.Props{Class: "size-4"})
+			}
+			@sidebarContextItem("stop-syncing", i18n.T(ctx, "contacts.sidebar_menu.stop_syncing"), "text-destructive "+menuDestructiveClass) {
+				@icon.CircleMinus(icon.Props{Class: "size-4"})
+			}
+		}
+	}
+}
+
+// ContactsSidebarOtherBooks lists, folded away under an account, the
+// address books its server has that Gofer doesn't sync. Nothing is stored:
+// opening it, or its discovery button, asks the server (app.js), and each
+// book found has a button that starts syncing it.
+templ ContactsSidebarOtherBooks(account models.Account) {
+	// Folded away and opened as the calendar's Other calendars are.
+	@collapsible.Collapsible(collapsible.Props{Class: "mt-0.5", Attributes: templ.Attributes{"data-contact-other-books": account.ID, "data-contact-other-books-state": "idle"}}) {
+		<div class="group/books flex items-center gap-1 pl-7 pr-1">
+			@collapsible.Trigger(collapsible.TriggerProps{Class: "group min-w-0 flex-1", Attributes: templ.Attributes{"data-contact-other-books-toggle": ""}}) {
+				<button type="button" class="flex min-h-7 w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left text-[11px] text-sidebar-foreground transition-colors hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring">
+					@icon.ChevronRight(icon.Props{Class: "size-3 shrink-0 transition-transform group-aria-expanded:rotate-90"})
+					<span class="min-w-0 flex-1 truncate">{ i18n.T(ctx, "contacts.other_books.title") }</span>
+					<span class="inline-flex shrink-0 tabular-nums" data-contact-other-books-count></span>
+				</button>
+			}
+			@tooltip.Tooltip() {
+				@tooltip.Trigger() {
+					// Shown on hover or focus, and while it looks (input.css).
+					<button type="button" class="inline-flex size-6 shrink-0 items-center justify-center rounded text-sidebar-foreground opacity-0 transition-opacity hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:opacity-100 group-hover/books:opacity-100" aria-label={ i18n.T(ctx, "contacts.other_books.discover") } data-contact-other-books-discover>
+						<span class="inline-flex" data-contact-other-books-discover-icon>
+							@icon.Radar(icon.Props{Class: "size-3.5"})
+						</span>
+					</button>
+				}
+				@tooltip.Content(tooltip.ContentProps{Position: tooltip.PositionRight, ShowArrow: true}) {
+					{ i18n.T(ctx, "contacts.other_books.discover") }
+				}
+			}
+		</div>
+		@collapsible.Content() {
+			<div class="space-y-0.5 pt-0.5" role="group" aria-label={ i18n.T(ctx, "contacts.other_books.for", "account", contactSidebarAccountName(account)) } data-contact-other-books-list></div>
+		}
+		<template data-contact-other-book-template>
+			<div class="group flex min-h-8 items-center gap-2.5 rounded-md py-1.5 pl-7 pr-1 text-[12px] text-sidebar-foreground transition-colors hover:bg-sidebar-accent/60" data-contact-other-book>
+				<span class="flex size-4 shrink-0 items-center justify-center opacity-60">
+					@icon.BookUser(icon.Props{Class: "size-3.5"})
+				</span>
+				<span class="min-w-0 flex-1 truncate opacity-70" data-contact-other-book-name></span>
+				<button type="button" class="inline-flex size-6 shrink-0 items-center justify-center rounded text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground" data-contact-other-book-sync>
+					<span class="inline-flex" data-contact-other-book-sync-icon>
+						@icon.Plus(icon.Props{Class: "size-3.5"})
+					</span>
+				</button>
+			</div>
+		</template>
+		<template data-contact-other-books-message-template>
+			<p class="py-1.5 pl-7 pr-2 text-[11px] text-sidebar-foreground/70" data-contact-other-books-message></p>
+		</template>
+	}
+}
+
+// ContactsBookStopDialog confirms that Gofer stops syncing an address book,
+// and asks what happens to the contacts living in it. Removing them first
+// asks where the ones that also live in other places go: the dialog grows
+// into a sorter of those contacts (data-contacts-book-stop-step="sort"),
+// as the calendar's event dialog grows into its editor. app.js fills it in.
+templ ContactsBookStopDialog() {
+	@dialog.Dialog(dialog.Props{ID: "contacts-book-stop-dialog"}) {
+		@dialog.Content(dialog.ContentProps{Class: "max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-xl normal-case tracking-normal", Attributes: templ.Attributes{"data-contacts-book-stop-content": ""}}) {
+			<div class="grid gap-4" data-contacts-book-stop-step="confirm">
+				@dialog.Header() {
+					@dialog.Title(dialog.TitleProps{Attributes: templ.Attributes{"data-contacts-book-stop-title": ""}}) {
+						{ i18n.T(ctx, "contacts.book_stop.title_fallback") }
+					}
+					@dialog.Description() {
+						{ i18n.T(ctx, "contacts.book_stop.note") }
+					}
+				}
+				<form class="space-y-3" data-contacts-book-stop-form>
+					<p class="text-sm text-muted-foreground" data-contacts-book-stop-living></p>
+					<fieldset class="space-y-2" data-contacts-book-stop-choice>
+						<div class="rounded-lg border border-border has-[:checked]:border-primary/50 has-[:checked]:bg-primary/[0.04]">
+							<label class="flex cursor-pointer items-start gap-3 p-3">
+								@radio.Radio(radio.Props{Name: "release", Value: "remove", Checked: true, Class: "mt-0.5 shrink-0"})
+								<span class="space-y-0.5">
+									<span class="block text-sm font-medium">{ i18n.T(ctx, "contacts.book_stop.remove") }</span>
+									<span class="block text-xs text-muted-foreground">{ i18n.T(ctx, "contacts.book_stop.remove_detail") }</span>
+								</span>
+							</label>
+							// Contacts that also live in other places need a new main
+							// location before Gofer can remove the book's.
+							<div class="flex items-center gap-2 border-t border-border/70 px-3 py-2 pl-10" data-contacts-book-stop-movers hidden>
+								<span class="min-w-0 flex-1 text-xs" data-contacts-book-stop-movers-text></span>
+								<button type="button" class="inline-flex h-7 shrink-0 items-center rounded-md border border-border bg-background px-2.5 text-xs font-semibold hover:bg-accent" data-contacts-book-stop-sort-open>
+									{ i18n.T(ctx, "contacts.book_stop.choose") }
+								</button>
+							</div>
+						</div>
+						<label class="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3 has-[:checked]:border-primary/50 has-[:checked]:bg-primary/[0.04]">
+							@radio.Radio(radio.Props{Name: "release", Value: "keep", Class: "mt-0.5 shrink-0"})
+							<span class="space-y-0.5">
+								<span class="block text-sm font-medium">{ i18n.T(ctx, "contacts.book_stop.keep") }</span>
+								<span class="block text-xs text-muted-foreground">{ i18n.T(ctx, "contacts.book_stop.keep_detail") }</span>
+							</span>
+						</label>
+					</fieldset>
+					<p class="text-xs text-muted-foreground" data-contacts-book-stop-copies hidden></p>
+					<p class="rounded-md border border-amber-500/30 bg-amber-500/[0.08] px-3 py-2 text-xs text-amber-800 dark:text-amber-200" data-contacts-book-stop-last hidden>{ i18n.T(ctx, "contacts.book_stop.last") }</p>
+					@dialog.Footer() {
+						@dialog.Close(dialog.CloseProps{For: "contacts-book-stop-dialog"}) {
+							<button type="button" class="inline-flex h-9 items-center justify-center rounded-md border border-border px-3 text-sm font-semibold text-muted-foreground hover:bg-accent hover:text-foreground">{ i18n.T(ctx, "common.cancel") }</button>
+						}
+						<button type="submit" class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-destructive px-3 text-sm font-semibold text-white hover:bg-destructive/90 disabled:pointer-events-none disabled:opacity-50" data-contacts-book-stop-confirm>
+							{ i18n.T(ctx, "contacts.book_stop.confirm") }
+						</button>
+					}
+				</form>
+			</div>
+			<div class="grid gap-4" data-contacts-book-stop-step="sort" hidden>
+				@dialog.Header() {
+					@dialog.Title() {
+						{ i18n.T(ctx, "contacts.book_sort.title") }
+					}
+					@dialog.Description() {
+						{ i18n.T(ctx, "contacts.book_sort.note") }
+					}
+				}
+				<div class="grid min-h-0 gap-4 md:grid-cols-2">
+					<section class="flex min-h-0 flex-col gap-2 rounded-lg border border-border p-3" data-contacts-book-sort-pending>
+						<div class="flex items-center justify-between gap-2">
+							<span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{ i18n.T(ctx, "contacts.book_sort.pending") }</span>
+							<span class="text-xs tabular-nums text-muted-foreground" data-contacts-book-sort-pending-count></span>
+						</div>
+						@input.Input(input.Props{Type: input.TypeSearch, Class: "h-8 text-sm", Placeholder: i18n.T(ctx, "contacts.book_sort.search"), Attributes: templ.Attributes{"data-contacts-book-sort-search": "", "aria-label": i18n.T(ctx, "contacts.book_sort.search")}})
+						<div class="flex items-center justify-between gap-2 text-xs">
+							<button type="button" class="font-semibold underline-offset-2 hover:underline" data-contacts-book-sort-select-all>{ i18n.T(ctx, "contacts.book_sort.select_all") }</button>
+							<span class="tabular-nums text-muted-foreground transition-opacity duration-150" data-contacts-book-sort-selected></span>
+						</div>
+						// As tall as the screen allows, up to a roomy list.
+						<div class="h-[min(28rem,calc(100dvh-24rem))] min-h-40 overflow-y-auto overscroll-contain rounded-md border border-border/70 bg-background/60 p-1 [&>*+*]:mt-1" role="listbox" aria-multiselectable="true" aria-label={ i18n.T(ctx, "contacts.book_sort.pending") } data-contacts-book-sort-list></div>
+						<p class="py-6 text-center text-xs text-muted-foreground" data-contacts-book-sort-empty hidden>{ i18n.T(ctx, "contacts.book_sort.all_placed") }</p>
+					</section>
+					<section class="flex min-h-0 flex-col gap-2" data-contacts-book-sort-places>
+						<span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{ i18n.T(ctx, "contacts.book_sort.places") }</span>
+						<div class="h-[min(33.5rem,calc(100dvh-19rem))] min-h-48 space-y-2 overflow-y-auto overscroll-contain pr-1" data-contacts-book-sort-place-list></div>
+					</section>
+				</div>
+				<template data-contacts-book-sort-row-template>
+					<div class="flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground aria-selected:bg-accent aria-selected:text-accent-foreground" role="option" aria-selected="false" draggable="true" data-contacts-book-sort-row>
+						@icon.User(icon.Props{Class: "size-3.5 shrink-0 text-muted-foreground"})
+						// The other locations Gofer Sync keeps it in, and a
+						// tooltip saying so; rows without any drop the tooltip.
+						@tooltip.Tooltip() {
+							@tooltip.Trigger() {
+								<span class="min-w-0 flex-1 truncate">
+									<span data-contacts-book-sort-row-name></span>
+									<span class="text-xs text-muted-foreground" data-contacts-book-sort-row-copies></span>
+								</span>
+							}
+							@tooltip.Content(tooltip.ContentProps{Position: tooltip.PositionTop, ShowArrow: true, HoverDelay: 400, Class: "max-w-72 px-3 py-1.5 text-xs", Attributes: templ.Attributes{"data-contacts-book-sort-row-tip": ""}}) {
+								<span data-contacts-book-sort-row-tip-text></span>
+							}
+						}
+					</div>
+				</template>
+				<template data-contacts-book-sort-place-template>
+					<div class="rounded-lg border border-border p-3 transition-[border-color,background-color,opacity] duration-150 data-[drop=ok]:border-primary data-[drop=ok]:bg-primary/[0.06] data-[drop=no]:opacity-50" data-contacts-book-sort-place>
+						<div class="flex items-center gap-2">
+							<span class="min-w-0 flex-1 truncate text-sm font-medium" data-contacts-book-sort-place-name></span>
+							<span class="text-xs tabular-nums text-muted-foreground" data-contacts-book-sort-place-count></span>
+						</div>
+						// Only on Gofer Local, which every contact can move to.
+						<p class="mt-1 text-xs text-muted-foreground" hidden data-contacts-book-sort-place-local-note>{ i18n.T(ctx, "contacts.book_sort.local_note") }</p>
+						<div class="mt-2 flex flex-wrap items-center gap-1.5">
+							// Says why it is grayed out, when some selected contact has no
+							// copy here; the hover is on the wrapper, as the button takes none.
+							@tooltip.Tooltip() {
+								@tooltip.Trigger(tooltip.TriggerProps{Class: "inline-flex", Attributes: templ.Attributes{"data-contacts-book-sort-hint": ""}}) {
+									<button type="button" class="inline-flex h-7 items-center rounded-md bg-primary px-2.5 text-xs font-semibold text-primary-foreground transition-[background-color,opacity,color] duration-200 hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-40" data-contacts-book-sort-move><span data-contacts-book-sort-label></span></button>
+								}
+								@tooltip.Content(tooltip.ContentProps{Position: tooltip.PositionTop, ShowArrow: true, Class: "max-w-64 px-3 py-1.5 text-xs"}) {
+									<span data-contacts-book-sort-hint-text></span>
+								}
+							}
+							// Says why it is grayed out, when some selected contact has no
+							// copy here; the hover is on the wrapper, as the button takes none.
+							@tooltip.Tooltip() {
+								@tooltip.Trigger(tooltip.TriggerProps{Class: "inline-flex", Attributes: templ.Attributes{"data-contacts-book-sort-hint": ""}}) {
+									<button type="button" class="inline-flex h-7 items-center rounded-md border border-border px-2.5 text-xs font-semibold transition-[background-color,opacity] duration-200 hover:bg-accent disabled:pointer-events-none disabled:opacity-40" data-contacts-book-sort-move-all><span data-contacts-book-sort-label></span></button>
+								}
+								@tooltip.Content(tooltip.ContentProps{Position: tooltip.PositionTop, ShowArrow: true, Class: "max-w-64 px-3 py-1.5 text-xs"}) {
+									<span data-contacts-book-sort-hint-text></span>
+								}
+							}
+							<button type="button" class="group ml-auto inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground transition-[background-color,opacity,color] duration-200 hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40" aria-expanded="false" data-contacts-book-sort-show>
+								{ i18n.T(ctx, "contacts.book_sort.show") }
+								@icon.ChevronDown(icon.Props{Class: "size-3 transition-transform duration-200 group-aria-expanded:rotate-180"})
+							</button>
+						</div>
+						// The contacts placed here, opened and closed as the
+						// collapsible does, to select and send back.
+						<div class="grid grid-rows-[0fr] transition-[grid-template-rows] duration-200 ease-out [&[data-open]]:grid-rows-[1fr]" data-contacts-book-sort-placed-wrap>
+							<div class="min-h-0 overflow-hidden">
+								<div class="mt-2 flex items-center justify-between gap-2 text-xs">
+									<button type="button" class="font-semibold underline-offset-2 hover:underline" data-contacts-book-sort-placed-select-all></button>
+									<button type="button" class="inline-flex h-6 items-center gap-1 rounded-md px-2 font-semibold text-muted-foreground transition-[background-color,opacity,color] duration-200 hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40" data-contacts-book-sort-unplace-selected>
+										@icon.Undo2(icon.Props{Class: "size-3.5"})
+										<span data-contacts-book-sort-label></span>
+									</button>
+								</div>
+								<div class="mt-1.5 max-h-48 overflow-y-auto rounded-md border border-border/70 bg-background/60 p-1 [&>*+*]:mt-1" role="listbox" aria-multiselectable="true" data-contacts-book-sort-placed></div>
+							</div>
+						</div>
+					</div>
+				</template>
+				@dialog.Footer(dialog.FooterProps{Class: "sm:justify-between"}) {
+					<button type="button" class="inline-flex h-9 items-center justify-center rounded-md border border-border px-3 text-sm font-semibold text-muted-foreground hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40" data-contacts-book-sort-rest-local>
+						{ i18n.T(ctx, "contacts.book_sort.rest_local") }
+					</button>
+					<button type="button" class="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50" data-contacts-book-sort-done>
+						{ i18n.T(ctx, "common.done") }
+					</button>
+				}
+			</div>
+		}
+	}
 }

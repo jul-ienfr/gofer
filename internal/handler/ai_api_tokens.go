@@ -23,40 +23,40 @@ func (h *Handler) RequireAIToken(scope string, next http.Handler) http.Handler {
 		header := strings.TrimSpace(r.Header.Get("Authorization"))
 		if !strings.HasPrefix(header, "Bearer ") {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="gofer"`)
-			writeComposeJSONError(w, http.StatusUnauthorized, "missing bearer token")
+			writeComposeJSONError(w, r, http.StatusUnauthorized, "missing bearer token")
 			return
 		}
 		plain := strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
 		if !strings.HasPrefix(plain, aiAPITokenPrefix) || len(plain) > 128 {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="gofer"`)
-			writeComposeJSONError(w, http.StatusUnauthorized, "invalid bearer token")
+			writeComposeJSONError(w, r, http.StatusUnauthorized, "invalid bearer token")
 			return
 		}
 		token, err := h.db.AuthenticateAIAPIToken(r.Context(), storage.HashAIAPIToken(plain), time.Now())
 		if errors.Is(err, sql.ErrNoRows) {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="gofer"`)
-			writeComposeJSONError(w, http.StatusUnauthorized, "invalid bearer token")
+			writeComposeJSONError(w, r, http.StatusUnauthorized, "invalid bearer token")
 			return
 		}
 		if err != nil {
-			writeComposeJSONError(w, http.StatusInternalServerError, "token lookup failed")
+			writeComposeJSONError(w, r, http.StatusInternalServerError, "token lookup failed")
 			return
 		}
 		if h.auth != nil {
 			user, err := h.auth.GetUserByID(r.Context(), token.UserID)
 			if err != nil || user == nil || !user.Status.AllowsAuthentication() {
 				w.Header().Set("WWW-Authenticate", `Bearer realm="gofer"`)
-				writeComposeJSONError(w, http.StatusUnauthorized, "invalid bearer token")
+				writeComposeJSONError(w, r, http.StatusUnauthorized, "invalid bearer token")
 				return
 			}
 		}
 		if !aiTokenAllows(token.Scopes, scope) {
-			writeComposeJSONError(w, http.StatusForbidden, "token scope does not allow this operation")
+			writeComposeJSONError(w, r, http.StatusForbidden, "token scope does not allow this operation")
 			return
 		}
 		if !h.allowAPITokenRequest(token.ID, time.Now()) {
 			w.Header().Set("Retry-After", "1")
-			writeComposeJSONError(w, http.StatusTooManyRequests, "too many requests")
+			writeComposeJSONError(w, r, http.StatusTooManyRequests, "too many requests")
 			return
 		}
 		ctx := context.WithValue(r.Context(), aiTokenContextKey{}, token)
@@ -163,7 +163,7 @@ func (h *Handler) handleAIAPITokens(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		tokens, err := h.db.ListAIAPITokens(r.Context(), userID)
 		if err != nil {
-			writeComposeJSONError(w, http.StatusInternalServerError, "failed to list tokens")
+			writeComposeJSONError(w, r, http.StatusInternalServerError, "failed to list tokens")
 			return
 		}
 		writeAIJSON(w, http.StatusOK, map[string]any{"tokens": tokens})
@@ -174,26 +174,26 @@ func (h *Handler) handleAIAPITokens(w http.ResponseWriter, r *http.Request) {
 			ExpiresInDays int      `json:"expires_in_days"`
 		}
 		if err := decodeAIBody(w, r, &payload); err != nil {
-			writeComposeJSONError(w, http.StatusBadRequest, "invalid token payload")
+			writeComposeJSONError(w, r, http.StatusBadRequest, "invalid token payload")
 			return
 		}
 		payload.Name = strings.TrimSpace(payload.Name)
 		if payload.Name == "" || len(payload.Name) > 80 {
-			writeComposeJSONError(w, http.StatusBadRequest, "token name is required")
+			writeComposeJSONError(w, r, http.StatusBadRequest, "token name is required")
 			return
 		}
 		scopes, err := normalizeAITokenScopes(payload.Scopes)
 		if err != nil {
-			writeComposeJSONError(w, http.StatusBadRequest, err.Error())
+			writeComposeJSONError(w, r, http.StatusBadRequest, err.Error())
 			return
 		}
 		count, err := h.db.CountAIAPITokens(r.Context(), userID)
 		if err != nil {
-			writeComposeJSONError(w, http.StatusInternalServerError, "failed to count tokens")
+			writeComposeJSONError(w, r, http.StatusInternalServerError, "failed to count tokens")
 			return
 		}
 		if count >= storage.AIAPITokenLimit {
-			writeComposeJSONError(w, http.StatusConflict, "revoke an existing token first")
+			writeComposeJSONError(w, r, http.StatusConflict, "revoke an existing token first")
 			return
 		}
 		days := payload.ExpiresInDays
@@ -205,7 +205,7 @@ func (h *Handler) handleAIAPITokens(w http.ResponseWriter, r *http.Request) {
 		}
 		plain, hash, err := newAITokenSecret()
 		if err != nil {
-			writeComposeJSONError(w, http.StatusInternalServerError, "failed to generate token")
+			writeComposeJSONError(w, r, http.StatusInternalServerError, "failed to generate token")
 			return
 		}
 		token, err := h.db.CreateAIAPIToken(r.Context(), storage.AIAPIToken{
@@ -213,7 +213,7 @@ func (h *Handler) handleAIAPITokens(w http.ResponseWriter, r *http.Request) {
 			ExpiresAt: time.Now().UTC().AddDate(0, 0, days),
 		})
 		if err != nil {
-			writeComposeJSONError(w, http.StatusInternalServerError, "failed to create token")
+			writeComposeJSONError(w, r, http.StatusInternalServerError, "failed to create token")
 			return
 		}
 		if _, err := aiaudit.Record(r.Context(), h.db, aiaudit.Event{
@@ -241,16 +241,16 @@ func (h *Handler) handleAIAPIToken(w http.ResponseWriter, r *http.Request) {
 	userID := h.userID(r.Context())
 	id := strings.TrimSpace(r.PathValue("id"))
 	if id == "" {
-		writeComposeJSONError(w, http.StatusBadRequest, "missing token id")
+		writeComposeJSONError(w, r, http.StatusBadRequest, "missing token id")
 		return
 	}
 	revoked, err := h.db.RevokeAIAPIToken(r.Context(), userID, id)
 	if err != nil {
-		writeComposeJSONError(w, http.StatusInternalServerError, "failed to revoke token")
+		writeComposeJSONError(w, r, http.StatusInternalServerError, "failed to revoke token")
 		return
 	}
 	if !revoked {
-		writeComposeJSONError(w, http.StatusNotFound, "token not found")
+		writeComposeJSONError(w, r, http.StatusNotFound, "token not found")
 		return
 	}
 	if _, err := aiaudit.Record(r.Context(), h.db, aiaudit.Event{

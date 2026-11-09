@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"net/http"
 	"sort"
 	"strings"
@@ -38,7 +39,7 @@ func (h *Handler) handleContactSyncSetup(w http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	contact, err := h.db.GetContact(ctx, h.userID(ctx), strings.TrimSpace(r.PathValue("id")))
 	if err != nil {
-		http.Error(w, "Could not load contact sync setup", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.could_not_load_contact_sync_setup"), http.StatusInternalServerError)
 		return
 	}
 	if contact == nil {
@@ -48,7 +49,7 @@ func (h *Handler) handleContactSyncSetup(w http.ResponseWriter, r *http.Request)
 	setup := models.ContactSyncSetup{Contact: *contact, Phase: "searching", SearchMode: "automatic"}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := views.ContactSyncSetupDialog(setup).Render(ctx, w); err != nil {
-		http.Error(w, "Could not render contact sync setup", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.could_not_render_contact_sync_setup"), http.StatusInternalServerError)
 	}
 }
 
@@ -56,7 +57,7 @@ func (h *Handler) handleContactSyncSetupFindings(w http.ResponseWriter, r *http.
 	ctx := r.Context()
 	contact, err := h.db.GetContact(ctx, h.userID(ctx), strings.TrimSpace(r.PathValue("id")))
 	if err != nil {
-		http.Error(w, "Could not load contact sync setup", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.could_not_load_contact_sync_setup"), http.StatusInternalServerError)
 		return
 	}
 	if contact == nil {
@@ -73,16 +74,16 @@ func (h *Handler) handleContactSyncSetupFindings(w http.ResponseWriter, r *http.
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if accountID != "" {
 		if len(setup.Locations) == 0 {
-			http.Error(w, "Sync location could not be found", http.StatusNotFound)
+			http.Error(w, i18n.T(r.Context(), "server.error.sync_location_could_not_be_found"), http.StatusNotFound)
 			return
 		}
 		if err := views.ContactSyncSetupLocation(setup.Contact.ID, setup.Locations[0]).Render(ctx, w); err != nil {
-			http.Error(w, "Could not render contact sync findings", http.StatusInternalServerError)
+			http.Error(w, i18n.T(r.Context(), "server.error.could_not_render_contact_sync_findings"), http.StatusInternalServerError)
 		}
 		return
 	}
 	if err := views.ContactSyncSetupDiscover(setup).Render(ctx, w); err != nil {
-		http.Error(w, "Could not render contact sync findings", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.could_not_render_contact_sync_findings"), http.StatusInternalServerError)
 	}
 }
 
@@ -92,16 +93,16 @@ func (h *Handler) handlePreviewContactSyncSetup(w http.ResponseWriter, r *http.R
 	contactID := strings.TrimSpace(r.PathValue("id"))
 	contact, err := h.db.GetContact(ctx, userID, contactID)
 	if err != nil || contact == nil {
-		http.Error(w, "Contact could not be loaded", http.StatusNotFound)
+		http.Error(w, i18n.T(r.Context(), "server.error.contact_could_not_be_loaded"), http.StatusNotFound)
 		return
 	}
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Invalid setup choices", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_setup_choices"), http.StatusBadRequest)
 		return
 	}
 	accounts, err := h.contactTargetAccountSet(ctx, userID, contact.SaveTargets)
 	if err != nil {
-		http.Error(w, "Sync locations could not be loaded", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.sync_locations_could_not_be_loaded"), http.StatusBadRequest)
 		return
 	}
 	for accountID, account := range accounts {
@@ -111,23 +112,23 @@ func (h *Handler) handlePreviewContactSyncSetup(w http.ResponseWriter, r *http.R
 		}
 		candidate, source, err := h.loadContactSyncSetupCandidate(ctx, userID, account, key)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("Could not use the selected contact from %s: %v", account.Email, err), http.StatusBadGateway)
+			http.Error(w, i18n.T(r.Context(), "server.pattern.selected_contact_from_failed", "account", account.Email, "detail", serverText(r.Context(), err.Error())), http.StatusBadGateway)
 			return
 		}
 		if err := h.db.ReplaceSyncedContactFieldsForProfile(ctx, userID, contactID, accountID, candidate); err != nil {
-			http.Error(w, "Could not compare the selected contact", http.StatusInternalServerError)
+			http.Error(w, i18n.T(r.Context(), "server.error.could_not_compare_the_selected_contact"), http.StatusInternalServerError)
 			return
 		}
 		source.ContactID = contactID
 		source.UserID = userID
 		if err := h.db.UpsertContactSource(ctx, source); err != nil {
-			http.Error(w, "Could not attach the selected contact", http.StatusInternalServerError)
+			http.Error(w, i18n.T(r.Context(), "server.error.could_not_attach_the_selected_contact"), http.StatusInternalServerError)
 			return
 		}
 	}
 	profile, err := h.db.GetContactProfile(ctx, userID, contactID)
 	if err != nil || profile == nil {
-		http.Error(w, "Could not prepare conflict review", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.could_not_prepare_conflict_review"), http.StatusInternalServerError)
 		return
 	}
 	setup := models.ContactSyncSetup{Contact: *contact, Phase: "resolve", ConflictFields: profile.Fields}
@@ -142,7 +143,7 @@ func (h *Handler) handlePreviewContactSyncSetup(w http.ResponseWriter, r *http.R
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := views.ContactSyncSetupResolve(setup).Render(ctx, w); err != nil {
-		http.Error(w, "Could not render conflict review", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.could_not_render_conflict_review"), http.StatusInternalServerError)
 	}
 }
 
@@ -152,7 +153,7 @@ func (h *Handler) handleConfirmContactSyncSetup(w http.ResponseWriter, r *http.R
 	contactID := strings.TrimSpace(r.PathValue("id"))
 	contact, err := h.db.GetContact(ctx, userID, contactID)
 	if err != nil {
-		http.Error(w, "Could not load contact sync setup", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.could_not_load_contact_sync_setup"), http.StatusInternalServerError)
 		return
 	}
 	if contact == nil {
@@ -160,21 +161,21 @@ func (h *Handler) handleConfirmContactSyncSetup(w http.ResponseWriter, r *http.R
 		return
 	}
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Invalid conflict choices", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_conflict_choices"), http.StatusBadRequest)
 		return
 	}
 	selectedFields := contactSetupPreferredFields(r)
 	if err := h.db.InitializeContactCanonicalFields(ctx, userID, contactID, selectedFields); err != nil {
-		http.Error(w, "Could not initialize synchronized contact values: "+err.Error(), http.StatusBadRequest)
+		http.Error(w, serverText(r.Context(), "Could not initialize synchronized contact values: "+err.Error()), http.StatusBadRequest)
 		return
 	}
 	if err := h.db.SetContactProfileSyncEnabled(ctx, userID, contactID, true); err != nil {
-		http.Error(w, "Could not enable Gofer Sync", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.could_not_enable_gofer_sync"), http.StatusBadRequest)
 		return
 	}
 	contact, err = h.db.GetContact(ctx, userID, contactID)
 	if err != nil || contact == nil {
-		http.Error(w, "Could not load enabled contact", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.could_not_load_enabled_contact"), http.StatusInternalServerError)
 		return
 	}
 	syncQueued := h.scheduleContactAccountSync(ctx, userID, *contact, nil)
@@ -188,7 +189,7 @@ func (h *Handler) handleConfirmContactSyncSetup(w http.ResponseWriter, r *http.R
 }
 
 func (h *Handler) discoverContactSyncSetup(ctx context.Context, userID string, contact models.Contact, mode, customQuery, accountFilter string) models.ContactSyncSetup {
-	setup := models.ContactSyncSetup{Contact: contact, Phase: "discover", SearchMode: mode, SearchQuery: customQuery}
+	setup := models.ContactSyncSetup{Contact: contact, Phase: "discover", SearchMode: mode, SearchQuery: customQuery, HomeLabel: h.contactSetupHomeLabel(ctx, userID, contact)}
 	queries := []string{contact.Email, contact.Phone, contact.Name}
 	switch mode {
 	case "email":
@@ -205,12 +206,16 @@ func (h *Handler) discoverContactSyncSetup(ctx context.Context, userID string, c
 		accountIDs = append(accountIDs, accountID)
 	}
 	sort.Strings(accountIDs)
+	besides := h.contactSetupAccountsBesidesHome(ctx, userID, contact)
 	for _, accountID := range accountIDs {
 		if accountFilter != "" && accountID != accountFilter {
 			continue
 		}
+		if !besides[accountID] {
+			continue
+		}
 		account := accounts[accountID]
-		location := models.ContactSyncSetupLocation{AccountID: account.ID, Label: account.Email, Provider: account.Provider}
+		location := models.ContactSyncSetupLocation{AccountID: account.ID, Label: h.contactSetupLocationLabel(ctx, userID, contact, account.ID, account.Email), Provider: account.Provider}
 		location.Candidates, location.Error = h.searchContactSyncSetupCandidates(ctx, userID, account, contact, queries)
 		setup.Locations = append(setup.Locations, location)
 	}
@@ -234,6 +239,9 @@ func (h *Handler) searchContactSyncSetupCandidates(ctx context.Context, userID s
 			MatchEmail: matchEmail, MatchPhone: matchPhone, MatchName: matchName,
 		})
 	}
+	// Copies count only in the address books the contact is to sync with,
+	// when it names any: another book of the same account is another place.
+	books := contactSetupTargetBooks(contact)
 	switch account.Provider {
 	case providers.ProviderGmail:
 		if h.mailCredentials() == nil {
@@ -282,12 +290,13 @@ func (h *Handler) searchContactSyncSetupCandidates(ctx context.Context, userID s
 				return candidates, err.Error()
 			}
 			for _, candidate := range contacts {
-				if !contactSyncCandidateMatchesQueries(candidate, queries) {
+				// The contact itself is no copy to join.
+				if candidate.ID == contact.ID || !contactSyncCandidateMatchesQueries(candidate, queries) {
 					continue
 				}
 				sources, _ := h.db.GetContactSources(ctx, userID, candidate.ID, account.Provider)
 				for _, source := range sources {
-					if source.AccountID == account.ID {
+					if source.AccountID == account.ID && (len(books) == 0 || books[source.AddressBookID]) {
 						appendCandidate("stored:"+candidate.ID, source.RemoteID, candidate.ID, candidate)
 						break
 					}
@@ -425,4 +434,70 @@ func (h *Handler) loadContactSyncSetupCandidate(ctx context.Context, userID stri
 	default:
 		return models.Contact{}, storage.ContactSource{}, fmt.Errorf("invalid contact selection")
 	}
+}
+
+// contactSetupAccountsBesidesHome gives the accounts holding a Gofer Sync
+// place of the contact other than its main location. Finding the contact
+// in its main location is no news, so setup searches only these.
+func (h *Handler) contactSetupAccountsBesidesHome(ctx context.Context, userID string, contact models.Contact) map[string]bool {
+	home := strings.TrimSpace(contact.StoredIn)
+	accounts := map[string]bool{}
+	_ = h.withUserDB(ctx, userID, func(db *storage.DB) error {
+		for _, target := range contact.SaveTargets {
+			target = strings.TrimSpace(target)
+			if target == "" || target == home {
+				continue
+			}
+			if accountID, ok := strings.CutPrefix(target, "account:"); ok && accountID != "" {
+				accounts[accountID] = true
+			} else if bookID, ok := strings.CutPrefix(target, "book:"); ok && bookID != "" {
+				if book, err := db.GetContactAddressBook(ctx, userID, bookID); err == nil && book.AccountID != "" {
+					accounts[book.AccountID] = true
+				}
+			}
+		}
+		return nil
+	})
+	return accounts
+}
+
+// contactSetupTargetBooks gives the address books among a contact's Gofer
+// Sync places, by id, its main location left out: what is there is its own.
+func contactSetupTargetBooks(contact models.Contact) map[string]bool {
+	books := map[string]bool{}
+	for _, target := range contact.SaveTargets {
+		if bookID, ok := strings.CutPrefix(strings.TrimSpace(target), "book:"); ok && bookID != "" && "book:"+bookID != strings.TrimSpace(contact.StoredIn) {
+			books[bookID] = true
+		}
+	}
+	return books
+}
+
+// contactSetupLocationLabel names a place setup looks in: the account, and
+// the address books of it the contact is to sync with.
+func (h *Handler) contactSetupLocationLabel(ctx context.Context, userID string, contact models.Contact, accountID, accountLabel string) string {
+	var names []string
+	_ = h.withUserDB(ctx, userID, func(db *storage.DB) error {
+		for bookID := range contactSetupTargetBooks(contact) {
+			if book, err := db.GetContactAddressBook(ctx, userID, bookID); err == nil && book.AccountID == accountID && strings.TrimSpace(book.Name) != "" {
+				names = append(names, strings.TrimSpace(book.Name))
+			}
+		}
+		return nil
+	})
+	if len(names) == 0 {
+		return accountLabel
+	}
+	sort.Strings(names)
+	return accountLabel + " / " + strings.Join(names, ", ")
+}
+
+// contactSetupHomeLabel names the contact's main location for its setup.
+func (h *Handler) contactSetupHomeLabel(ctx context.Context, userID string, contact models.Contact) string {
+	var accounts []models.Account
+	_ = h.withUserDB(ctx, userID, func(db *storage.DB) error {
+		accounts, _ = db.GetAccounts(ctx, userID)
+		return nil
+	})
+	return views.ContactHomeLabel(ctx, contact.StoredIn, accounts)
 }

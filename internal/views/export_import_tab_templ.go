@@ -12,12 +12,13 @@ import (
 	"github.com/cristianadrielbraun/gofer/components/checkbox"
 	"github.com/cristianadrielbraun/gofer/components/dialog"
 	"github.com/cristianadrielbraun/gofer/components/icon"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 )
 
 // The Export and import tab lists each action as a short row; an action that
 // takes choices opens a dialog for them. Mail jobs are listed under the
 // action that started them, and refresh when one starts.
-func SettingsExportImportTab(uiSettings map[string]string) templ.Component {
+func SettingsExportImportTab() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -43,9 +44,9 @@ func SettingsExportImportTab(uiSettings map[string]string) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var2 string
-		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(tr(uiSettings, "profile.card.title"))
+		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.profile.heading"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 16, Col: 128}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 17, Col: 131}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -56,9 +57,9 @@ func SettingsExportImportTab(uiSettings map[string]string) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var3 string
-		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(tr(uiSettings, "profile.card.description"))
+		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.profile.intro"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 17, Col: 105}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 18, Col: 100}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -68,11 +69,11 @@ func SettingsExportImportTab(uiSettings map[string]string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = dataActionRow(tr(uiSettings, "profile.card.export"), tr(uiSettings, "profile.card.export_description"), "profile-export-dialog", "", "", tr(uiSettings, "profile.card.export_button"), icon.Download(icon.Props{Class: "size-3.5"})).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = dataActionRow(i18n.T(ctx, "transfer.profile.export"), i18n.T(ctx, "transfer.profile.export_detail"), "profile-export-dialog", "", "", i18n.T(ctx, "transfer.export_button"), icon.Download(icon.Props{Class: "size-3.5"})).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = dataActionRow(tr(uiSettings, "profile.card.import"), tr(uiSettings, "profile.card.import_description"), "profile-import-dialog", "profile-import-panel", "/api/profile/import/upload", tr(uiSettings, "profile.card.import_button"), icon.Upload(icon.Props{Class: "size-3.5"})).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = dataActionRow(i18n.T(ctx, "transfer.profile.import"), i18n.T(ctx, "transfer.profile.import_detail"), "profile-import-dialog", "profile-import-panel", "/api/profile/import/upload", i18n.T(ctx, "transfer.import_button"), icon.Upload(icon.Props{Class: "size-3.5"})).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -81,9 +82,9 @@ func SettingsExportImportTab(uiSettings map[string]string) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var4 string
-		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(tr(uiSettings, "thunderbird.card.description"))
+		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "thunderbird.card.description"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 25, Col: 109}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 26, Col: 106}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -93,7 +94,7 @@ func SettingsExportImportTab(uiSettings map[string]string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = dataActionRow(tr(uiSettings, "thunderbird.card.action"), tr(uiSettings, "thunderbird.card.action_description"), "thunderbird-import-dialog", "thunderbird-import-panel", "/api/thunderbird/import/upload", tr(uiSettings, "thunderbird.card.button"), icon.Upload(icon.Props{Class: "size-3.5"})).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = dataActionRow(i18n.T(ctx, "thunderbird.card.action"), i18n.T(ctx, "thunderbird.card.action_detail"), "thunderbird-import-dialog", "thunderbird-import-panel", "/api/thunderbird/import/upload", i18n.T(ctx, "thunderbird.card.button"), icon.Upload(icon.Props{Class: "size-3.5"})).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -102,9 +103,9 @@ func SettingsExportImportTab(uiSettings map[string]string) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var5 string
-		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(tr(uiSettings, "mail.card.title"))
+		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.mail.heading"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 31, Col: 125}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 32, Col: 128}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -115,9 +116,9 @@ func SettingsExportImportTab(uiSettings map[string]string) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var6 string
-		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(tr(uiSettings, "mail.card.description"))
+		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.mail.intro"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 32, Col: 102}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 33, Col: 97}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -145,7 +146,7 @@ func SettingsExportImportTab(uiSettings map[string]string) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = dataActionRow(tr(uiSettings, "mail.export.title"), tr(uiSettings, "mail.export.description"), "mail-export-dialog", "", "/api/mail/exports", tr(uiSettings, "mail.export.button"), icon.Download(icon.Props{Class: "size-3.5"})).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = dataActionRow(i18n.T(ctx, "transfer.mail.export"), i18n.T(ctx, "transfer.mail.export_detail"), "mail-export-dialog", "", "/api/mail/exports", i18n.T(ctx, "transfer.export_button"), icon.Download(icon.Props{Class: "size-3.5"})).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -167,7 +168,7 @@ func SettingsExportImportTab(uiSettings map[string]string) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = dataActionRow(tr(uiSettings, "mail.import.title"), tr(uiSettings, "mail.import.description"), "mail-import-dialog", "", "/api/mail/imports", tr(uiSettings, "mail.import.button"), icon.Upload(icon.Props{Class: "size-3.5"})).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = dataActionRow(i18n.T(ctx, "transfer.mail.import"), i18n.T(ctx, "transfer.mail.import_detail"), "mail-import-dialog", "", "/api/mail/imports", i18n.T(ctx, "transfer.import_button"), icon.Upload(icon.Props{Class: "size-3.5"})).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -189,7 +190,7 @@ func SettingsExportImportTab(uiSettings map[string]string) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = dataActionRow(tr(uiSettings, "mail.transfer.title"), tr(uiSettings, "mail.transfer.description"), "mail-transfer-dialog", "", "/api/mail/transfers", tr(uiSettings, "mail.transfer.button"), icon.ArrowRightLeft(icon.Props{Class: "size-3.5"})).Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = dataActionRow(i18n.T(ctx, "transfer.mail.transfer"), i18n.T(ctx, "transfer.mail.transfer_detail"), "mail-transfer-dialog", "", "/api/mail/transfers", i18n.T(ctx, "transfer.mail.transfer_button"), icon.ArrowRightLeft(icon.Props{Class: "size-3.5"})).Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -209,13 +210,13 @@ func SettingsExportImportTab(uiSettings map[string]string) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = ProfileExportForm(uiSettings).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = ProfileExportForm().Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = dataActionDialog("profile-export-dialog", "", tr(uiSettings, "profile.dialog.export"), "sm:max-w-lg").Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = dataActionDialog("profile-export-dialog", "", i18n.T(ctx, "transfer.profile.export"), "sm:max-w-lg").Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -231,13 +232,13 @@ func SettingsExportImportTab(uiSettings map[string]string) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = dataDialogLoading(tr(uiSettings, "common.loading")).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = dataDialogLoading().Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = dataActionDialog("profile-import-dialog", "profile-import-panel", tr(uiSettings, "profile.dialog.import"), "sm:max-w-2xl").Render(templ.WithChildren(ctx, templ_7745c5c3_Var11), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = dataActionDialog("profile-import-dialog", "profile-import-panel", i18n.T(ctx, "transfer.profile.import"), "sm:max-w-2xl").Render(templ.WithChildren(ctx, templ_7745c5c3_Var11), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -253,13 +254,13 @@ func SettingsExportImportTab(uiSettings map[string]string) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = dataDialogLoading(tr(uiSettings, "common.loading")).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = dataDialogLoading().Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = dataActionDialog("thunderbird-import-dialog", "thunderbird-import-panel", tr(uiSettings, "thunderbird.dialog.title"), "sm:max-w-2xl").Render(templ.WithChildren(ctx, templ_7745c5c3_Var12), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = dataActionDialog("thunderbird-import-dialog", "thunderbird-import-panel", i18n.T(ctx, "thunderbird.dialog.title"), "sm:max-w-2xl").Render(templ.WithChildren(ctx, templ_7745c5c3_Var12), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -275,13 +276,13 @@ func SettingsExportImportTab(uiSettings map[string]string) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = dataDialogLoading(tr(uiSettings, "common.loading")).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = dataDialogLoading().Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = dataActionDialog("mail-export-dialog", "", tr(uiSettings, "mail.dialog.export"), "sm:max-w-xl").Render(templ.WithChildren(ctx, templ_7745c5c3_Var13), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = dataActionDialog("mail-export-dialog", "", i18n.T(ctx, "transfer.mail.export"), "sm:max-w-xl").Render(templ.WithChildren(ctx, templ_7745c5c3_Var13), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -297,13 +298,13 @@ func SettingsExportImportTab(uiSettings map[string]string) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = dataDialogLoading(tr(uiSettings, "common.loading")).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = dataDialogLoading().Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = dataActionDialog("mail-import-dialog", "", tr(uiSettings, "mail.dialog.import"), "sm:max-w-2xl").Render(templ.WithChildren(ctx, templ_7745c5c3_Var14), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = dataActionDialog("mail-import-dialog", "", i18n.T(ctx, "transfer.mail.import"), "sm:max-w-2xl").Render(templ.WithChildren(ctx, templ_7745c5c3_Var14), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -319,13 +320,13 @@ func SettingsExportImportTab(uiSettings map[string]string) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = dataDialogLoading(tr(uiSettings, "common.loading")).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = dataDialogLoading().Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = dataActionDialog("mail-transfer-dialog", "", tr(uiSettings, "mail.dialog.transfer"), "sm:max-w-2xl").Render(templ.WithChildren(ctx, templ_7745c5c3_Var15), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = dataActionDialog("mail-transfer-dialog", "", i18n.T(ctx, "transfer.mail.transfer"), "sm:max-w-2xl").Render(templ.WithChildren(ctx, templ_7745c5c3_Var15), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -374,7 +375,7 @@ func dataActionRow(title, description, dialogID, bodyID, load, label string, but
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(dialogID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 75, Col: 95}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 76, Col: 95}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
@@ -387,7 +388,7 @@ func dataActionRow(title, description, dialogID, bodyID, load, label string, but
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 78, Col: 59}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 79, Col: 59}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 		if templ_7745c5c3_Err != nil {
@@ -400,7 +401,7 @@ func dataActionRow(title, description, dialogID, bodyID, load, label string, but
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(description)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 79, Col: 79}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 80, Col: 79}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 		if templ_7745c5c3_Err != nil {
@@ -452,7 +453,7 @@ func dataActionRow(title, description, dialogID, bodyID, load, label string, but
 				var templ_7745c5c3_Var23 string
 				templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(load)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 86, Col: 19}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 87, Col: 19}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 				if templ_7745c5c3_Err != nil {
@@ -465,7 +466,7 @@ func dataActionRow(title, description, dialogID, bodyID, load, label string, but
 				var templ_7745c5c3_Var24 string
 				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs("#" + dataDialogBodyID(dialogID, bodyID))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 87, Col: 58}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 88, Col: 58}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 				if templ_7745c5c3_Err != nil {
@@ -483,7 +484,7 @@ func dataActionRow(title, description, dialogID, bodyID, load, label string, but
 			var templ_7745c5c3_Var25 string
 			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(dialogID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 90, Col: 37}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 91, Col: 37}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 			if templ_7745c5c3_Err != nil {
@@ -500,7 +501,7 @@ func dataActionRow(title, description, dialogID, bodyID, load, label string, but
 			var templ_7745c5c3_Var26 string
 			templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 93, Col: 12}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 94, Col: 12}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 			if templ_7745c5c3_Err != nil {
@@ -560,7 +561,7 @@ func dataJobList(load string) templ.Component {
 		var templ_7745c5c3_Var28 string
 		templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(load)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 102, Col: 19}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 103, Col: 19}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 		if templ_7745c5c3_Err != nil {
@@ -650,7 +651,7 @@ func dataActionDialog(id, bodyID, title, class string) templ.Component {
 						var templ_7745c5c3_Var34 string
 						templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 114, Col: 12}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 115, Col: 12}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 						if templ_7745c5c3_Err != nil {
@@ -675,7 +676,7 @@ func dataActionDialog(id, bodyID, title, class string) templ.Component {
 				var templ_7745c5c3_Var35 string
 				templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(dataDialogBodyID(id, bodyID))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 117, Col: 41}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 118, Col: 41}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 				if templ_7745c5c3_Err != nil {
@@ -817,7 +818,7 @@ func dataDialogFooter() templ.Component {
 	})
 }
 
-func ProfileExportForm(uiSettings map[string]string) templ.Component {
+func ProfileExportForm() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -885,9 +886,9 @@ func ProfileExportForm(uiSettings map[string]string) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var45 string
-			templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(tr(uiSettings, "profile.export.include_contacts"))
+			templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.profile.include_contacts"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 148, Col: 82}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 149, Col: 81}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 			if templ_7745c5c3_Err != nil {
@@ -898,9 +899,9 @@ func ProfileExportForm(uiSettings map[string]string) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var46 string
-			templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(tr(uiSettings, "profile.export.include_contacts_description"))
+			templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.profile.include_contacts_detail"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 149, Col: 125}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 150, Col: 119}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 			if templ_7745c5c3_Err != nil {
@@ -911,9 +912,9 @@ func ProfileExportForm(uiSettings map[string]string) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var47 string
-			templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(tr(uiSettings, "profile.export.no_secrets"))
+			templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.profile.no_secrets"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 152, Col: 105}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 153, Col: 104}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 			if templ_7745c5c3_Err != nil {
@@ -968,9 +969,9 @@ func ProfileExportForm(uiSettings map[string]string) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var51 string
-			templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(tr(uiSettings, "profile.export.submit"))
+			templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.profile.export"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 157, Col: 45}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 158, Col: 44}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 			if templ_7745c5c3_Err != nil {
@@ -994,7 +995,7 @@ func ProfileExportForm(uiSettings map[string]string) templ.Component {
 	})
 }
 
-func dataDialogLoading(label string) templ.Component {
+func dataDialogLoading() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -1027,7 +1028,20 @@ func dataDialogLoading(label string) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "<p class=\"text-xs text-muted-foreground\">Loading…</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "<p class=\"text-xs text-muted-foreground\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var54 string
+			templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.loading"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/export_import_tab.templ`, Line: 166, Col: 76}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

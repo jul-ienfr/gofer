@@ -15,6 +15,7 @@ import (
 	"github.com/emersion/go-message/mail"
 	xhtml "golang.org/x/net/html"
 
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"github.com/cristianadrielbraun/gofer/internal/store"
 )
 
@@ -32,6 +33,7 @@ type ParsedMessage struct {
 	FromEmail   string
 	To          []Recipient
 	CC          []Recipient
+	BCC         []Recipient
 	DateSent    time.Time
 	TextBody    string
 	HTMLBody    []byte
@@ -85,7 +87,7 @@ func ParseMessage(ctx context.Context, r io.Reader, blobStore *store.BlobStore, 
 	parsed.MessageID, _ = header.MessageID()
 	parsed.Subject, _ = header.Subject()
 	if parsed.Subject == "" {
-		parsed.Subject = "(no subject)"
+		parsed.Subject = i18n.NoSubject
 	}
 
 	if ids := ParseMessageIDs(header.Get("In-Reply-To")); len(ids) > 0 {
@@ -111,6 +113,14 @@ func ParseMessage(ctx context.Context, r io.Reader, blobStore *store.BlobStore, 
 	if ccList, err := header.AddressList("Cc"); err == nil {
 		for _, addr := range ccList {
 			parsed.CC = append(parsed.CC, Recipient{Name: DecodeHeader(addr.Name), Email: addr.Address})
+		}
+	}
+
+	// Only a copy kept by its sender has Bcc, such as a draft or a sent
+	// message.
+	if bccList, err := header.AddressList("Bcc"); err == nil {
+		for _, addr := range bccList {
+			parsed.BCC = append(parsed.BCC, Recipient{Name: DecodeHeader(addr.Name), Email: addr.Address})
 		}
 	}
 
@@ -229,7 +239,7 @@ func ParseMessage(ctx context.Context, r io.Reader, blobStore *store.BlobStore, 
 		for _, attachment := range parsed.Attachments {
 			if attachment.ContentType == "text/calendar" {
 				// Calendar-only messages still need a readable, cacheable body.
-				parsed.TextBody = "Calendar file attached."
+				parsed.TextBody = i18n.CalendarOnlyBody
 				break
 			}
 		}

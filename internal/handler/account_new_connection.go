@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"net/http"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	smtpclient "github.com/cristianadrielbraun/gofer/internal/mail/smtp"
 	mailtransport "github.com/cristianadrielbraun/gofer/internal/mail/transport"
 	"github.com/cristianadrielbraun/gofer/internal/models"
+	"github.com/cristianadrielbraun/gofer/internal/netguard"
 	"github.com/cristianadrielbraun/gofer/internal/providers"
 	"github.com/cristianadrielbraun/gofer/internal/storage"
 	"github.com/cristianadrielbraun/gofer/internal/views"
@@ -35,7 +37,11 @@ func (h *Handler) handleTestNewAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Password == "" {
-		http.Error(w, "all required fields must be filled in", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.all_required_fields_must_be_filled_in"), http.StatusBadRequest)
+		return
+	}
+	r, ok = h.withProxyChoice(w, r)
+	if !ok {
 		return
 	}
 	h.writeTypedAccountTest(w, r, req)
@@ -64,23 +70,28 @@ func (h *Handler) handleTestAccountChanges(w http.ResponseWriter, r *http.Reques
 	if req.SmtpUsername != "" && req.SmtpPassword == "" {
 		req.SmtpPassword = smtpPassword
 	}
+	// The changes are tested the way the account connects.
+	r, ok = h.withAccountProxyFor(w, r, r.PathValue("id"))
+	if !ok {
+		return
+	}
 	h.writeTypedAccountTest(w, r, req)
 }
 
 func parseTypedAccountTest(w http.ResponseWriter, r *http.Request) (models.CreateAccountRequest, bool) {
 	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.invalid_form"), http.StatusBadRequest)
 		return models.CreateAccountRequest{}, false
 	}
 	req := accountRequestFromForm(r)
 	if req.Provider == providers.ProviderJMAP {
 		if !providers.JMAPEnabled() {
-			http.Error(w, providers.ErrJMAPDisabled.Error(), http.StatusBadRequest)
+			http.Error(w, serverText(r.Context(), providers.ErrJMAPDisabled.Error()), http.StatusBadRequest)
 			return req, false
 		}
 		if req.EmailAddress == "" {
-			http.Error(w, "all required fields must be filled in", http.StatusBadRequest)
+			http.Error(w, i18n.T(r.Context(), "server.error.all_required_fields_must_be_filled_in"), http.StatusBadRequest)
 			return req, false
 		}
 		if req.Username == "" {
@@ -89,12 +100,12 @@ func parseTypedAccountTest(w http.ResponseWriter, r *http.Request) (models.Creat
 		return req, true
 	}
 	if req.EmailAddress == "" || req.IMAPHost == "" || req.SMTPHost == "" || req.Username == "" {
-		http.Error(w, "all required fields must be filled in", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.all_required_fields_must_be_filled_in"), http.StatusBadRequest)
 		return req, false
 	}
 	// OAuth mailboxes connect through the provider's authorization flow instead.
 	if (req.Provider != "" && req.Provider != "imap") || (req.AuthMethod != "" && req.AuthMethod != "plain") {
-		http.Error(w, "this account connection method can't be tested here", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.this_account_connection_method_can_t_be"), http.StatusBadRequest)
 		return req, false
 	}
 	return req, true
@@ -143,6 +154,7 @@ func (h *Handler) writeTypedAccountTest(w http.ResponseWriter, r *http.Request, 
 		Provider: "imap", AuthMethod: "plain", Username: req.Username, SmtpUsername: req.SmtpUsername,
 		IMAPHost: req.IMAPHost, IMAPPort: req.IMAPPort,
 		SMTPHost: req.SMTPHost, SMTPPort: req.SMTPPort,
+		Proxy: netguard.ProxyFrom(ctx),
 	}
 	smtpPassword := req.Password
 	if req.SmtpUsername != "" {
@@ -165,7 +177,7 @@ const jmapSessionURLHeader = "X-Gofer-JMAP-Session-URL"
 func (h *Handler) writeJMAPAccountTest(ctx context.Context, w http.ResponseWriter, r *http.Request, req models.CreateAccountRequest) {
 	result := models.ConnectionTestResult{Service: "jmap"}
 	if req.Password == "" {
-		http.Error(w, "all required fields must be filled in", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), "server.error.all_required_fields_must_be_filled_in"), http.StatusBadRequest)
 		return
 	}
 	server := strings.TrimSpace(r.FormValue("jmap_server"))
@@ -185,11 +197,11 @@ func (h *Handler) writeJMAPAccountTest(ctx context.Context, w http.ResponseWrite
 		}
 	}
 	if err != nil {
-		result.Message = server
+		result.Message = serverText(r.Context(), server)
 		if result.Message == "" {
-			result.Message = req.EmailAddress
+			result.Message = serverText(r.Context(), req.EmailAddress)
 		}
-		result.Error = err.Error()
+		result.Error = serverText(r.Context(), err.Error())
 	}
 	writeAccountTestResults(w, r, []models.ConnectionTestResult{result})
 }
@@ -252,7 +264,11 @@ func (h *Handler) resolveJMAPAccountChanges(r *http.Request, accountID string, r
 		}
 		password = saved
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
+	ctx, err := h.accountProxyContext(r.Context(), h.userID(r.Context()), accountID)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	candidates, err := mailautodiscover.JMAPSessionCandidates(ctx, req.EmailAddress, server, nil)
 	if err != nil {
@@ -314,11 +330,11 @@ func (h *Handler) testNewAccountService(ctx context.Context, protocol string, cf
 		})
 	}
 	if err != nil {
-		result.Error = err.Error()
+		result.Error = serverText(ctx, err.Error())
 		return result
 	}
 	result.Success = true
-	result.Message = "Connection successful"
+	result.Message = i18n.T(ctx, "server.msg.connection_successful")
 	return result
 }
 

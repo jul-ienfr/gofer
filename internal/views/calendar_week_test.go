@@ -2,6 +2,7 @@ package views
 
 import (
 	"bytes"
+	"context"
 	"math"
 	"strings"
 	"testing"
@@ -20,8 +21,8 @@ func TestCalendarWeekBuildsMondayFirstAcrossMonthAndYear(t *testing.T) {
 			t.Fatal("week must contain exactly seven days")
 		}
 		days := week.Weeks[0].Days
-		if days[0].ISODate != test.first || days[6].ISODate != test.last || week.MonthLabel != test.label {
-			t.Fatalf("week for %s = %s to %s, label %q", test.date, days[0].ISODate, days[6].ISODate, week.MonthLabel)
+		if days[0].ISODate != test.first || days[6].ISODate != test.last || calendarPeriodLabel(context.Background(), week) != test.label {
+			t.Fatalf("week for %s = %s to %s, label %q", test.date, days[0].ISODate, days[6].ISODate, calendarPeriodLabel(context.Background(), week))
 		}
 		if week.View != "week" || week.DateKey != test.date || week.PeriodKey != "week:"+test.first {
 			t.Fatalf("incorrect view state: %#v", week)
@@ -109,7 +110,7 @@ func TestCalendarWeekSplitsTimezoneTransitions(t *testing.T) {
 		}
 		var minutes float64
 		for _, block := range blocks {
-			if block.EndMinute < block.StartMinute || !strings.Contains(block.TimeLabel, "CET") && !strings.Contains(block.TimeLabel, "CEST") {
+			if block.EndMinute < block.StartMinute || block.Zone != "CET" && block.Zone != "CEST" {
 				t.Fatalf("invalid DST segment: %#v", block)
 			}
 			minutes += block.EndMinute - block.StartMinute
@@ -139,7 +140,7 @@ func TestCalendarWeekRendersAllDayRowTimelineAndDetails(t *testing.T) {
 		`data-calendar-timed-column="2026-10-04"`, `aria-label="Next week"`, `aria-label="Previous week"`,
 		`data-calendar-view-switch="month"`, `data-calendar-view-switch="week"`,
 		`data-calendar-select-day="2026-09-28"`, `data-calendar-all-day-column="2026-09-28"`, `data-calendar-day-dot`,
-		`top:576.00px;height:64.00px`, `09:00–10:00`, `hx-get="/api/calendar/events/Planning"`,
+		`top:576.00px;height:64.00px`, `9:00 AM–10:00 AM`, `hx-get="/api/calendar/events/Planning"`,
 		`&#34;view&#34;:&#34;week&#34;`, `&#34;date&#34;:&#34;2026-10-01&#34;`,
 	} {
 		if !strings.Contains(html, expected) {
@@ -236,5 +237,22 @@ func TestCalendarMoveAttributesAndResize(t *testing.T) {
 	event.EndAt = &late
 	if calendarBlockResizable(CalendarTimedBlock{Event: event}, day) {
 		t.Fatal("an event ending the next day can be resized on its first day")
+	}
+}
+
+// A point event shows only its time, not a range from it to itself.
+func TestCalendarWeekPointEventShowsOnlyItsTime(t *testing.T) {
+	ctx := context.Background()
+	day := CalendarDay{Date: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)}
+	blocks := calendarTimedBlocks(day, []CalendarEvent{calendarTestTimedEvent("point", day.Date, 14*60, 14*60)})
+	if len(blocks) != 1 {
+		t.Fatalf("blocks = %#v", blocks)
+	}
+	if got, want := calendarTimedBlockRange(ctx, blocks[0]), calendarMinuteLabel(ctx, 14*60); got != want {
+		t.Fatalf("point event label = %q, want %q", got, want)
+	}
+	ranged := calendarTimedBlocks(day, []CalendarEvent{calendarTestTimedEvent("meeting", day.Date, 14*60, 15*60)})
+	if got := calendarTimedBlockRange(ctx, ranged[0]); got == calendarMinuteLabel(ctx, 14*60) {
+		t.Fatalf("event with a length lost its end: %q", got)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"html"
 	"io"
 	"log"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/cristianadrielbraun/gofer/internal/models"
+	"github.com/cristianadrielbraun/gofer/internal/netguard"
 	"github.com/cristianadrielbraun/gofer/internal/providers"
 	"github.com/cristianadrielbraun/gofer/internal/storage"
 )
@@ -22,6 +24,9 @@ import (
 type googlePeopleResponse struct {
 	Connections   []googlePerson `json:"connections"`
 	NextPageToken string         `json:"nextPageToken"`
+	// NextSyncToken, on the last page of a listing asked for one, is where
+	// the next sync of changes starts.
+	NextSyncToken string `json:"nextSyncToken,omitempty"`
 }
 
 type googleSearchContactsResponse struct {
@@ -41,6 +46,12 @@ type googlePerson struct {
 	Organizations  []googleOrganization `json:"organizations,omitempty"`
 	Biographies    []googleBiography    `json:"biographies,omitempty"`
 	Photos         []googlePhoto        `json:"photos,omitempty"`
+	// Metadata.Deleted marks a person deleted since the sync token.
+	Metadata *googlePersonMetadata `json:"metadata,omitempty"`
+}
+
+type googlePersonMetadata struct {
+	Deleted bool `json:"deleted,omitempty"`
 }
 
 type googleName struct {
@@ -120,7 +131,7 @@ func (h *Handler) accountSupportsContactSync(ctx context.Context, userID string,
 
 func (h *Handler) handleSyncAccountContacts(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		htmlStatus(w, http.StatusBadRequest, "Invalid sync request.")
+		htmlStatus(w, r, http.StatusBadRequest, "Invalid sync request.")
 		return
 	}
 
@@ -129,11 +140,11 @@ func (h *Handler) handleSyncAccountContacts(w http.ResponseWriter, r *http.Reque
 	accountID := strings.TrimSpace(r.FormValue("account_id"))
 	accounts, err := h.contactSyncAccounts(ctx, userID, accountID)
 	if err != nil {
-		htmlStatus(w, http.StatusInternalServerError, "Could not find contact-sync accounts.")
+		htmlStatus(w, r, http.StatusInternalServerError, "Could not find contact-sync accounts.")
 		return
 	}
 	if len(accounts) == 0 {
-		htmlStatus(w, http.StatusBadRequest, "Connect an account with contact sync before syncing contacts.")
+		htmlStatus(w, r, http.StatusBadRequest, "Connect an account with contact sync before syncing contacts.")
 		return
 	}
 
@@ -149,20 +160,20 @@ func (h *Handler) handleSyncAccountContacts(w http.ResponseWriter, r *http.Reque
 	}
 
 	if len(failures) == len(accounts) {
-		htmlStatus(w, http.StatusBadGateway, "Contact sync failed: "+strings.Join(failures, "; "))
+		htmlStatus(w, r, http.StatusBadGateway, "Contact sync failed: "+strings.Join(failures, "; "))
 		return
 	}
 
 	_ = h.db.LogContactActivity(ctx, userID, "provider_contacts_synced", "", "Account contacts synced", totalImported)
 	if len(failures) > 0 {
-		htmlStatus(w, http.StatusOK, fmt.Sprintf("Contacts partially synced: %d imported or updated. Failed: %s", totalImported, strings.Join(failures, "; ")))
+		htmlStatus(w, r, http.StatusOK, fmt.Sprintf("Contacts partially synced: %d imported or updated. Failed: %s", totalImported, strings.Join(failures, "; ")))
 		return
 	}
 	if len(accounts) == 1 {
-		htmlStatus(w, http.StatusOK, fmt.Sprintf("Contacts synced for %s: %d imported or updated.", accounts[0].Email, totalImported))
+		htmlStatus(w, r, http.StatusOK, fmt.Sprintf("Contacts synced for %s: %d imported or updated.", accounts[0].Email, totalImported))
 		return
 	}
-	htmlStatus(w, http.StatusOK, fmt.Sprintf("Contacts synced across %d accounts: %d imported or updated.", len(accounts), totalImported))
+	htmlStatus(w, r, http.StatusOK, fmt.Sprintf("Contacts synced across %d accounts: %d imported or updated.", len(accounts), totalImported))
 }
 
 func (h *Handler) handleSyncGmailContacts(w http.ResponseWriter, r *http.Request) {
@@ -244,49 +255,42 @@ func (h *Handler) pullContactAccount(ctx context.Context, userID string, account
 	}
 }
 
+// syncGooglePeopleConnections pulls the contacts that changed in Gmail
+// since the last sync, and settles the ones deleted there, for the shared
+// store.
 func (h *Handler) syncGooglePeopleConnections(ctx context.Context, userID, accountID, accessToken string) (int, error) {
-	client := &http.Client{Timeout: 30 * time.Second}
-	pageToken := ""
-	imported := 0
-
-	for {
-		values := url.Values{}
-		values.Set("personFields", googleContactPersonFields())
-		values.Set("pageSize", "1000")
-		if pageToken != "" {
-			values.Set("pageToken", pageToken)
-		}
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, googlePeopleAPIBaseURL+"/people/me/connections?"+values.Encode(), nil)
+	syncToken, err := h.db.ContactSyncToken(ctx, userID, accountID)
+	if err != nil {
+		return 0, err
+	}
+	client := &http.Client{Transport: netguard.APITransport, Timeout: 30 * time.Second}
+	get := func(endpoint string, out any) error {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 		if err != nil {
-			return imported, err
+			return err
 		}
 		req.Header.Set("Authorization", "Bearer "+accessToken)
-
 		resp, err := client.Do(req)
 		if err != nil {
-			return imported, err
+			return err
 		}
+		defer resp.Body.Close()
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			body, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
-			return imported, fmt.Errorf("people api returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+			body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+			return newGoogleAPIError(resp, body)
 		}
-
-		var people googlePeopleResponse
-		decodeErr := json.NewDecoder(resp.Body).Decode(&people)
-		resp.Body.Close()
-		if decodeErr != nil {
-			return imported, decodeErr
-		}
-
-		for _, person := range people.Connections {
+		return json.NewDecoder(resp.Body).Decode(out)
+	}
+	imported := 0
+	err = googleContactChanges(ctx, get, syncToken, func(people []googlePerson, deleted []string, next string) error {
+		for _, person := range people {
 			contact := googleContactFromPerson(person)
 			if !contact.HasDetails() {
 				continue
 			}
 			contactID, canonicalChanged, err := h.upsertInboundSyncedContact(ctx, userID, providers.ProviderGmail, accountID, person.ResourceName, contact)
 			if err != nil {
-				return imported, err
+				return err
 			}
 			if contactID != "" && strings.TrimSpace(person.ResourceName) != "" {
 				if err := h.db.UpsertContactSource(ctx, storage.ContactSource{
@@ -297,23 +301,27 @@ func (h *Handler) syncGooglePeopleConnections(ctx context.Context, userID, accou
 					RemoteID:  person.ResourceName,
 					Etag:      person.Etag,
 				}); err != nil {
-					return imported, err
+					return err
 				}
 			}
 			if canonicalChanged {
 				if err := h.scheduleInboundContactFanout(ctx, userID, contactID, accountID); err != nil {
-					return imported, err
+					return err
 				}
 			}
 			imported++
 		}
-
-		pageToken = people.NextPageToken
-		if pageToken == "" {
-			break
+		for _, remoteID := range deleted {
+			if err := h.db.RemoveDeletedContactSource(ctx, userID, providers.ProviderGmail, accountID, remoteID); err != nil {
+				return err
+			}
 		}
-	}
-	return imported, nil
+		if next != "" {
+			return h.db.SaveContactSyncToken(ctx, userID, accountID, providers.ProviderGmail, next)
+		}
+		return nil
+	})
+	return imported, err
 }
 
 func (h *Handler) scheduleInboundContactFanout(ctx context.Context, userID, contactID, sourceAccountID string) error {
@@ -359,6 +367,8 @@ func (h *Handler) upsertInboundSyncedContact(ctx context.Context, userID, provid
 		}
 		if source != nil {
 			profileID = source.ContactID
+		} else if profileID, err = h.db.ContactOfRemovedCard(ctx, userID, provider, accountID, remoteID); err != nil {
+			return "", false, err
 		}
 		// A contact in the Trash still has its address-book copy; leave it
 		// alone rather than bring it back as a new contact.
@@ -498,7 +508,15 @@ func (h *Handler) syncContactToAccountTargets(ctx context.Context, userID string
 	if !contact.GoferSyncEnabled || contact.ID == "" || !contact.HasDetails() {
 		return nil
 	}
+	return h.pushContactToTargets(ctx, userID, contact, excludedAccountID)
+}
 
+// pushContactToTargets writes contact to every account its SaveTargets
+// name, Gofer Sync on or off; callers decide whether it should go.
+func (h *Handler) pushContactToTargets(ctx context.Context, userID string, contact models.Contact, excludedAccountID string) error {
+	if contact.ID == "" || !contact.HasDetails() {
+		return nil
+	}
 	desired, err := h.contactTargetAccountSet(ctx, userID, contact.SaveTargets)
 	if err != nil {
 		return err
@@ -626,7 +644,7 @@ func (h *Handler) handleSyncContactNow(w http.ResponseWriter, r *http.Request) {
 	contactID := strings.TrimSpace(r.PathValue("id"))
 	contact, err := h.db.GetContact(ctx, userID, contactID)
 	if err != nil {
-		http.Error(w, "Could not load contact", http.StatusInternalServerError)
+		http.Error(w, i18n.T(r.Context(), "server.error.could_not_load_contact"), http.StatusInternalServerError)
 		return
 	}
 	if contact == nil {
@@ -634,11 +652,11 @@ func (h *Handler) handleSyncContactNow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !contact.GoferSyncEnabled {
-		http.Error(w, "Gofer Sync is disabled for this contact", http.StatusConflict)
+		http.Error(w, i18n.T(r.Context(), "server.error.gofer_sync_is_disabled_for_this_contact"), http.StatusConflict)
 		return
 	}
 	if !h.scheduleContactAccountSync(ctx, userID, *contact, nil) {
-		http.Error(w, "No enabled sync locations are available", http.StatusConflict)
+		http.Error(w, i18n.T(r.Context(), "server.error.no_enabled_sync_locations_are_available"), http.StatusConflict)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -720,6 +738,10 @@ func (h *Handler) processContactSyncOperation(parent context.Context, op storage
 		return
 	}
 	contact = *current
+	if store := strings.TrimSpace(op.Payload.StoreTarget); store != "" {
+		h.processContactStoreOperation(ctx, op, contact, store)
+		return
+	}
 	if !contact.GoferSyncEnabled {
 		if err := h.db.MarkContactSyncOperationSuccess(context.Background(), op.ID); err != nil {
 			log.Printf("contacts sync operation %s: cancel disabled sync: %v", op.ID, err)
@@ -751,6 +773,25 @@ func (h *Handler) processContactSyncOperation(parent context.Context, op storage
 		log.Printf("contacts sync operation %s: mark success: %v", op.ID, err)
 	}
 	logSyncResult("contact_synced", "done", "Gofer Sync complete", "")
+}
+
+// processContactStoreOperation writes an imported contact once to the one
+// place it is stored in, whether or not Gofer Sync is on for it.
+func (h *Handler) processContactStoreOperation(ctx context.Context, op storage.ContactSyncOperation, contact models.Contact, store string) {
+	contact.SaveTargets = []string{store}
+	if err := h.pushContactToTargets(ctx, op.UserID, contact, ""); err != nil {
+		retry := op.AttemptCount < 3
+		if markErr := h.db.MarkContactSyncOperationError(context.Background(), op.ID, err.Error(), retry); markErr != nil {
+			log.Printf("contacts store operation %s: mark error: %v", op.ID, markErr)
+		}
+		if retry {
+			h.signalContactSyncOperationWorker()
+		}
+		return
+	}
+	if err := h.db.MarkContactSyncOperationSuccess(context.Background(), op.ID); err != nil {
+		log.Printf("contacts store operation %s: mark success: %v", op.ID, err)
+	}
 }
 
 func (h *Handler) contactNeedsAccountSync(ctx context.Context, userID string, contact models.Contact, previous *models.Contact) bool {
@@ -812,27 +853,32 @@ func (h *Handler) gmailTargetAccountSet(ctx context.Context, userID string, targ
 }
 
 func (h *Handler) deleteContactFromAccounts(ctx context.Context, userID string, contact models.Contact) error {
+	return h.deleteContactFromAccountsIn(ctx, userID, contact, nil)
+}
+
+// deleteContactFromAccountsIn deletes the contact's copies that only
+// accepts, every copy when it is nil.
+func (h *Handler) deleteContactFromAccountsIn(ctx context.Context, userID string, contact models.Contact, only func(storage.ContactSource) bool) error {
 	if contact.ID == "" {
 		return nil
 	}
-	if err := h.deleteContactSourcesFromProvider(ctx, userID, contact, providers.ProviderGmail); err != nil {
-		return err
+	for _, provider := range []string{providers.ProviderGmail, providers.ProviderOutlook, providers.ProviderCardDAV, providers.ProviderJMAP} {
+		if err := h.deleteContactSourcesFromProvider(ctx, userID, contact, provider, only); err != nil {
+			return err
+		}
 	}
-	if err := h.deleteContactSourcesFromProvider(ctx, userID, contact, providers.ProviderOutlook); err != nil {
-		return err
-	}
-	if err := h.deleteContactSourcesFromProvider(ctx, userID, contact, providers.ProviderCardDAV); err != nil {
-		return err
-	}
-	return h.deleteContactSourcesFromProvider(ctx, userID, contact, providers.ProviderJMAP)
+	return nil
 }
 
-func (h *Handler) deleteContactSourcesFromProvider(ctx context.Context, userID string, contact models.Contact, provider string) error {
+func (h *Handler) deleteContactSourcesFromProvider(ctx context.Context, userID string, contact models.Contact, provider string, only func(storage.ContactSource) bool) error {
 	sources, err := h.db.GetContactSources(ctx, userID, contact.ID, provider)
 	if err != nil {
 		return err
 	}
 	for _, source := range sources {
+		if only != nil && !only(source) {
+			continue
+		}
 		if strings.TrimSpace(source.RemoteID) == "" {
 			if err := h.db.DeleteContactSource(ctx, userID, contact.ID, provider, source.AccountID); err != nil {
 				return err
@@ -996,7 +1042,7 @@ func (h *Handler) getGoogleContact(ctx context.Context, accessToken, remoteID st
 		return googlePerson{}, err
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
-	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
+	resp, err := (&http.Client{Transport: netguard.APITransport, Timeout: 30 * time.Second}).Do(req)
 	if err != nil {
 		return googlePerson{}, err
 	}
@@ -1018,7 +1064,7 @@ func (h *Handler) deleteGoogleContact(ctx context.Context, accessToken, remoteID
 		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
-	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
+	resp, err := (&http.Client{Transport: netguard.APITransport, Timeout: 30 * time.Second}).Do(req)
 	if err != nil {
 		return err
 	}
@@ -1096,7 +1142,7 @@ func (h *Handler) searchGoogleContacts(ctx context.Context, accessToken, query s
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
-	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
+	resp, err := (&http.Client{Transport: netguard.APITransport, Timeout: 30 * time.Second}).Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -1127,7 +1173,7 @@ func (h *Handler) writeGoogleContact(ctx context.Context, method, endpoint, acce
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
+	resp, err := (&http.Client{Transport: netguard.APITransport, Timeout: 30 * time.Second}).Do(req)
 	if err != nil {
 		return googlePerson{}, err
 	}
@@ -1194,7 +1240,7 @@ func isGoogleNotFound(err error, apiErr *googleAPIError) bool {
 	return false
 }
 
-func htmlStatus(w http.ResponseWriter, status int, message string) {
+func htmlStatus(w http.ResponseWriter, r *http.Request, status int, message string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if status >= 400 {
 		w.Header().Set("X-Gofer-Status", "error")
@@ -1205,5 +1251,5 @@ func htmlStatus(w http.ResponseWriter, status int, message string) {
 		status = http.StatusOK
 	}
 	w.WriteHeader(status)
-	_, _ = w.Write([]byte(`<div class="rounded-md border border-border bg-background px-3 py-2 text-xs text-muted-foreground">` + html.EscapeString(message) + `</div>`))
+	_, _ = w.Write([]byte(`<div class="rounded-md border border-border bg-background px-3 py-2 text-xs text-muted-foreground">` + html.EscapeString(serverText(r.Context(), message)) + `</div>`))
 }

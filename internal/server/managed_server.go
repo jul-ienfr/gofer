@@ -115,6 +115,9 @@ func newManagedApplication(parent context.Context, path string, maxOpen int) (re
 	if err != nil {
 		return nil, err
 	}
+	// Token refreshes and API requests go through each account's proxy.
+	app.flows.SetAccountProxyResolver(centralAccounts.AccountProxy)
+	app.credentials.SetAccountProxyResolver(accounts.AccountProxyForUser)
 	blobs := store.NewBlobStore(s.layout.BlobDirectory)
 	// The orchestrator supplies the common event bus to existing handlers. Only
 	// the routed IMAP service starts mailbox work in managed mode.
@@ -189,7 +192,7 @@ func newManagedApplication(parent context.Context, path string, maxOpen int) (re
 	app.auth.StartSessionCleanup(ctx)
 	app.flows.StartCleanup(ctx)
 	app.notifications.Start(ctx)
-	app.handler = app.httpConfig.ClientNetworkMiddleware(authConfig.Enabled, app.httpConfig.Middleware(handler.CompressResponses(app.auth.Middleware(views.WithListViewCookie(mux)))))
+	app.handler = app.httpConfig.ClientNetworkMiddleware(authConfig.Enabled, app.httpConfig.Middleware(handler.CompressResponses(app.auth.Middleware(app.mailbox.LocaleMiddleware(views.WithListViewCookie(mux))))))
 	return app, nil
 }
 

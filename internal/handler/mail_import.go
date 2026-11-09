@@ -26,6 +26,7 @@ import (
 	imapclient "github.com/cristianadrielbraun/gofer/internal/mail/imap"
 	"github.com/cristianadrielbraun/gofer/internal/mail/jmap"
 	"github.com/cristianadrielbraun/gofer/internal/models"
+	"github.com/cristianadrielbraun/gofer/internal/netguard"
 	"github.com/cristianadrielbraun/gofer/internal/providers"
 	"github.com/cristianadrielbraun/gofer/internal/storage"
 	goimap "github.com/emersion/go-imap/v2"
@@ -415,10 +416,10 @@ func suggestMailImportTarget(source *mailImportSource, targets []storage.MailExp
 
 // mailImportAccountProblem says why messages can't be imported into an
 // account, or nothing when they can.
-func mailImportAccountProblem(locale i18n.Locale, account models.Account) string {
+func mailImportAccountProblem(account models.Account) string {
 	switch {
 	case account.ReconnectPending:
-		return i18n.T(locale, "mail.import.password_first")
+		return "Enter its password first."
 	}
 	return ""
 }
@@ -487,11 +488,11 @@ func (h *Handler) runMailImport(ctx context.Context, job *mailImportJob) {
 func mailImportErrorText(err error) string {
 	switch {
 	case errors.Is(err, storage.ErrAccountRoute), errors.Is(err, os.ErrNotExist):
-		return "The account is no longer available."
+		return i18n.Translate(i18n.English, "jobs.account_gone")
 	case errors.Is(err, errMailImportAccount):
-		return "Gofer could not sign in to the account. Check its settings, then continue."
+		return i18n.Translate(i18n.English, "jobs.import.sign_in")
 	default:
-		return "Stopped after several messages in a row could not be uploaded: " + err.Error()
+		return i18n.Translate(i18n.English, "jobs.import.stopped", "error", err.Error())
 	}
 }
 
@@ -960,7 +961,7 @@ func (w mailImportCaller) call(ctx context.Context, method, endpoint, contentTyp
 		if contentType != "" {
 			req.Header.Set("Content-Type", contentType)
 		}
-		resp, err := (&http.Client{Timeout: 5 * time.Minute}).Do(req)
+		resp, err := (&http.Client{Transport: netguard.APITransport, Timeout: 5 * time.Minute}).Do(req)
 		if err != nil {
 			return err
 		}

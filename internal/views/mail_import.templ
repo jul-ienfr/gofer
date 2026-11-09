@@ -1,6 +1,8 @@
 package views
 
 import (
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -9,7 +11,6 @@ import (
 	"github.com/cristianadrielbraun/gofer/components/icon"
 	"github.com/cristianadrielbraun/gofer/components/radio"
 	"github.com/cristianadrielbraun/gofer/components/selectbox"
-	"github.com/cristianadrielbraun/gofer/internal/i18n"
 )
 
 type MailImportAccount struct {
@@ -64,7 +65,7 @@ type MailImportJob struct {
 	Skipped    []string
 }
 
-templ MailImportUploadForm(locale i18n.Locale, message string) {
+templ MailImportUploadForm(message string) {
 	@dataDialogScroll("pb-6") {
 		<form
 			hx-post="/api/mail/imports"
@@ -75,15 +76,15 @@ templ MailImportUploadForm(locale i18n.Locale, message string) {
 			class="space-y-1.5"
 			data-mail-import-upload
 		>
-			<label for="mail-import-files" class="block text-sm font-medium text-foreground">{ i18n.T(locale, "mail.import.files") }</label>
+			<label for="mail-import-files" class="block text-sm font-medium text-foreground">{ i18n.T(ctx, "transfer.import.files") }</label>
 			<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
 				<input id="mail-import-files" type="file" name="files" multiple required accept=".mbox,.mbx,.eml,.zip,application/mbox,message/rfc822,application/zip" class="profile-file-input block h-8 w-full min-w-0 flex-1 rounded-md border border-input bg-background p-[3px] text-xs text-foreground file:mr-3 file:h-full file:cursor-pointer file:rounded file:border-0 file:bg-primary file:px-3 file:text-xs file:font-medium file:text-primary-foreground hover:file:bg-primary/90"/>
 				<button type="submit" class={ profileButtonClass }>
 					@icon.Upload(icon.Props{Class: "size-3.5"})
-					{ i18n.T(locale, "mail.import.upload_review") }
+					{ i18n.T(ctx, "transfer.import.upload") }
 				</button>
 			</div>
-			<p class="text-xs text-muted-foreground" data-mail-import-upload-status>{ i18n.T(locale, "mail.import.several") }</p>
+			<p class="text-xs text-muted-foreground" data-mail-import-upload-status>{ i18n.T(ctx, "transfer.import.several") }</p>
 			if message != "" {
 				<p class="text-xs text-destructive" role="alert" data-mail-import-error>{ message }</p>
 			}
@@ -91,7 +92,7 @@ templ MailImportUploadForm(locale i18n.Locale, message string) {
 	}
 }
 
-templ MailImportReview(locale i18n.Locale, data MailImportReviewData) {
+templ MailImportReview(data MailImportReviewData) {
 	<form
 		hx-post={ "/api/mail/imports/" + data.ID + "/start" }
 		hx-target="#mail-import-dialog-body"
@@ -103,9 +104,9 @@ templ MailImportReview(locale i18n.Locale, data MailImportReviewData) {
 			<div class="space-y-0.5">
 				<p class="text-sm font-medium text-foreground">{ strings.Join(data.Files, ", ") }</p>
 				<p class="text-xs text-muted-foreground">
-					{ mailImportSourcesSummary(locale, data) }
+					{ mailImportSourcesSummary(ctx, data) }
 					if data.ExportedFrom != "" {
-						{ " " + i18n.Tf(locale, "mail.import.exported_from", data.ExportedFrom) }
+						{ " " + i18n.T(ctx, "transfer.import.exported_from", "source", data.ExportedFrom) }
 					}
 				</p>
 			</div>
@@ -113,7 +114,7 @@ templ MailImportReview(locale i18n.Locale, data MailImportReviewData) {
 				<p class="text-xs text-destructive" role="alert" data-mail-import-error>{ data.Message }</p>
 			}
 			<div class="space-y-2">
-				<p class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{ i18n.T(locale, "mail.import.into_account") }</p>
+				<p class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{ i18n.T(ctx, "transfer.import.into_account") }</p>
 				for _, account := range data.Accounts {
 					<label class={ "flex items-center gap-3 rounded-lg border border-border/60 bg-background/40 p-3", templ.KV("opacity-60", account.Problem != "") } data-mail-import-account={ account.Email }>
 						@radio.Radio(radio.Props{
@@ -129,7 +130,7 @@ templ MailImportReview(locale i18n.Locale, data MailImportReviewData) {
 								"hx-include": "this",
 							},
 						})
-						@mailExportAccountSummary(locale, account.MailExportAccount)
+						@mailExportAccountSummary(account.MailExportAccount)
 						if account.Problem != "" {
 							<span class="shrink-0 text-xs text-muted-foreground">{ account.Problem }</span>
 						}
@@ -138,43 +139,43 @@ templ MailImportReview(locale i18n.Locale, data MailImportReviewData) {
 			</div>
 			if data.AccountID != "" {
 				<div class="space-y-2">
-					<p class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{ i18n.T(locale, "mail.import.where") }</p>
+					<p class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{ i18n.T(ctx, "transfer.import.where") }</p>
 					<div class="divide-y divide-border/60 rounded-md border border-border/60 bg-background">
 						for _, source := range data.Sources {
-							@mailImportSourceRow(locale, source, data.Folders)
+							@mailImportSourceRow(source, data.Folders)
 						}
 					</div>
-					<p class="text-xs text-muted-foreground">{ i18n.T(locale, "mail.import.skip_note") }</p>
+					<p class="text-xs text-muted-foreground">{ i18n.T(ctx, "transfer.import.duplicates_note") }</p>
 				</div>
 			}
 		}
 		@dataDialogFooter() {
-			<button type="button" class={ profileButtonClass } hx-post={ "/api/mail/imports/" + data.ID + "/delete" } hx-target="#mail-import-dialog-body" hx-swap="innerHTML" hx-vals='{"panel":"1"}'>{ i18n.T(locale, "mail.action.cancel") }</button>
+			<button type="button" class={ profileButtonClass } hx-post={ "/api/mail/imports/" + data.ID + "/delete" } hx-target="#mail-import-dialog-body" hx-swap="innerHTML" hx-vals='{"panel":"1"}'>{ i18n.T(ctx, "common.cancel") }</button>
 			if data.AccountID != "" {
 				<button type="submit" class={ profilePrimaryButtonClass } data-mail-import-start>
 					@icon.Upload(icon.Props{Class: "size-3.5"})
-					{ i18n.T(locale, "mail.import.start") }
+					{ i18n.T(ctx, "transfer.import.start") }
 				</button>
 			}
 		}
 	</form>
 }
 
-templ mailImportSourceRow(locale i18n.Locale, source MailImportSource, folders []MailImportFolder) {
+templ mailImportSourceRow(source MailImportSource, folders []MailImportFolder) {
 	<div class="flex flex-col gap-2 p-2.5 sm:flex-row sm:items-center sm:gap-3" data-mail-import-source={ source.Name }>
 		<span class="min-w-0 flex-1">
 			<span class="block truncate text-sm text-foreground">{ source.Name }</span>
-			<span class="block text-xs text-muted-foreground">{ mailLocaleCount(locale, source.Messages, "mail.count.message_one", "mail.count.message_other") }</span>
+			<span class="block text-xs text-muted-foreground">{ mailExportCount(ctx, source.Messages) }</span>
 		</span>
 		<span class="flex min-w-0 flex-col gap-1.5 sm:w-64 sm:shrink-0">
-			@mailFolderTargetSelect(locale, "target:"+strconv.Itoa(source.Index), i18n.Tf(locale, "mail.import.folder_for", source.Name), folders, source.Target, true)
+			@mailFolderTargetSelect("target:"+strconv.Itoa(source.Index), i18n.T(ctx, "transfer.import.folder_for", "name", source.Name), folders, source.Target, true)
 			<input
 				type="text"
 				name={ "new:" + strconv.Itoa(source.Index) }
 				value={ source.NewName }
-				placeholder={ i18n.T(locale, "mail.import.folder_name") }
+				placeholder={ i18n.T(ctx, "transfer.folder_name") }
 				required?={ source.Target == "new" }
-				aria-label={ i18n.Tf(locale, "mail.import.new_folder_for", source.Name) }
+				aria-label={ i18n.T(ctx, "transfer.new_folder_for", "name", source.Name) }
 				class={ "h-8 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/30", templ.KV("hidden", source.Target != "new") }
 				data-mail-import-new-name
 			/>
@@ -182,17 +183,15 @@ templ mailImportSourceRow(locale i18n.Locale, source MailImportSource, folders [
 	</div>
 }
 
-func mailImportSourcesSummary(locale i18n.Locale, data MailImportReviewData) string {
+func mailImportSourcesSummary(ctx context.Context, data MailImportReviewData) string {
 	messages := 0
 	for _, source := range data.Sources {
 		messages += source.Messages
 	}
-	return i18n.Tf(locale, "mail.import.sources_summary",
-		mailLocaleCount(locale, messages, "mail.count.message_one", "mail.count.message_other"),
-		mailLocaleCount(locale, len(data.Sources), "mail.count.folder_one", "mail.count.folder_other"))
+	return i18n.T(ctx, "transfer.import.summary", "messages", mailExportCount(ctx, messages), "folders", mailExportCountOf(ctx, "transfer.folders_count", len(data.Sources)))
 }
 
-templ MailImportJobs(locale i18n.Locale, jobs []MailImportJob) {
+templ MailImportJobs(jobs []MailImportJob) {
 	<div
 		id="mail-import-jobs"
 		class="space-y-2"
@@ -203,9 +202,9 @@ templ MailImportJobs(locale i18n.Locale, jobs []MailImportJob) {
 		}
 	>
 		if len(jobs) > 0 {
-			<p class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{ i18n.T(locale, "mail.import.jobs") }</p>
+			<p class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{ i18n.T(ctx, "transfer.import.jobs") }</p>
 			for _, job := range jobs {
-				@mailImportJobRow(locale, job)
+				@mailImportJobRow(job)
 			}
 		}
 	</div>
@@ -220,27 +219,27 @@ func mailImportJobsRunning(jobs []MailImportJob) bool {
 	return false
 }
 
-templ mailImportJobRow(locale i18n.Locale, job MailImportJob) {
+templ mailImportJobRow(job MailImportJob) {
 	<div class="space-y-2 rounded-lg border border-border/60 bg-background/40 p-3" data-mail-import-job={ job.ID } data-mail-import-state={ job.State }>
 		<div class="flex flex-wrap items-start gap-3">
 			<span class="min-w-0 flex-1">
 				<span class="block truncate text-sm font-medium text-foreground">{ job.Title }</span>
-				<span class="block text-xs text-muted-foreground">{ mailImportJobStatus(locale, job) }</span>
+				<span class="block text-xs text-muted-foreground">{ mailImportJobStatus(ctx, job) }</span>
 			</span>
 			<span class="flex shrink-0 flex-wrap gap-2">
 				switch job.State {
 					case "review":
 						@dialog.Trigger(dialog.TriggerProps{For: "mail-import-dialog"}) {
-							<button type="button" class={ profilePrimaryButtonClass } hx-get={ "/api/mail/imports/" + job.ID + "/review" } hx-target="#mail-import-dialog-body" hx-swap="innerHTML">{ i18n.T(locale, "mail.action.review") }</button>
+							<button type="button" class={ profilePrimaryButtonClass } hx-get={ "/api/mail/imports/" + job.ID + "/review" } hx-target="#mail-import-dialog-body" hx-swap="innerHTML">{ i18n.T(ctx, "transfer.review") }</button>
 						}
-						<button type="button" class={ profileButtonClass } hx-post={ "/api/mail/imports/" + job.ID + "/delete" } hx-target="#mail-import-jobs" hx-swap="outerHTML">{ i18n.T(locale, "mail.action.delete") }</button>
+						<button type="button" class={ profileButtonClass } hx-post={ "/api/mail/imports/" + job.ID + "/delete" } hx-target="#mail-import-jobs" hx-swap="outerHTML">{ i18n.T(ctx, "transfer.delete") }</button>
 					case "running":
-						<button type="button" class={ profileButtonClass } hx-post={ "/api/mail/imports/" + job.ID + "/cancel" } hx-target="#mail-import-jobs" hx-swap="outerHTML">{ i18n.T(locale, "mail.action.cancel") }</button>
+						<button type="button" class={ profileButtonClass } hx-post={ "/api/mail/imports/" + job.ID + "/cancel" } hx-target="#mail-import-jobs" hx-swap="outerHTML">{ i18n.T(ctx, "common.cancel") }</button>
 					case "paused":
-						<button type="button" class={ profilePrimaryButtonClass } hx-post={ "/api/mail/imports/" + job.ID + "/resume" } hx-target="#mail-import-jobs" hx-swap="outerHTML">{ i18n.T(locale, "mail.action.continue") }</button>
-						<button type="button" class={ profileButtonClass } hx-post={ "/api/mail/imports/" + job.ID + "/delete" } hx-target="#mail-import-jobs" hx-swap="outerHTML">{ i18n.T(locale, "mail.action.delete") }</button>
+						<button type="button" class={ profilePrimaryButtonClass } hx-post={ "/api/mail/imports/" + job.ID + "/resume" } hx-target="#mail-import-jobs" hx-swap="outerHTML">{ i18n.T(ctx, "common.continue") }</button>
+						<button type="button" class={ profileButtonClass } hx-post={ "/api/mail/imports/" + job.ID + "/delete" } hx-target="#mail-import-jobs" hx-swap="outerHTML">{ i18n.T(ctx, "transfer.delete") }</button>
 					default:
-						<button type="button" class={ profileButtonClass } hx-post={ "/api/mail/imports/" + job.ID + "/delete" } hx-target="#mail-import-jobs" hx-swap="outerHTML">{ i18n.T(locale, "mail.action.remove") }</button>
+						<button type="button" class={ profileButtonClass } hx-post={ "/api/mail/imports/" + job.ID + "/delete" } hx-target="#mail-import-jobs" hx-swap="outerHTML">{ i18n.T(ctx, "transfer.remove") }</button>
 				}
 			</span>
 		</div>
@@ -250,11 +249,11 @@ templ mailImportJobRow(locale i18n.Locale, job MailImportJob) {
 			</div>
 		}
 		if job.Error != "" {
-			<p class="text-xs text-destructive">{ job.Error }</p>
+			<p class="text-xs text-destructive">{ i18n.Stored(ctx, "jobs.", job.Error) }</p>
 		}
 		if len(job.Skipped) > 0 && job.State != "running" {
 			<details class="text-xs text-muted-foreground">
-				<summary class="cursor-pointer">{ i18n.Tf(locale, "mail.import.failed_summary", mailLocaleCount(locale, job.Failed, "mail.count.message_one", "mail.count.message_other")) }</summary>
+				<summary class="cursor-pointer">{ mailExportCountOf(ctx, "transfer.import.failed_summary", job.Failed) }</summary>
 				<ul class="mt-1 list-disc space-y-0.5 pl-5">
 					for _, skipped := range job.Skipped {
 						<li>{ skipped }</li>
@@ -273,48 +272,48 @@ func mailImportProgressStyle(job MailImportJob) templ.SafeCSS {
 	return templ.SafeCSS(fmt.Sprintf("width: %d%%;", percent))
 }
 
-func mailImportJobStatus(locale i18n.Locale, job MailImportJob) string {
+func mailImportJobStatus(ctx context.Context, job MailImportJob) string {
 	var parts []string
 	switch job.State {
 	case "review":
-		return i18n.Tf(locale, "mail.import.uploaded", job.Started)
+		return i18n.T(ctx, "transfer.import.status.review", "date", job.Started)
 	case "running":
 		switch {
 		case job.Waiting:
-			parts = append(parts, i18n.T(locale, "mail.import.waiting"))
+			parts = append(parts, i18n.T(ctx, "transfer.import.status.waiting"))
 		case job.Source != "":
-			parts = append(parts, i18n.Tf(locale, "mail.import.importing", job.Source, mailExportNumber(job.Processed), mailLocaleCount(locale, job.Total, "mail.count.message_one", "mail.count.message_other")))
+			parts = append(parts, i18n.T(ctx, "transfer.import.status.importing", "source", job.Source, "done", i18n.Number(ctx, job.Processed), "total", mailExportCount(ctx, job.Total)))
 		default:
-			parts = append(parts, i18n.T(locale, "mail.import.starting"))
+			parts = append(parts, i18n.T(ctx, "transfer.status.starting"))
 		}
 	case "paused":
-		parts = append(parts, i18n.Tf(locale, "mail.import.paused", mailExportNumber(job.Processed), mailLocaleCount(locale, job.Total, "mail.count.message_one", "mail.count.message_other")))
+		parts = append(parts, mailTransferPausedStatus(ctx, job.Processed, job.Total))
 	case "canceled":
-		parts = append(parts, i18n.Tf(locale, "mail.import.canceled", mailLocaleCount(locale, job.Imported, "mail.count.message_one", "mail.count.message_other")))
+		parts = append(parts, i18n.T(ctx, "transfer.status.canceled_after", "total", mailExportCount(ctx, job.Imported)))
 	default:
-		parts = append(parts, i18n.Tf(locale, "mail.import.imported", mailLocaleCount(locale, job.Imported, "mail.count.message_one", "mail.count.message_other")))
+		parts = append(parts, mailExportCountOf(ctx, "transfer.import.status.imported", job.Imported))
 		if job.Duplicates > 0 {
-			parts = append(parts, i18n.Tf(locale, "mail.import.already_there", mailExportNumber(job.Duplicates)))
+			parts = append(parts, mailExportCountOf(ctx, "transfer.status.already_there", job.Duplicates))
 		}
 		if job.Failed > 0 {
-			parts = append(parts, i18n.Tf(locale, "mail.import.failed", mailExportNumber(job.Failed)))
+			parts = append(parts, mailExportCountOf(ctx, "transfer.import.status.failed", job.Failed))
 		}
 	}
 	if job.Account != "" {
-		parts = append(parts, i18n.Tf(locale, "mail.import.into", job.Account))
+		parts = append(parts, i18n.T(ctx, "transfer.import.status.into", "account", job.Account))
 	}
-	parts = append(parts, i18n.Tf(locale, "mail.import.started", job.Started))
+	parts = append(parts, i18n.T(ctx, "transfer.status.started", "date", job.Started))
 	return strings.Join(parts, " · ")
 }
 
 // mailFolderTargetSelect chooses where a set of messages goes: an existing
 // folder, a new one, or, with skip, nowhere.
-templ mailFolderTargetSelect(locale i18n.Locale, name, label string, folders []MailImportFolder, selected string, skip bool) {
+templ mailFolderTargetSelect(name, label string, folders []MailImportFolder, selected string, skip bool) {
 	@selectbox.SelectBox(selectbox.Props{Class: "settings-select"}) {
 		@selectbox.Trigger(selectbox.TriggerProps{Name: name, Class: "h-8 bg-background text-xs", DisableClear: true, Required: true, Attributes: templ.Attributes{"value": selected, "data-mail-import-target": "", "aria-label": label}}) {
-			@selectbox.Value(selectbox.ValueProps{Placeholder: i18n.T(locale, "mail.import.folder_choose")})
+			@selectbox.Value(selectbox.ValueProps{Placeholder: i18n.T(ctx, "transfer.choose_folder")})
 		}
-		@selectbox.Content(selectbox.ContentProps{NoSearch: len(folders) < 8, SearchPlaceholder: i18n.T(locale, "mail.import.folder_search"), Class: "mobile-sheet"}) {
+		@selectbox.Content(selectbox.ContentProps{NoSearch: len(folders) < 8, SearchPlaceholder: i18n.T(ctx, "mail.move.search"), Class: "mobile-sheet"}) {
 			@selectbox.Group() {
 				for _, folder := range folders {
 					@selectbox.Item(selectbox.ItemProps{Value: folder.ID, Selected: selected == folder.ID}) {
@@ -322,11 +321,11 @@ templ mailFolderTargetSelect(locale i18n.Locale, name, label string, folders []M
 					}
 				}
 				@selectbox.Item(selectbox.ItemProps{Value: "new", Selected: selected == "new"}) {
-					{ i18n.T(locale, "mail.import.new_folder") }
+					{ i18n.T(ctx, "mail.folder_menu.new_folder") }
 				}
 				if skip {
 					@selectbox.Item(selectbox.ItemProps{Value: "skip", Selected: selected == "skip"}) {
-						{ i18n.T(locale, "mail.import.dont_import") }
+						{ i18n.T(ctx, "transfer.import.skip") }
 					}
 				}
 			}

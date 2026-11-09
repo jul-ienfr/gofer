@@ -9,13 +9,14 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
+	"context"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"strings"
 
 	"github.com/cristianadrielbraun/gofer/components/button"
 	"github.com/cristianadrielbraun/gofer/components/dialog"
 	"github.com/cristianadrielbraun/gofer/components/icon"
 	"github.com/cristianadrielbraun/gofer/components/radio"
-	"github.com/cristianadrielbraun/gofer/internal/i18n"
 )
 
 // MailToAccountDialogData describes emails about to go into a folder of
@@ -33,7 +34,7 @@ type MailToAccountDialogData struct {
 
 // MailToAccountDialog asks before emails go into another account, and
 // whether they then leave the account they're in.
-func MailToAccountDialog(locale i18n.Locale, data MailToAccountDialogData) templ.Component {
+func MailToAccountDialog(data MailToAccountDialogData) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -105,9 +106,9 @@ func MailToAccountDialog(locale i18n.Locale, data MailToAccountDialogData) templ
 						ctx = templ.InitializeContext(ctx)
 						if data.Problem != "" {
 							var templ_7745c5c3_Var6 string
-							templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.to_account.problem_title"))
+							templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "mail.to_account.cannot"))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_to_account.templ`, Line: 35, Col: 55}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_to_account.templ`, Line: 36, Col: 45}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 							if templ_7745c5c3_Err != nil {
@@ -115,9 +116,9 @@ func MailToAccountDialog(locale i18n.Locale, data MailToAccountDialogData) templ
 							}
 						} else {
 							var templ_7745c5c3_Var7 string
-							templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.to_account.title"))
+							templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "mail.to_account.title"))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_to_account.templ`, Line: 37, Col: 47}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_to_account.templ`, Line: 38, Col: 44}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 							if templ_7745c5c3_Err != nil {
@@ -148,7 +149,7 @@ func MailToAccountDialog(locale i18n.Locale, data MailToAccountDialogData) templ
 					var templ_7745c5c3_Var8 string
 					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(data.Problem)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_to_account.templ`, Line: 42, Col: 121}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_to_account.templ`, Line: 43, Col: 121}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 					if templ_7745c5c3_Err != nil {
@@ -172,9 +173,9 @@ func MailToAccountDialog(locale i18n.Locale, data MailToAccountDialogData) templ
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var9 string
-					templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(mailToAccountSummary(locale, data))
+					templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(mailToAccountSummary(ctx, data))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_to_account.templ`, Line: 48, Col: 43}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_to_account.templ`, Line: 49, Col: 40}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 					if templ_7745c5c3_Err != nil {
@@ -185,9 +186,9 @@ func MailToAccountDialog(locale i18n.Locale, data MailToAccountDialogData) templ
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var10 string
-					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.to_account.mode_group"))
+					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "mail.to_account.mode_label"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_to_account.templ`, Line: 51, Col: 103}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_to_account.templ`, Line: 52, Col: 100}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 					if templ_7745c5c3_Err != nil {
@@ -197,15 +198,16 @@ func MailToAccountDialog(locale i18n.Locale, data MailToAccountDialogData) templ
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = mailToAccountMode(locale, "move", i18n.T(locale, "mail.to_account.move"), i18n.Tf(locale, "mail.to_account.move_desc", data.Target, mailToAccountSources(locale, data.Sources)), mode).Render(ctx, templ_7745c5c3_Buffer)
+					sources := mailToAccountSources(ctx, data.Sources)
+					templ_7745c5c3_Err = mailToAccountMode("move", i18n.T(ctx, "mail.to_account.move"), i18n.T(ctx, "mail.to_account.move_detail", "target", data.Target, "sources", sources), mode).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = mailToAccountMode(locale, "move-delete", i18n.T(locale, "mail.to_account.move_delete"), i18n.Tf(locale, "mail.to_account.move_delete_desc", data.Target, mailToAccountSources(locale, data.Sources)), mode).Render(ctx, templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = mailToAccountMode("move-delete", i18n.T(ctx, "mail.to_account.move_delete"), i18n.T(ctx, "mail.to_account.move_delete_detail", "target", data.Target, "sources", sources), mode).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = mailToAccountMode(locale, "copy", i18n.T(locale, "mail.to_account.copy"), i18n.Tf(locale, "mail.to_account.copy_desc", mailToAccountSources(locale, data.Sources), data.Target), mode).Render(ctx, templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = mailToAccountMode("copy", i18n.T(ctx, "mail.to_account.copy"), i18n.T(ctx, "mail.to_account.copy_detail", "target", data.Target, "sources", sources), mode).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -214,9 +216,9 @@ func MailToAccountDialog(locale i18n.Locale, data MailToAccountDialogData) templ
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var11 string
-					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.to_account.background"))
+					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "mail.to_account.background"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_to_account.templ`, Line: 56, Col: 92}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_to_account.templ`, Line: 58, Col: 89}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 					if templ_7745c5c3_Err != nil {
@@ -268,9 +270,9 @@ func MailToAccountDialog(locale i18n.Locale, data MailToAccountDialogData) templ
 							}
 							ctx = templ.InitializeContext(ctx)
 							var templ_7745c5c3_Var15 string
-							templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "mail.action.cancel"))
+							templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "common.cancel"))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_to_account.templ`, Line: 62, Col: 44}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_to_account.templ`, Line: 64, Col: 36}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 							if templ_7745c5c3_Err != nil {
@@ -306,9 +308,9 @@ func MailToAccountDialog(locale i18n.Locale, data MailToAccountDialogData) templ
 							}
 							ctx = templ.InitializeContext(ctx)
 							var templ_7745c5c3_Var17 string
-							templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(mailToAccountModeButton(locale, mode))
+							templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(mailToAccountModeButton(ctx, mode))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_to_account.templ`, Line: 70, Col: 45}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_to_account.templ`, Line: 72, Col: 42}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 							if templ_7745c5c3_Err != nil {
@@ -346,7 +348,7 @@ func MailToAccountDialog(locale i18n.Locale, data MailToAccountDialogData) templ
 	})
 }
 
-func mailToAccountMode(locale i18n.Locale, value, label, detail, selected string) templ.Component {
+func mailToAccountMode(value, label, detail, selected string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -375,7 +377,7 @@ func mailToAccountMode(locale i18n.Locale, value, label, detail, selected string
 			Name:       "mail-to-account-mode",
 			Value:      value,
 			Checked:    value == selected,
-			Attributes: templ.Attributes{"data-mail-to-account-mode": value, "data-mail-to-account-button": mailToAccountModeButton(locale, value), "data-on-change": onAction("chooseMessagesToAccountMode", actionElement)},
+			Attributes: templ.Attributes{"data-mail-to-account-mode": value, "data-mail-to-account-button": mailToAccountModeButton(ctx, value), "data-on-change": onAction("chooseMessagesToAccountMode", actionElement)},
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -387,7 +389,7 @@ func mailToAccountMode(locale i18n.Locale, value, label, detail, selected string
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_to_account.templ`, Line: 89, Col: 36}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_to_account.templ`, Line: 91, Col: 36}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 		if templ_7745c5c3_Err != nil {
@@ -400,7 +402,7 @@ func mailToAccountMode(locale i18n.Locale, value, label, detail, selected string
 		var templ_7745c5c3_Var20 string
 		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(detail)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_to_account.templ`, Line: 90, Col: 68}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mail_to_account.templ`, Line: 92, Col: 68}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 		if templ_7745c5c3_Err != nil {
@@ -424,30 +426,30 @@ func mailToAccountDefaultMode(data MailToAccountDialogData) string {
 }
 
 // mailToAccountModeButton is the confirm button's label for a choice.
-func mailToAccountModeButton(locale i18n.Locale, mode string) string {
+func mailToAccountModeButton(ctx context.Context, mode string) string {
 	switch mode {
 	case "move-delete":
-		return i18n.T(locale, "mail.to_account.button_move_delete")
+		return i18n.T(ctx, "mail.to_account.button_move_delete")
 	case "copy":
-		return i18n.T(locale, "mail.to_account.button_copy")
+		return i18n.T(ctx, "mail.to_account.copy")
 	}
-	return i18n.T(locale, "mail.to_account.button_move")
+	return i18n.T(ctx, "mail.to_account.move")
 }
 
-func mailToAccountSources(locale i18n.Locale, sources []string) string {
-	return strings.Join(sources, " "+i18n.T(locale, "mail.to_account.and")+" ")
+// mailToAccountSources joins the accounts the emails come from: "a and b".
+func mailToAccountSources(ctx context.Context, sources []string) string {
+	if len(sources) < 2 {
+		return strings.Join(sources, "")
+	}
+	return i18n.T(ctx, "mail.to_account.and", "first", settingsJoinComma(ctx, sources[:len(sources)-1]), "last", sources[len(sources)-1])
 }
 
-func mailToAccountSummary(locale i18n.Locale, data MailToAccountDialogData) string {
-	sources := mailToAccountSources(locale, data.Sources)
-	switch {
-	case data.Count <= 0:
-		return i18n.Tf(locale, "mail.to_account.summary_none", sources, data.Folder, data.Target)
-	case data.Count == 1:
-		return i18n.Tf(locale, "mail.to_account.summary_one", sources, data.Folder, data.Target)
-	default:
-		return i18n.Tf(locale, "mail.to_account.summary_many", mailLocaleCount(locale, data.Count, "mail.count.message_one", "mail.count.message_other"), sources, data.Folder, data.Target)
+func mailToAccountSummary(ctx context.Context, data MailToAccountDialogData) string {
+	args := []any{"sources", mailToAccountSources(ctx, data.Sources), "folder", data.Folder, "target", data.Target}
+	if data.Count <= 0 {
+		return i18n.T(ctx, "mail.to_account.summary_some", args...)
 	}
+	return i18n.N(ctx, "mail.to_account.summary", data.Count, append(args, "count", i18n.Number(ctx, data.Count))...)
 }
 
 var _ = templruntime.GeneratedTemplate

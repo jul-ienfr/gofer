@@ -44,7 +44,7 @@ func (h *Handler) handleAIConnectors(w http.ResponseWriter, r *http.Request) {
 			list, err = db.ListAIConnectors(r.Context(), userID)
 			return err
 		}); err != nil {
-			writeComposeJSONError(w, http.StatusInternalServerError, "failed to list connectors")
+			writeComposeJSONError(w, r, http.StatusInternalServerError, "failed to list connectors")
 			return
 		}
 		views := make([]aiConnectorView, 0, len(list))
@@ -59,19 +59,19 @@ func (h *Handler) handleAIConnectors(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		var payload aiConnectorPayload
 		if err := decodeAIBody(w, r, &payload); err != nil {
-			writeComposeJSONError(w, http.StatusBadRequest, "invalid connector payload")
+			writeComposeJSONError(w, r, http.StatusBadRequest, "invalid connector payload")
 			return
 		}
 		if err := validateAIConnectorURL(payload.URL, payload.AllowPrivate); err != nil {
-			writeComposeJSONError(w, http.StatusBadRequest, err.Error())
+			writeComposeJSONError(w, r, http.StatusBadRequest, err.Error())
 			return
 		}
 		if payload.Enabled && strings.TrimSpace(payload.Secret) == "" {
-			writeComposeJSONError(w, http.StatusBadRequest, "an enabled connector requires a signing secret")
+			writeComposeJSONError(w, r, http.StatusBadRequest, "an enabled connector requires a signing secret")
 			return
 		}
 		if h.accountStore == nil && strings.TrimSpace(payload.Secret) != "" {
-			writeComposeJSONError(w, http.StatusServiceUnavailable, "connector secret storage is unavailable")
+			writeComposeJSONError(w, r, http.StatusServiceUnavailable, "connector secret storage is unavailable")
 			return
 		}
 		connector := storage.AIConnector{
@@ -83,7 +83,7 @@ func (h *Handler) handleAIConnectors(w http.ResponseWriter, r *http.Request) {
 			var err error
 			encrypted, err = h.accountStore.EncryptAIConnectorSecret(userID, connector.ID, payload.Secret)
 			if err != nil {
-				writeComposeJSONError(w, http.StatusInternalServerError, "failed to protect connector secret")
+				writeComposeJSONError(w, r, http.StatusInternalServerError, "failed to protect connector secret")
 				return
 			}
 		}
@@ -97,7 +97,7 @@ func (h *Handler) handleAIConnectors(w http.ResponseWriter, r *http.Request) {
 			}
 			return err
 		}); err != nil {
-			writeComposeJSONError(w, http.StatusBadRequest, "failed to create connector")
+			writeComposeJSONError(w, r, http.StatusBadRequest, "failed to create connector")
 			return
 		}
 		writeAIJSON(w, http.StatusCreated, aiConnectorView{
@@ -131,7 +131,7 @@ func (h *Handler) handleAIRoutingStatus(w http.ResponseWriter, r *http.Request) 
 		actions, err = db.ListAIAutomationActions(r.Context(), userID, 20)
 		return err
 	}); err != nil {
-		writeComposeJSONError(w, http.StatusInternalServerError, "could not list automation activity")
+		writeComposeJSONError(w, r, http.StatusInternalServerError, "could not list automation activity")
 		return
 	}
 	if items == nil {
@@ -152,7 +152,7 @@ func (h *Handler) handleAIConnector(w http.ResponseWriter, r *http.Request) {
 	userID := h.userID(r.Context())
 	id := strings.TrimSpace(r.PathValue("id"))
 	if id == "" {
-		writeComposeJSONError(w, http.StatusBadRequest, "missing connector id")
+		writeComposeJSONError(w, r, http.StatusBadRequest, "missing connector id")
 		return
 	}
 	switch r.Method {
@@ -169,10 +169,10 @@ func (h *Handler) handleAIConnector(w http.ResponseWriter, r *http.Request) {
 			return nil
 		}); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				writeComposeJSONError(w, http.StatusNotFound, "connector not found")
+				writeComposeJSONError(w, r, http.StatusNotFound, "connector not found")
 				return
 			}
-			writeComposeJSONError(w, http.StatusInternalServerError, "failed to delete connector")
+			writeComposeJSONError(w, r, http.StatusInternalServerError, "failed to delete connector")
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -181,7 +181,7 @@ func (h *Handler) handleAIConnector(w http.ResponseWriter, r *http.Request) {
 			Enabled *bool `json:"enabled"`
 		}
 		if err := decodeAIBody(w, r, &payload); err != nil || payload.Enabled == nil {
-			writeComposeJSONError(w, http.StatusBadRequest, "invalid connector update")
+			writeComposeJSONError(w, r, http.StatusBadRequest, "invalid connector update")
 			return
 		}
 		if err := h.withUserDB(r.Context(), userID, func(db *storage.DB) error {
@@ -200,10 +200,10 @@ func (h *Handler) handleAIConnector(w http.ResponseWriter, r *http.Request) {
 			return nil
 		}); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				writeComposeJSONError(w, http.StatusNotFound, "connector not found")
+				writeComposeJSONError(w, r, http.StatusNotFound, "connector not found")
 				return
 			}
-			writeComposeJSONError(w, http.StatusBadRequest, "failed to update connector")
+			writeComposeJSONError(w, r, http.StatusBadRequest, "failed to update connector")
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)

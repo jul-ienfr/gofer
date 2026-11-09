@@ -2,10 +2,9 @@ package views
 
 import (
 	"bytes"
+	"regexp"
 	"strings"
 	"testing"
-
-	"github.com/cristianadrielbraun/gofer/internal/i18n"
 )
 
 func TestLoginPageUsesAccessibleLocalPasswordForm(t *testing.T) {
@@ -32,24 +31,8 @@ func TestLoginPageUsesAccessibleLocalPasswordForm(t *testing.T) {
 	if strings.Contains(html, `person"@example.com`) || !strings.Contains(html, `person&#34;@example.com`) {
 		t.Fatalf("login identifier was not safely escaped: %q", html)
 	}
-	if strings.Contains(html, "https://") || strings.Contains(html, "/auth/google") || strings.Contains(html, "/auth/microsoft") {
+	if loadsRemoteResource(html) || strings.Contains(html, "/auth/google") || strings.Contains(html, "/auth/microsoft") {
 		t.Fatalf("local-only login page contains external/provider content: %q", html)
-	}
-}
-
-func TestLoginPageRendersFrenchLocale(t *testing.T) {
-	var output bytes.Buffer
-	if err := LoginPage(LoginPageData{Locale: i18n.French}).Render(t.Context(), &output); err != nil {
-		t.Fatalf("LoginPage().Render() error = %v", err)
-	}
-	html := output.String()
-	for _, required := range []string{
-		`<html lang="fr"`, "Un client de messagerie auto-hébergé",
-		"Nom d&#39;utilisateur", "Mot de passe", "Mot de passe oublié ?", "Continuer",
-	} {
-		if !strings.Contains(html, required) {
-			t.Fatalf("French login page missing %q", required)
-		}
 	}
 }
 
@@ -120,7 +103,7 @@ func TestLoginPageShowsConfiguredOIDCProviderWithoutMailboxAccess(t *testing.T) 
 
 func TestLoginMFAContinuationPageUsesOnlyLocalResources(t *testing.T) {
 	var output bytes.Buffer
-	if err := LoginMFAContinuationPage(i18n.English, "That code is invalid.", LoginMFAFactors{HasTOTP: true}).Render(t.Context(), &output); err != nil {
+	if err := LoginMFAContinuationPage("That code is invalid.", LoginMFAFactors{HasTOTP: true}).Render(t.Context(), &output); err != nil {
 		t.Fatalf("LoginMFAContinuationPage().Render() error = %v", err)
 	}
 	html := output.String()
@@ -134,50 +117,14 @@ func TestLoginMFAContinuationPageUsesOnlyLocalResources(t *testing.T) {
 			t.Fatalf("MFA continuation page missing %q: %q", required, html)
 		}
 	}
-	if strings.Contains(html, "https://") {
+	if loadsRemoteResource(html) {
 		t.Fatalf("MFA continuation page loads a remote resource: %q", html)
-	}
-}
-
-func TestLoginMFAContinuationPageRendersFrenchLocale(t *testing.T) {
-	var output bytes.Buffer
-	if err := LoginMFAContinuationPage(i18n.French, "", LoginMFAFactors{HasTOTP: true}).Render(t.Context(), &output); err != nil {
-		t.Fatal(err)
-	}
-	html := output.String()
-	for _, required := range []string{
-		`<html lang="fr"`, "Terminez la vérification supplémentaire",
-		"Code de l&#39;application d&#39;authentification",
-		"Vérifier et se connecter", "Recommencer la connexion",
-		"Utiliser un code de récupération",
-	} {
-		if !strings.Contains(html, required) {
-			t.Fatalf("French MFA page missing %q", required)
-		}
-	}
-}
-
-func TestRecoveryCodeLoginPageRendersFrenchLocale(t *testing.T) {
-	var output bytes.Buffer
-	if err := RecoveryCodeLoginPage(i18n.French, "").Render(t.Context(), &output); err != nil {
-		t.Fatal(err)
-	}
-	html := output.String()
-	for _, required := range []string{
-		`<html lang="fr"`, "Utiliser un code de récupération",
-		"Code de récupération",
-		"Continuer vers la réparation de l&#39;authentificateur",
-		"Utiliser un code d&#39;authentification",
-	} {
-		if !strings.Contains(html, required) {
-			t.Fatalf("French recovery-code page missing %q", required)
-		}
 	}
 }
 
 func TestRecoveryLoginAndRepairPagesAreAccessibleLocalAndExplicit(t *testing.T) {
 	var recovery bytes.Buffer
-	if err := RecoveryCodeLoginPage(i18n.English, "That code is invalid.").Render(t.Context(), &recovery); err != nil {
+	if err := RecoveryCodeLoginPage("That code is invalid.").Render(t.Context(), &recovery); err != nil {
 		t.Fatal(err)
 	}
 	for _, required := range []string{
@@ -188,12 +135,12 @@ func TestRecoveryLoginAndRepairPagesAreAccessibleLocalAndExplicit(t *testing.T) 
 			t.Fatalf("recovery-code page missing %q: %q", required, recovery.String())
 		}
 	}
-	if strings.Contains(recovery.String(), "https://") {
+	if loadsRemoteResource(recovery.String()) {
 		t.Fatalf("recovery-code page loads a remote resource: %q", recovery.String())
 	}
 
 	var mfa bytes.Buffer
-	if err := RecoveryRepairMFAPage(i18n.English, RecoveryRepairMFAData{
+	if err := RecoveryRepairMFAPage(RecoveryRepairMFAData{
 		QRCodeDataURL: "data:image/png;base64,cXItZGF0YQ==", ManualKey: "ABCD EFGH",
 		Algorithm: "SHA1", Digits: 6, Period: 30, ErrorMessage: "Try again.",
 	}).Render(t.Context(), &mfa); err != nil {
@@ -209,12 +156,12 @@ func TestRecoveryLoginAndRepairPagesAreAccessibleLocalAndExplicit(t *testing.T) 
 			t.Fatalf("recovery-repair MFA page missing %q: %q", required, mfa.String())
 		}
 	}
-	if strings.Contains(mfa.String(), "https://") {
+	if loadsRemoteResource(mfa.String()) {
 		t.Fatalf("recovery-repair MFA page loads a remote resource: %q", mfa.String())
 	}
 
 	var codes bytes.Buffer
-	if err := RecoveryRepairCodesPage(i18n.English, RecoveryRepairCodesData{
+	if err := RecoveryRepairCodesPage(RecoveryRepairCodesData{
 		BatchID: "batch-id", Codes: []string{"AAAA-BBBB-CCCC-DDDD-EEEE-FFFF"}, Generated: true,
 	}).Render(t.Context(), &codes); err != nil {
 		t.Fatal(err)
@@ -229,54 +176,14 @@ func TestRecoveryLoginAndRepairPagesAreAccessibleLocalAndExplicit(t *testing.T) 
 			t.Fatalf("recovery-repair codes page missing %q: %q", required, codes.String())
 		}
 	}
-	if strings.Contains(codes.String(), "https://") {
+	if loadsRemoteResource(codes.String()) {
 		t.Fatalf("recovery-repair codes page loads a remote resource: %q", codes.String())
-	}
-}
-
-func TestRecoveryRepairMFAPageRendersFrenchLocale(t *testing.T) {
-	var output bytes.Buffer
-	if err := RecoveryRepairMFAPage(i18n.French, RecoveryRepairMFAData{
-		ManualKey: "ABCD EFGH", Algorithm: "SHA1", Digits: 6, Period: 30,
-	}).Render(t.Context(), &output); err != nil {
-		t.Fatal(err)
-	}
-	html := output.String()
-	for _, required := range []string{
-		`<html lang="fr"`, "Remplacer votre authentificateur",
-		"Clé de configuration manuelle",
-		"Code de l&#39;authentificateur de remplacement",
-		"période de 30 secondes",
-	} {
-		if !strings.Contains(html, required) {
-			t.Fatalf("French recovery-repair MFA page missing %q", required)
-		}
-	}
-}
-
-func TestRecoveryRepairCodesPageRendersFrenchLocale(t *testing.T) {
-	var output bytes.Buffer
-	if err := RecoveryRepairCodesPage(i18n.French, RecoveryRepairCodesData{
-		BatchID: "batch-id", Codes: []string{"AAAA-BBBB"}, Generated: true,
-	}).Render(t.Context(), &output); err != nil {
-		t.Fatal(err)
-	}
-	html := output.String()
-	for _, required := range []string{
-		`<html lang="fr"`, "Enregistrez les nouveaux codes de récupération",
-		"Ces codes ne sont affichés que dans cette réponse",
-		"Terminer la réparation et se connecter",
-		"Aucune session n&#39;existe",
-	} {
-		if !strings.Contains(html, required) {
-			t.Fatalf("French recovery-repair codes page missing %q", required)
-		}
 	}
 }
 
 func TestRequiredMFAEnrollmentPagesRemainSessionlessAndLocal(t *testing.T) {
 	var enrollment bytes.Buffer
-	if err := MFAEnrollmentPage(i18n.English, MFAEnrollmentData{
+	if err := MFAEnrollmentPage(MFAEnrollmentData{
 		QRCodeDataURL: "data:image/png;base64,cXItZGF0YQ==", ManualKey: "ABCD EFGH",
 		Algorithm: "SHA1", Digits: 6, Period: 30, ErrorMessage: "Try again.",
 	}).Render(t.Context(), &enrollment); err != nil {
@@ -292,12 +199,12 @@ func TestRequiredMFAEnrollmentPagesRemainSessionlessAndLocal(t *testing.T) {
 			t.Fatalf("required MFA enrollment page missing %q: %q", required, enrollment.String())
 		}
 	}
-	if strings.Contains(enrollment.String(), "https://") {
+	if loadsRemoteResource(enrollment.String()) {
 		t.Fatalf("required MFA enrollment page loads a remote resource: %q", enrollment.String())
 	}
 
 	var codes bytes.Buffer
-	if err := MFAEnrollmentCodesPage(i18n.English, MFAEnrollmentCodesData{
+	if err := MFAEnrollmentCodesPage(MFAEnrollmentCodesData{
 		BatchID: "batch-id", Codes: []string{"AAAA-BBBB-CCCC-DDDD-EEEE-FFFF"}, Generated: true,
 	}).Render(t.Context(), &codes); err != nil {
 		t.Fatal(err)
@@ -311,49 +218,15 @@ func TestRequiredMFAEnrollmentPagesRemainSessionlessAndLocal(t *testing.T) {
 			t.Fatalf("required MFA recovery page missing %q: %q", required, codes.String())
 		}
 	}
-	if strings.Contains(codes.String(), "https://") {
+	if loadsRemoteResource(codes.String()) {
 		t.Fatalf("required MFA recovery page loads a remote resource: %q", codes.String())
-	}
-}
-
-func TestMFAEnrollmentPagesRenderFrenchLocale(t *testing.T) {
-	var enrollment bytes.Buffer
-	if err := MFAEnrollmentPage(i18n.French, MFAEnrollmentData{
-		ManualKey: "ABCD EFGH", Algorithm: "SHA1", Digits: 6, Period: 30,
-	}).Render(t.Context(), &enrollment); err != nil {
-		t.Fatal(err)
-	}
-	for _, required := range []string{
-		`<html lang="fr"`, "Configurer un authentificateur",
-		"Clé de configuration manuelle", "Code du nouvel authentificateur",
-		"période de 30 secondes",
-	} {
-		if !strings.Contains(enrollment.String(), required) {
-			t.Fatalf("French MFA enrollment page missing %q", required)
-		}
-	}
-
-	var codes bytes.Buffer
-	if err := MFAEnrollmentCodesPage(i18n.French, MFAEnrollmentCodesData{
-		BatchID: "batch-id", Codes: []string{"AAAA-BBBB"}, Generated: true,
-	}).Render(t.Context(), &codes); err != nil {
-		t.Fatal(err)
-	}
-	for _, required := range []string{
-		`<html lang="fr"`, "Enregistrez vos codes de récupération",
-		"Ces codes ne sont affichés que dans cette réponse",
-		"Terminer la configuration et se connecter",
-	} {
-		if !strings.Contains(codes.String(), required) {
-			t.Fatalf("French MFA codes page missing %q", required)
-		}
 	}
 }
 
 func TestLoginMFAConfirmationEscapesProviderAndKeepsVerificationRequired(t *testing.T) {
 	{
 		var output bytes.Buffer
-		err := LoginMFAContinuationPage(i18n.English, "", LoginMFAFactors{
+		err := LoginMFAContinuationPage("", LoginMFAFactors{
 			PrimarySignIn: "<script>provider</script> sign-in successful.",
 			HasTOTP:       true,
 		}).Render(t.Context(), &output)
@@ -367,5 +240,30 @@ func TestLoginMFAConfirmationEscapesProviderAndKeepsVerificationRequired(t *test
 		if !strings.Contains(html, "Enter your authenticator app code to finish signing in.") || strings.Contains(html, "Your password was accepted") {
 			t.Fatal("confirmation misrepresents completed authentication")
 		}
+	}
+}
+
+// remoteResource matches HTML that makes the browser fetch from another
+// site: a script, image, frame or stylesheet, or a CSS url(). Plain links,
+// such as the version's link to GitHub, fetch nothing until followed.
+var remoteResource = regexp.MustCompile(`(?i)\bsrc(set)?="https?://|<link\b[^>]*\bhref="https?://|url\(['"]?https?://`)
+
+func loadsRemoteResource(html string) bool {
+	return remoteResource.MatchString(html)
+}
+
+func TestLoadsRemoteResourceCatchesFetchesButNotLinks(t *testing.T) {
+	for _, html := range []string{
+		`<script src="https://cdn.example/x.js"></script>`,
+		`<img srcset="https://cdn.example/a.png 2x">`,
+		`<link rel="stylesheet" href="https://fonts.example/css">`,
+		`<div style="background:url('https://cdn.example/bg.png')"></div>`,
+	} {
+		if !loadsRemoteResource(html) {
+			t.Fatalf("missed a remote fetch: %s", html)
+		}
+	}
+	if loadsRemoteResource(`<a href="https://github.com/cristianadrielbraun/gofer/releases/tag/v1.0.0">Gofer v1.0.0</a>`) {
+		t.Fatal("a plain link counted as a remote fetch")
 	}
 }

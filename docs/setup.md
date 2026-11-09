@@ -1,5 +1,7 @@
 # Setting up Gofer
 
+**English** · [简体中文](./setup.zh-CN.md)
+
 Everything about configuring, upgrading, and deploying Gofer. For a quick start, see the [README](../README.md).
 
 ## auth modes and storage
@@ -21,14 +23,6 @@ iCloud is an IMAP/SMTP account with Apple's servers filled in. Apple doesn't let
 
 Configure Calendar under **Settings → Accounts**: enable it for an account, discover calendars, and select which ones to sync. Google and Outlook use the account's existing OAuth connection; reconnect older accounts to grant Calendar access if needed. Generic accounts can connect a CalDAV server using an HTTPS URL and server credentials, which may require an app password. iCloud accounts connect to iCloud's CalDAV server with the account's app-specific password.
 
-## thunderbird import
-
-**Settings → Export and import → Import Thunderbird accounts** reads the `prefs.js` of a Thunderbird profile, or a ZIP that contains it. In Thunderbird, open **Help → More Troubleshooting Information → Profile Folder** and choose `prefs.js`. A ZIP is limited to 32 MB; if your export is larger, extract `prefs.js` from it and upload that instead.
-
-Gofer adds the IMAP accounts, their identities, their SMTP servers, and their signatures; signatures can be left out in the preview. It never reads `logins.json` or `key4.db`, so no password or sign-in token is imported: each account is created with sync off and waits for **Reconnect** in Accounts. POP3, NNTP, and RSS accounts, local folders, filters, calendars, contacts, and messages are not imported. Accounts that use an unencrypted connection are listed in the preview but skipped, since Gofer requires TLS or STARTTLS.
-
-Gmail and Outlook accounts use Gofer's own sign-in when it is configured on the installation; otherwise they are added over IMAP and need an app password.
-
 ## deployment precautions
 
 For server deployments, use personal or managed authentication, serve the application through an HTTPS reverse proxy, and configure `GOFER_ADDR` and `GOFER_BASE_URL` for your deployment. The listener binds to loopback by default. Set `GOFER_TRUSTED_PROXY_CIDRS` only for your actual proxy peers; use `GOFER_ALLOWED_CIDRS` when you need to restrict client networks.
@@ -40,6 +34,8 @@ Gofer doesn't connect to servers on private network addresses unless they are ap
 In managed mode, the admin panel's Mail security page can also limit the mail servers mailboxes connect to (IMAP, SMTP, JMAP, CalDAV, and CardDAV, such as `imap.example.org` or `*.example.org`) and the domains of their addresses. Gmail and Outlook are refused while the servers are limited, unless you allow them there. Mailboxes outside the lists stop connecting and are listed on that page, and you can choose people the lists don't apply to. Empty lists limit nothing.
 
 Gofer looks up sender pictures from Gravatar, Libravatar, BIMI, and the sender domain's website icon. The last two contact servers chosen by whoever sent the mail. To keep Gofer from reaching them, set `GOFER_AVATAR_PROVIDERS=gravatar,libravatar`, or `none` to turn sender picture lookups off.
+
+Set `GOFER_GOOGLE_FONTS=true` to let people pick text and heading fonts from the Google Fonts library under Settings, Appearance. The fonts apply to every style except Express. Gofer fetches the family list, stylesheets and font files itself, keeps them in `google-fonts/` next to the database, and serves them from its own address.
 
 Runtime data is stored in `data/` by default. Protect the data directory, configuration, and secrets, and back them up together before upgrades. Shared databases apply schema migrations at startup, and managed mode converts them to per-user storage as described in [pre-0.5.0-migration.md](./pre-0.5.0-migration.md). Going back to an older version may require restoring its matching backup, and the retained shared database does not include changes made after conversion. See [backup-restore.md](./backup-restore.md) for the backup, verification, and restore commands. I recommend testing your providers and access setup before relying on Gofer for anything critical.
 

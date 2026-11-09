@@ -1,5 +1,7 @@
 package views
 
+import "github.com/cristianadrielbraun/gofer/internal/i18n"
+
 import "github.com/cristianadrielbraun/gofer/internal/models"
 import "github.com/cristianadrielbraun/gofer/internal/assetver"
 import "github.com/cristianadrielbraun/gofer/components/progress"
@@ -44,7 +46,7 @@ templ AppNavigationTemplates(uiSettings map[string]string) {
 		@Sidebar(nil, "inbox", uiSettingGet(uiSettings, "sidebar_width", "256px"), uiSettings, 0, models.EmailFilters{})
 	</template>
 	<template id="app-navigation-settings-sidebar">
-		@SettingsSidebar("", uiSettingGet(uiSettings, "sidebar_width", "256px"), uiSettings)
+		@SettingsSidebar("", uiSettingGet(uiSettings, "sidebar_width", "256px"))
 	</template>
 	for _, mode := range []string{"cards", "table"} {
 		<template id={ "app-navigation-mail-" + mode }>
@@ -65,7 +67,7 @@ templ AppNavigationTemplates(uiSettings map[string]string) {
 			@CalendarPage(calendarLoadingData(view, uiSettings), uiSettings)
 		</template>
 	}
-	for _, tab := range []string{"accounts", "sync", "rules", "operations", "contacts", "appearance", "regional", "compose-display", "advanced", "export-import", "about"} {
+	for _, tab := range []string{"accounts", "sync", "rules", "operations", "contacts", "appearance", "regional", "compose-display", "ai", "advanced", "export-import", "about"} {
 		<template id={ "app-navigation-settings-" + tab }>
 			@SettingsPage(nil, models.SyncSettings{}, tab, uiSettings, nil, AISettingsData{})
 		</template>
@@ -74,7 +76,7 @@ templ AppNavigationTemplates(uiSettings map[string]string) {
 		<div data-settings-page class="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
 			<div class="flex-1 min-h-0 overflow-y-auto">
 				<div id="settings-content" class="max-w-3xl px-8 py-10">
-					@SettingsSectionHeader("security", uiSettings)
+					@SettingsSectionHeader("security")
 					@NavigationLoadingContent()
 				</div>
 			</div>
@@ -83,7 +85,7 @@ templ AppNavigationTemplates(uiSettings map[string]string) {
 }
 
 templ NavigationLoadingContent() {
-	<div role="status" aria-label="Loading" class="space-y-4 py-4">
+	<div role="status" aria-label={ i18n.T(ctx, "common.loading") } class="space-y-4 py-4">
 		<div class="h-4 w-2/3 rounded bg-muted animate-pulse"></div>
 		<div class="h-4 w-1/2 rounded bg-muted animate-pulse"></div>
 		<div class="h-4 w-2/3 rounded bg-muted animate-pulse"></div>
@@ -98,5 +100,8 @@ templ AccountSetupDialogs() {
 	@DAVAccountDialog(DAVAccountDialogData{Service: "calendar"})
 	@ChooseMailTypeDialog()
 	<div id="edit-account-container"></div>
+	// The Proxy dialog opens over an account's wizard, so it has a place of
+	// its own.
+	<div id="account-proxy-dialog-container"></div>
 }
 

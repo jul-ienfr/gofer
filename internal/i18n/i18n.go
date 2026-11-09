@@ -1,128 +1,237 @@
-// Package i18n holds Gofer's interface catalogs and locale rules.
+// Package i18n translates Gofer's interface. Each language is a flat JSON
+// catalog in locales/, named after its language code. English is complete by
+// definition; a key missing from another catalog falls back to English.
+//
+// Messages use named placeholders such as {account}. Counted messages have a
+// ".one" and an ".other" form, picked by N.
 package i18n
 
 import (
+	"context"
+	"embed"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"path"
+	"sort"
 	"strings"
+
+	"golang.org/x/text/language"
 )
 
-// Locale identifies an interface language catalog.
+// Locale is a language code with a catalog in locales/, such as "en".
 type Locale string
 
 const (
-	// English is the source catalog and the fallback for every lookup.
+	// English is the source language and the fallback for missing messages.
 	English Locale = "en"
-	// French is the first translated catalog.
-	French Locale = "fr"
+	// CookieName holds a chosen language for pages shown before sign-in.
+	CookieName = "gofer_lang"
+	// PickCookieName marks a language picked on a page shown before
+	// sign-in, which is then saved as the user's language once they sign in.
+	PickCookieName = "gofer_lang_pick"
+	// SettingKey is the UI setting that holds a user's language. An empty
+	// value or "auto" follows the browser.
+	SettingKey = "language"
 )
 
-var messages = map[Locale]map[string]string{
-	English: english,
-	French:  french,
-}
+//go:embed locales/*.json
+var localeFiles embed.FS
 
-func (l Locale) String() string {
-	return string(l)
-}
+var (
+	catalogs = map[Locale]map[string]string{}
+	locales  []Locale
+	matcher  language.Matcher
+)
 
-// Supported lists the locales offered in the interface language picker.
-func Supported() []Locale {
-	return []Locale{English, French}
-}
-
-// NativeName returns the language name shown in its own language.
-func NativeName(locale Locale) string {
-	switch locale {
-	case French:
-		return "Français"
-	default:
-		return "English"
+func init() {
+	entries, err := localeFiles.ReadDir("locales")
+	if err != nil {
+		panic(err)
 	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".json") {
+			continue
+		}
+		data, err := localeFiles.ReadFile(path.Join("locales", name))
+		if err != nil {
+			panic(err)
+		}
+		messages := map[string]string{}
+		if err := json.Unmarshal(data, &messages); err != nil {
+			panic(fmt.Sprintf("i18n: locales/%s: %v", name, err))
+		}
+		locale := Locale(strings.TrimSuffix(name, ".json"))
+		catalogs[locale] = messages
+		locales = append(locales, locale)
+	}
+	if catalogs[English] == nil {
+		panic("i18n: locales/en.json is missing")
+	}
+	// English first, the rest in code order.
+	sort.Slice(locales, func(i, j int) bool {
+		if locales[i] == English || locales[j] == English {
+			return locales[i] == English
+		}
+		return locales[i] < locales[j]
+	})
+	tags := make([]language.Tag, len(locales))
+	for i, locale := range locales {
+		tags[i] = language.MustParse(string(locale))
+	}
+	matcher = language.NewMatcher(tags)
 }
 
-// Normalize maps a language tag such as fr-CA or fr_CA to a supported locale.
-func Normalize(raw string) (Locale, bool) {
-	tag := strings.ToLower(strings.TrimSpace(raw))
-	tag = strings.ReplaceAll(tag, "_", "-")
-	if index := strings.IndexByte(tag, '-'); index >= 0 {
-		tag = tag[:index]
-	}
-	switch Locale(tag) {
-	case English:
-		return English, true
-	case French:
-		return French, true
-	default:
-		return English, false
-	}
+// Locales returns every language with a catalog, English first.
+func Locales() []Locale {
+	return append([]Locale(nil), locales...)
 }
 
-// Resolve returns the matching locale, or English for an unknown tag.
-func Resolve(raw string) Locale {
-	if locale, ok := Normalize(raw); ok {
+// Parse returns the locale for a code such as "es", or false when Gofer has
+// no catalog for it.
+func Parse(code string) (Locale, bool) {
+	locale := Locale(strings.ToLower(strings.TrimSpace(code)))
+	_, ok := catalogs[locale]
+	return locale, ok
+}
+
+// Match picks the best catalog for preferences such as an Accept-Language
+// header, falling back to English.
+func Match(preferences ...string) Locale {
+	tag, index := language.MatchStrings(matcher, preferences...)
+	if index > 0 && index < len(locales) && strings.Contains(string(locales[index]), "-") {
+		return locales[index]
+	}
+	base, _ := tag.Base()
+	if locale, ok := Parse(base.String()); ok {
 		return locale
 	}
 	return English
 }
 
-// Match returns the first supported locale named in an Accept-Language
-// header. Browsers list their preferences in order; unsupported tags are
-// skipped.
-func Match(header string) Locale {
-	for _, part := range strings.Split(header, ",") {
-		tag := strings.TrimSpace(strings.SplitN(part, ";", 2)[0])
-		if locale, ok := Normalize(tag); ok {
+// FromRequest picks the language for a request that has no signed-in
+// choice: the language cookie, then the browser's languages.
+func FromRequest(r *http.Request) Locale {
+	if cookie, err := r.Cookie(CookieName); err == nil {
+		if locale, ok := Parse(cookie.Value); ok {
+			return locale
+		}
+	}
+	return Match(r.Header.Get("Accept-Language"))
+}
+
+// FromSetting returns the locale a saved language setting asks for, or false
+// when it is empty, "auto" or unknown, so the browser's language applies.
+func FromSetting(value string) (Locale, bool) {
+	if value == "" || value == "auto" {
+		return "", false
+	}
+	return Parse(value)
+}
+
+type contextKey struct{}
+
+// WithLocale returns a context that renders in locale.
+func WithLocale(ctx context.Context, locale Locale) context.Context {
+	return context.WithValue(ctx, contextKey{}, locale)
+}
+
+// FromContext returns the context's locale, English when none was set.
+func FromContext(ctx context.Context) Locale {
+	if ctx != nil {
+		if locale, ok := ctx.Value(contextKey{}).(Locale); ok {
 			return locale
 		}
 	}
 	return English
 }
 
-// T returns the translation for key, falling back to English and then the key.
-func T(locale Locale, key string) string {
-	return text(locale, key)
+// Lang returns the context's language code for an HTML lang attribute.
+func Lang(ctx context.Context) string {
+	return string(FromContext(ctx))
 }
 
-// Tf formats a translated message with fmt.Sprintf when arguments are given.
-func Tf(locale Locale, key string, args ...any) string {
-	value := text(locale, key)
-	if len(args) == 0 {
-		return value
-	}
-	return fmt.Sprintf(value, args...)
+// NativeName is a language's name in that language, such as "Español", for
+// language pickers.
+func NativeName(locale Locale) string {
+	return lookup(locale, "language.native_name")
 }
 
-// Plural returns "one" or "other" for the locale's cardinal rule.
-func Plural(locale Locale, count int) string {
-	if locale == French {
-		if count == 0 || count == 1 {
-			return "one"
-		}
-		return "other"
+// T returns the message for key in the context's language. args are
+// placeholder names and values in pairs: T(ctx, "mail.moved", "folder", name).
+func T(ctx context.Context, key string, args ...any) string {
+	return Translate(FromContext(ctx), key, args...)
+}
+
+// N returns the form of a counted message for count, from key+".one" or
+// key+".other". count also fills the {count} placeholder, unless args give
+// one.
+func N(ctx context.Context, key string, count int, args ...any) string {
+	return TranslateCount(FromContext(ctx), key, count, args...)
+}
+
+// Translate is T for a known locale, for work outside a request.
+func Translate(locale Locale, key string, args ...any) string {
+	return format(lookup(locale, key), args)
+}
+
+// TranslateCount is N for a known locale, for work outside a request.
+func TranslateCount(locale Locale, key string, count int, args ...any) string {
+	form := key + "." + pluralForm(locale, count)
+	// The caller's own {count}, such as a formatted number, comes first and
+	// wins; the plain count fills it in otherwise.
+	return format(lookup(locale, form), append(append([]any{}, args...), "count", count))
+}
+
+func lookup(locale Locale, key string) string {
+	if message, ok := catalogs[locale][key]; ok && message != "" {
+		return message
 	}
+	if message, ok := catalogs[English][key]; ok {
+		return message
+	}
+	// Showing the key makes a missing message easy to spot and to find.
+	return key
+}
+
+// pluralForm returns the CLDR plural category for count. English and Spanish
+// only tell one from other for whole numbers; Spanish's "many" applies only
+// to exact millions, which read fine with "other".
+func pluralForm(_ Locale, count int) string {
 	if count == 1 {
 		return "one"
 	}
 	return "other"
 }
 
-// TP picks the singular or plural key for count and formats it.
-func TP(locale Locale, count int, one, other string, args ...any) string {
-	key := other
-	if Plural(locale, count) == "one" {
-		key = one
+func format(message string, args []any) string {
+	if len(args) < 2 || !strings.Contains(message, "{") {
+		return message
 	}
-	return Tf(locale, key, args...)
+	pairs := make([]string, 0, len(args))
+	for i := 0; i+1 < len(args); i += 2 {
+		name, ok := args[i].(string)
+		if !ok {
+			continue
+		}
+		pairs = append(pairs, "{"+name+"}", fmt.Sprint(args[i+1]))
+	}
+	return strings.NewReplacer(pairs...).Replace(message)
 }
 
-func text(locale Locale, key string) string {
-	if catalog, ok := messages[locale]; ok {
-		if value, ok := catalog[key]; ok {
-			return value
+// LanguageName names a language, such as "de" or "zh-CN", in the context's
+// language: "German", "Alemán". Each name is a "language.name.<code>"
+// message; a language without one shows its code.
+func LanguageName(ctx context.Context, code string) string {
+	key := "language.name." + strings.ToLower(strings.TrimSpace(code))
+	if name := T(ctx, key); name != key {
+		return name
+	}
+	if base, _, ok := strings.Cut(key, "-"); ok {
+		if name := T(ctx, base); name != base {
+			return name
 		}
 	}
-	if value, ok := messages[English][key]; ok {
-		return value
-	}
-	return key
+	return code
 }

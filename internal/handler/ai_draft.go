@@ -28,12 +28,12 @@ func (h *Handler) handleAIDraft(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if h.aiLLMClient == nil {
-		writeComposeJSONError(w, http.StatusServiceUnavailable, "LLM drafting is not configured")
+		writeComposeJSONError(w, r, http.StatusServiceUnavailable, "LLM drafting is not configured")
 		return
 	}
 	messageID, err := h.aiMessageID(r)
 	if err != nil {
-		writeComposeJSONError(w, http.StatusBadRequest, "invalid message id")
+		writeComposeJSONError(w, r, http.StatusBadRequest, "invalid message id")
 		return
 	}
 	var payload struct {
@@ -41,7 +41,7 @@ func (h *Handler) handleAIDraft(w http.ResponseWriter, r *http.Request) {
 		Tone        string `json:"tone"`
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, maxDraftRequestBytes)).Decode(&payload); err != nil && !errors.Is(err, io.EOF) {
-		writeComposeJSONError(w, http.StatusBadRequest, "invalid draft request")
+		writeComposeJSONError(w, r, http.StatusBadRequest, "invalid draft request")
 		return
 	}
 	ctx := r.Context()
@@ -83,21 +83,21 @@ func (h *Handler) handleAIDraft(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, errAIDraftingDisabled):
-			writeComposeJSONError(w, http.StatusConflict, "LLM drafting is disabled in settings")
+			writeComposeJSONError(w, r, http.StatusConflict, "LLM drafting is disabled in settings")
 		case errors.Is(err, drafting.ErrMessageNotFound):
-			writeComposeJSONError(w, http.StatusNotFound, "message not found")
+			writeComposeJSONError(w, r, http.StatusNotFound, "message not found")
 		case errors.Is(err, drafting.ErrAnalysisMissing):
-			writeComposeJSONError(w, http.StatusConflict, "analysis is required before drafting")
+			writeComposeJSONError(w, r, http.StatusConflict, "analysis is required before drafting")
 		case errors.Is(err, drafting.ErrUnsafeAnalysis), errors.Is(err, drafting.ErrProjectDraftDenied):
-			writeComposeJSONError(w, http.StatusConflict, "drafting is disabled for this message")
+			writeComposeJSONError(w, r, http.StatusConflict, "drafting is disabled for this message")
 		default:
 			var apiErr *llm.APIError
 			if errors.As(err, &apiErr) {
-				writeComposeJSONError(w, http.StatusBadGateway, "LLM provider rejected the request")
+				writeComposeJSONError(w, r, http.StatusBadGateway, "LLM provider rejected the request")
 				return
 			}
 			log.Printf("ai draft message=%d: %v", messageID, err)
-			writeComposeJSONError(w, http.StatusBadGateway, "draft generation failed")
+			writeComposeJSONError(w, r, http.StatusBadGateway, "draft generation failed")
 		}
 		return
 	}

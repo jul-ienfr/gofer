@@ -15,6 +15,7 @@ import (
 	"github.com/cristianadrielbraun/gofer/internal/mail"
 	"github.com/cristianadrielbraun/gofer/internal/mailauth"
 	"github.com/cristianadrielbraun/gofer/internal/models"
+	"github.com/cristianadrielbraun/gofer/internal/netguard"
 	"github.com/cristianadrielbraun/gofer/internal/providers"
 	"github.com/cristianadrielbraun/gofer/internal/storage"
 )
@@ -210,9 +211,9 @@ func userContactProviderJSON(ctx context.Context, provider, method, endpoint, to
 		req.Header.Set("Content-Type", "application/json")
 	}
 	if provider == providers.ProviderOutlook {
-		req.Header.Set("Prefer", `IdType="ImmutableId"`)
+		req.Header.Set("Prefer", outlookGraphPrefer(endpoint))
 	}
-	client := &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(next *http.Request, via []*http.Request) error {
+	client := &http.Client{Transport: netguard.APITransport, Timeout: 30 * time.Second, CheckRedirect: func(next *http.Request, via []*http.Request) error {
 		// A redirect of POST/PATCH can silently turn an intended write into
 		// a GET. A successful response must acknowledge the original write.
 		if method != http.MethodGet {
@@ -260,42 +261,29 @@ func userContactProviderJSON(ctx context.Context, provider, method, endpoint, to
 	return json.Unmarshal(wire, out)
 }
 
+// google pulls the contacts that changed in Gmail since the last sync, and
+// the ones deleted there, publishing each page with its sync token.
 func (p *userContactPull) google(ctx context.Context) (int, error) {
 	imported := 0
-	pageToken := ""
-	seen := make(map[string]bool)
-	for {
-		query := url.Values{"personFields": {googleContactPersonFields()}, "pageSize": {"1000"}}
-		if pageToken != "" {
-			query.Set("pageToken", pageToken)
-		}
-		var page googlePeopleResponse
-		if err := p.getJSON(ctx, googlePeopleAPIBaseURL+"/people/me/connections?"+query.Encode(), &page); err != nil {
-			return imported, err
-		}
-		inputs := make([]storage.InboundContact, 0, len(page.Connections))
-		for _, person := range page.Connections {
+	err := googleContactChanges(ctx, func(endpoint string, out any) error { return p.getJSON(ctx, endpoint, out) }, p.snapshot.ContactConfig().LastSyncToken, func(people []googlePerson, deleted []string, next string) error {
+		inputs := make([]storage.InboundContact, 0, len(people))
+		for _, person := range people {
 			contact := googleContactFromPerson(person)
 			if !contact.HasDetails() {
 				continue
 			}
 			inputs = append(inputs, storage.InboundContact{Contact: contact, RemoteID: person.ResourceName, Etag: person.Etag})
 		}
-		results, err := p.h.userAccounts.PublishInboundContacts(ctx, p.snapshot, inputs)
+		results, snapshot, err := p.h.userAccounts.PublishInboundContactChanges(ctx, p.snapshot, storage.InboundContactChangePage{Contacts: inputs, DeletedRemoteIDs: deleted, SyncToken: next})
 		if err != nil {
-			return imported, err
+			return err
 		}
+		p.snapshot = snapshot
 		imported += len(results)
 		p.wakeFanout(ctx, results)
-		pageToken = page.NextPageToken
-		if pageToken == "" {
-			return imported, nil
-		}
-		if seen[pageToken] {
-			return imported, errors.New("provider repeated a page token")
-		}
-		seen[pageToken] = true
-	}
+		return nil
+	})
+	return imported, err
 }
 
 func validUserContactGraphPage(endpoint string) error {
@@ -314,24 +302,13 @@ func validUserContactGraphPage(endpoint string) error {
 	return nil
 }
 
+// outlook pulls the contacts that changed in Outlook since the last sync,
+// and the ones deleted there, publishing each page with its delta link.
 func (p *userContactPull) outlook(ctx context.Context) (int, error) {
-	endpoint := outlookGraphBaseURL + "/me/contacts?" + outlookContactListQuery().Encode()
 	imported := 0
-	seen := make(map[string]bool)
-	for endpoint != "" {
-		if err := validUserContactGraphPage(endpoint); err != nil {
-			return imported, err
-		}
-		if seen[endpoint] {
-			return imported, errors.New("provider repeated a page URL")
-		}
-		seen[endpoint] = true
-		var page outlookContactsResponse
-		if err := p.getJSON(ctx, endpoint, &page); err != nil {
-			return imported, err
-		}
-		inputs := make([]storage.InboundContact, 0, len(page.Contacts))
-		for _, remote := range page.Contacts {
+	err := outlookContactChanges(ctx, func(endpoint string, out any) error { return p.getJSON(ctx, endpoint, out) }, p.snapshot.ContactConfig().LastSyncToken, func(contacts []outlookContact, deleted []string, next string) error {
+		inputs := make([]storage.InboundContact, 0, len(contacts))
+		for _, remote := range contacts {
 			contact := outlookContactFromGraph(remote)
 			if !contact.HasDetails() {
 				continue
@@ -352,20 +329,21 @@ func (p *userContactPull) outlook(ctx context.Context) (int, error) {
 				return nil
 			})
 			if err != nil {
-				return imported, err
+				return err
 			}
 			contact.AvatarURL = photo
 			inputs = append(inputs, storage.InboundContact{Contact: contact, RemoteID: remote.ID, Etag: outlookContactVersion(remote)})
 		}
-		results, err := p.h.userAccounts.PublishInboundContacts(ctx, p.snapshot, inputs)
+		results, snapshot, err := p.h.userAccounts.PublishInboundContactChanges(ctx, p.snapshot, storage.InboundContactChangePage{Contacts: inputs, DeletedRemoteIDs: deleted, SyncToken: next})
 		if err != nil {
-			return imported, err
+			return err
 		}
+		p.snapshot = snapshot
 		imported += len(results)
 		p.wakeFanout(ctx, results)
-		endpoint = page.NextLink
-	}
-	return imported, nil
+		return nil
+	})
+	return imported, err
 }
 
 func (p *userContactPull) dav(ctx context.Context) (int, error) {
@@ -445,7 +423,7 @@ func ownedCardDAVSync(ctx context.Context, cfg models.ContactSyncConfig, passwor
 
 func (h *Handler) handleUserSyncAccountContacts(w http.ResponseWriter, r *http.Request) {
 	if err := parseUserContactSetupForm(w, r); err != nil {
-		htmlStatus(w, http.StatusBadRequest, "Invalid sync request.")
+		htmlStatus(w, r, http.StatusBadRequest, "Invalid sync request.")
 		return
 	}
 	owner := h.userID(r.Context())
@@ -475,7 +453,7 @@ func (h *Handler) handleUserSyncAccountContacts(w http.ResponseWriter, r *http.R
 		}
 	}
 	if len(accounts) == 0 {
-		htmlStatus(w, http.StatusBadRequest, "Connect an account with contact sync before syncing contacts.")
+		htmlStatus(w, r, http.StatusBadRequest, "Connect an account with contact sync before syncing contacts.")
 		return
 	}
 	total := 0
@@ -489,19 +467,19 @@ func (h *Handler) handleUserSyncAccountContacts(w http.ResponseWriter, r *http.R
 		total += imported
 	}
 	if len(failures) == len(accounts) {
-		htmlStatus(w, http.StatusBadGateway, "Contact sync failed: "+strings.Join(failures, "; "))
+		htmlStatus(w, r, http.StatusBadGateway, "Contact sync failed: "+strings.Join(failures, "; "))
 		return
 	}
 	_ = h.withUserDB(r.Context(), owner, func(db *storage.DB) error {
 		return db.LogContactActivity(r.Context(), owner, "provider_contacts_synced", "", "Account contacts synced", total)
 	})
 	if len(failures) > 0 {
-		htmlStatus(w, http.StatusOK, fmt.Sprintf("Contacts partially synced: %d imported or updated. Failed: %s", total, strings.Join(failures, "; ")))
+		htmlStatus(w, r, http.StatusOK, fmt.Sprintf("Contacts partially synced: %d imported or updated. Failed: %s", total, strings.Join(failures, "; ")))
 		return
 	}
 	if len(accounts) == 1 {
-		htmlStatus(w, http.StatusOK, fmt.Sprintf("Contacts synced for %s: %d imported or updated.", accounts[0].Email, total))
+		htmlStatus(w, r, http.StatusOK, fmt.Sprintf("Contacts synced for %s: %d imported or updated.", accounts[0].Email, total))
 		return
 	}
-	htmlStatus(w, http.StatusOK, fmt.Sprintf("Contacts synced across %d accounts: %d imported or updated.", len(accounts), total))
+	htmlStatus(w, r, http.StatusOK, fmt.Sprintf("Contacts synced across %d accounts: %d imported or updated.", len(accounts), total))
 }

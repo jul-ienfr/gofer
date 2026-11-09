@@ -9,12 +9,13 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
+	"context"
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"strconv"
 
 	"github.com/cristianadrielbraun/gofer/components/checkbox"
 	"github.com/cristianadrielbraun/gofer/components/icon"
 	"github.com/cristianadrielbraun/gofer/components/radio"
-	"github.com/cristianadrielbraun/gofer/internal/i18n"
 	"github.com/cristianadrielbraun/gofer/internal/providers"
 )
 
@@ -73,7 +74,7 @@ const profileButtonClass = "inline-flex h-8 shrink-0 items-center justify-center
 
 const profilePrimaryButtonClass = "inline-flex h-8 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
 
-func ProfileImportUploadForm(locale i18n.Locale, message string) templ.Component {
+func ProfileImportUploadForm(message string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -111,9 +112,9 @@ func ProfileImportUploadForm(locale i18n.Locale, message string) templ.Component
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var3 string
-			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "profile.upload.label"))
+			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.profile.file"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 77, Col: 126}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 78, Col: 124}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -150,9 +151,9 @@ func ProfileImportUploadForm(locale i18n.Locale, message string) templ.Component
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var6 string
-			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "profile.upload.review"))
+			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.profile.review"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 82, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 83, Col: 45}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -170,7 +171,7 @@ func ProfileImportUploadForm(locale i18n.Locale, message string) templ.Component
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(message)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 86, Col: 88}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 87, Col: 88}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -195,40 +196,40 @@ func ProfileImportUploadForm(locale i18n.Locale, message string) templ.Component
 	})
 }
 
-func profileImportStatusLabel(locale i18n.Locale, status string) string {
+func profileImportStatusLabel(ctx context.Context, status string) string {
 	switch status {
 	case "exists":
-		return i18n.T(locale, "profile.status.exists")
+		return i18n.T(ctx, "transfer.profile.status.exists")
 	case "unsupported":
-		return i18n.T(locale, "profile.status.unsupported")
+		return i18n.T(ctx, "transfer.profile.status.unsupported")
 	default:
-		return i18n.T(locale, "profile.status.pending")
+		return i18n.T(ctx, "transfer.profile.status.new")
 	}
 }
 
-func profileImportStatusDescription(locale i18n.Locale, account ProfileImportAccount) string {
+func profileImportStatusDescription(ctx context.Context, account ProfileImportAccount) string {
 	switch account.Status {
 	case "exists":
 		if account.Provider == providers.ProviderDAV {
-			return i18n.T(locale, "profile.status.exists_dav")
+			return i18n.T(ctx, "transfer.profile.exists_dav")
 		}
 		if account.CanReplace {
-			return i18n.T(locale, "profile.status.exists_replace")
+			return i18n.T(ctx, "transfer.profile.exists_replace")
 		}
-		return i18n.T(locale, "profile.status.exists_other")
+		return i18n.T(ctx, "transfer.profile.exists_other")
 	case "unsupported":
-		return i18n.Tf(locale, "profile.status.unsupported_description", accountProviderName(account.Provider))
+		return i18n.T(ctx, "transfer.profile.unsupported", "provider", accountProviderName(account.Provider))
 	}
 	switch {
 	case account.Provider == "gmail" || account.Provider == "outlook":
-		return i18n.T(locale, "profile.status.oauth")
+		return i18n.T(ctx, "transfer.profile.added_sign_in")
 	case len(account.Needs) > 1:
-		return i18n.Tf(locale, "profile.status.passwords", reconnectLoginLabels(account.Needs))
+		return i18n.T(ctx, "transfer.profile.added_passwords", "logins", reconnectLoginNames(ctx, account.Needs))
 	}
-	return i18n.T(locale, "profile.status.password")
+	return i18n.T(ctx, "transfer.profile.added_password")
 }
 
-func ProfileImportPreview(locale i18n.Locale, data ProfileImportPreviewData) templ.Component {
+func ProfileImportPreview(data ProfileImportPreviewData) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -290,7 +291,7 @@ func ProfileImportPreview(locale i18n.Locale, data ProfileImportPreviewData) tem
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(data.Profile)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 134, Col: 49}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 135, Col: 49}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -306,9 +307,9 @@ func ProfileImportPreview(locale i18n.Locale, data ProfileImportPreviewData) tem
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var13 string
-				templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Tf(locale, "profile.preview.exported", data.ExportedAt))
+				templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.profile.exported_at", "date", data.ExportedAt))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 136, Col: 107}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 137, Col: 115}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 				if templ_7745c5c3_Err != nil {
@@ -324,19 +325,19 @@ func ProfileImportPreview(locale i18n.Locale, data ProfileImportPreviewData) tem
 				return templ_7745c5c3_Err
 			}
 			if data.HasPreferences {
-				templ_7745c5c3_Err = profileImportSection("preferences", i18n.T(locale, "profile.preview.preferences"), i18n.T(locale, "profile.preview.preferences_description"), true).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = profileImportSection("preferences", i18n.T(ctx, "transfer.profile.preferences"), i18n.T(ctx, "transfer.profile.preferences_detail"), true).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
 			if len(data.Signatures) > 0 {
-				templ_7745c5c3_Err = profileImportSection("signatures", profileCount(locale, len(data.Signatures), "profile.count.signature_one", "profile.count.signature_other"), profileSignatureNames(locale, data.Signatures), true).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = profileImportSection("signatures", i18n.N(ctx, "transfer.profile.signatures", len(data.Signatures)), profileSignatureNames(ctx, data.Signatures), true).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
 			if data.Contacts > 0 {
-				templ_7745c5c3_Err = profileImportSection("contacts", profileCount(locale, data.Contacts, "profile.count.contact_one", "profile.count.contact_other"), profileContactsDescription(locale, data), true).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = profileImportSection("contacts", i18n.N(ctx, "transfer.profile.contacts", data.Contacts), profileContactsDescription(ctx, data), true).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -346,7 +347,7 @@ func ProfileImportPreview(locale i18n.Locale, data ProfileImportPreviewData) tem
 				return templ_7745c5c3_Err
 			}
 			if len(data.Conflicts) > 0 {
-				templ_7745c5c3_Err = profileContactConflicts(locale, data.Conflicts).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = profileContactConflicts(data.Conflicts).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -361,9 +362,9 @@ func ProfileImportPreview(locale i18n.Locale, data ProfileImportPreviewData) tem
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var14 string
-				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "profile.preview.accounts"))
+				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.profile.accounts"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 154, Col: 133}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 155, Col: 131}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 				if templ_7745c5c3_Err != nil {
@@ -399,7 +400,7 @@ func ProfileImportPreview(locale i18n.Locale, data ProfileImportPreviewData) tem
 					var templ_7745c5c3_Var17 string
 					templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(account.Email)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 156, Col: 227}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 157, Col: 227}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 					if templ_7745c5c3_Err != nil {
@@ -410,7 +411,7 @@ func ProfileImportPreview(locale i18n.Locale, data ProfileImportPreviewData) tem
 						return templ_7745c5c3_Err
 					}
 					if account.CanReplace {
-						templ_7745c5c3_Err = profileAccountSummary(locale, account).Render(ctx, templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = profileAccountSummary(account).Render(ctx, templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -418,7 +419,7 @@ func ProfileImportPreview(locale i18n.Locale, data ProfileImportPreviewData) tem
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = profileConflictChoices(locale, "account_action:"+account.Ref, "skip", false, "profile.account.replace_settings").Render(ctx, templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = profileConflictChoices("account_action:"+account.Ref, "skip", false, i18n.T(ctx, "transfer.profile.replace_settings")).Render(ctx, templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -431,7 +432,7 @@ func ProfileImportPreview(locale i18n.Locale, data ProfileImportPreviewData) tem
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = profileAccountSummary(locale, account).Render(ctx, templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = profileAccountSummary(account).Render(ctx, templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -491,9 +492,9 @@ func ProfileImportPreview(locale i18n.Locale, data ProfileImportPreviewData) tem
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var21 string
-			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "profile.preview.cancel"))
+			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "common.cancel"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 173, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 174, Col: 34}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 			if templ_7745c5c3_Err != nil {
@@ -530,9 +531,9 @@ func ProfileImportPreview(locale i18n.Locale, data ProfileImportPreviewData) tem
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var24 string
-			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "profile.preview.import"))
+			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.profile.import_button"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 177, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 178, Col: 51}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 			if templ_7745c5c3_Err != nil {
@@ -556,16 +557,16 @@ func ProfileImportPreview(locale i18n.Locale, data ProfileImportPreviewData) tem
 	})
 }
 
-func profileContactsDescription(locale i18n.Locale, data ProfileImportPreviewData) string {
+func profileContactsDescription(ctx context.Context, data ProfileImportPreviewData) string {
 	if len(data.Conflicts) == 0 {
-		return i18n.T(locale, "profile.contacts.description")
+		return i18n.T(ctx, "transfer.profile.contacts_added")
 	}
-	return i18n.T(locale, "profile.contacts.conflicts_description")
+	return i18n.T(ctx, "transfer.profile.contacts_added_conflicts")
 }
 
 // profileConflictChoices lets the person skip something that is already in
 // Gofer, replace it, or keep both when that is possible.
-func profileConflictChoices(locale i18n.Locale, name string, selected string, keepBoth bool, replaceKey string) templ.Component {
+func profileConflictChoices(name string, selected string, keepBoth bool, replaceLabel string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -590,16 +591,16 @@ func profileConflictChoices(locale i18n.Locale, name string, selected string, ke
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = profileConflictChoice(name, "skip", i18n.T(locale, "profile.conflicts.skip"), selected).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = profileConflictChoice(name, "skip", i18n.T(ctx, "transfer.profile.skip"), selected).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = profileConflictChoice(name, "replace", i18n.T(locale, replaceKey), selected).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = profileConflictChoice(name, "replace", replaceLabel, selected).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if keepBoth {
-			templ_7745c5c3_Err = profileConflictChoice(name, "add", i18n.T(locale, "profile.conflicts.keep_both"), selected).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = profileConflictChoice(name, "add", i18n.T(ctx, "transfer.profile.keep_both"), selected).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -648,7 +649,7 @@ func profileConflictChoice(name string, value string, label string, selected str
 		var templ_7745c5c3_Var27 string
 		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 205, Col: 15}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 206, Col: 15}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 		if templ_7745c5c3_Err != nil {
@@ -662,7 +663,7 @@ func profileConflictChoice(name string, value string, label string, selected str
 	})
 }
 
-func profileContactConflicts(locale i18n.Locale, conflicts []ProfileImportContactConflict) templ.Component {
+func profileContactConflicts(conflicts []ProfileImportContactConflict) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -688,9 +689,9 @@ func profileContactConflicts(locale i18n.Locale, conflicts []ProfileImportContac
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var29 string
-		templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(profileConflictsHeading(locale, len(conflicts)))
+		templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.N(ctx, "transfer.profile.conflicts", len(conflicts)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 213, Col: 137}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 214, Col: 147}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 		if templ_7745c5c3_Err != nil {
@@ -701,9 +702,9 @@ func profileContactConflicts(locale i18n.Locale, conflicts []ProfileImportContac
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var30 string
-		templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "profile.conflicts.explanation"))
+		templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.profile.conflicts_note"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 214, Col: 94}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 215, Col: 93}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 		if templ_7745c5c3_Err != nil {
@@ -714,9 +715,9 @@ func profileContactConflicts(locale i18n.Locale, conflicts []ProfileImportContac
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var31 string
-		templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "profile.conflicts.for_all"))
+		templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.profile.for_all"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 217, Col: 49}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 218, Col: 45}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 		if templ_7745c5c3_Err != nil {
@@ -749,9 +750,9 @@ func profileContactConflicts(locale i18n.Locale, conflicts []ProfileImportContac
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var34 string
-		templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "profile.conflicts.skip"))
+		templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.profile.skip"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 218, Col: 160}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 219, Col: 156}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 		if templ_7745c5c3_Err != nil {
@@ -784,9 +785,9 @@ func profileContactConflicts(locale i18n.Locale, conflicts []ProfileImportContac
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var37 string
-		templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "profile.conflicts.replace"))
+		templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.profile.replace"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 219, Col: 166}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 220, Col: 162}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 		if templ_7745c5c3_Err != nil {
@@ -804,7 +805,7 @@ func profileContactConflicts(locale i18n.Locale, conflicts []ProfileImportContac
 			var templ_7745c5c3_Var38 string
 			templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(conflict.Index))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 224, Col: 167}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 225, Col: 167}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 			if templ_7745c5c3_Err != nil {
@@ -815,9 +816,9 @@ func profileContactConflicts(locale i18n.Locale, conflicts []ProfileImportContac
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var39 string
-			templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "profile.conflicts.in_profile"))
+			templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.profile.in_profile"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 227, Col: 138}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 228, Col: 134}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 			if templ_7745c5c3_Err != nil {
@@ -830,7 +831,7 @@ func profileContactConflicts(locale i18n.Locale, conflicts []ProfileImportContac
 			var templ_7745c5c3_Var40 string
 			templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(conflict.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 228, Col: 78}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 229, Col: 78}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 			if templ_7745c5c3_Err != nil {
@@ -848,7 +849,7 @@ func profileContactConflicts(locale i18n.Locale, conflicts []ProfileImportContac
 				var templ_7745c5c3_Var41 string
 				templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(conflict.Detail)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 230, Col: 75}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 231, Col: 75}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 				if templ_7745c5c3_Err != nil {
@@ -864,9 +865,9 @@ func profileContactConflicts(locale i18n.Locale, conflicts []ProfileImportContac
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var42 string
-			templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs(profileConflictExistingLabel(locale, conflict))
+			templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs(profileConflictExistingLabel(ctx, conflict))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 234, Col: 138}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 235, Col: 135}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var42))
 			if templ_7745c5c3_Err != nil {
@@ -879,7 +880,7 @@ func profileContactConflicts(locale i18n.Locale, conflicts []ProfileImportContac
 			var templ_7745c5c3_Var43 string
 			templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(conflict.ExistingName)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 235, Col: 86}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 236, Col: 86}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 			if templ_7745c5c3_Err != nil {
@@ -897,7 +898,7 @@ func profileContactConflicts(locale i18n.Locale, conflicts []ProfileImportContac
 				var templ_7745c5c3_Var44 string
 				templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(conflict.ExistingDetail)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 237, Col: 83}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 238, Col: 83}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 				if templ_7745c5c3_Err != nil {
@@ -912,7 +913,7 @@ func profileContactConflicts(locale i18n.Locale, conflicts []ProfileImportContac
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = profileConflictChoices(locale, "contact_action:"+strconv.Itoa(conflict.Index), conflict.Default, !conflict.ByEmail, "profile.conflicts.replace").Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = profileConflictChoices("contact_action:"+strconv.Itoa(conflict.Index), conflict.Default, !conflict.ByEmail, i18n.T(ctx, "transfer.profile.replace")).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -929,18 +930,14 @@ func profileContactConflicts(locale i18n.Locale, conflicts []ProfileImportContac
 	})
 }
 
-func profileConflictsHeading(locale i18n.Locale, n int) string {
-	return i18n.TP(locale, n, "profile.conflicts.heading_one", "profile.conflicts.heading_other", n)
-}
-
-func profileConflictExistingLabel(locale i18n.Locale, conflict ProfileImportContactConflict) string {
+func profileConflictExistingLabel(ctx context.Context, conflict ProfileImportContactConflict) string {
 	if conflict.ByEmail {
-		return i18n.T(locale, "profile.conflicts.in_gofer_email")
+		return i18n.T(ctx, "transfer.profile.same_email")
 	}
-	return i18n.T(locale, "profile.conflicts.in_gofer_name")
+	return i18n.T(ctx, "transfer.profile.same_name")
 }
 
-func profileAccountSummary(locale i18n.Locale, account ProfileImportAccount) templ.Component {
+func profileAccountSummary(account ProfileImportAccount) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -968,7 +965,7 @@ func profileAccountSummary(locale i18n.Locale, account ProfileImportAccount) tem
 		var templ_7745c5c3_Var46 string
 		templ_7745c5c3_Var46, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(accountColorStyle(account.Color))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 260, Col: 91}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 257, Col: 91}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 		if templ_7745c5c3_Err != nil {
@@ -979,9 +976,9 @@ func profileAccountSummary(locale i18n.Locale, account ProfileImportAccount) tem
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var47 string
-		templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(profileAccountLabel(locale, account))
+		templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(profileAccountLabel(account))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 263, Col: 100}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 260, Col: 92}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 		if templ_7745c5c3_Err != nil {
@@ -998,7 +995,7 @@ func profileAccountSummary(locale i18n.Locale, account ProfileImportAccount) tem
 		var templ_7745c5c3_Var48 string
 		templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(accountProviderName(account.Provider))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 266, Col: 43}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 263, Col: 43}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 		if templ_7745c5c3_Err != nil {
@@ -1016,7 +1013,7 @@ func profileAccountSummary(locale i18n.Locale, account ProfileImportAccount) tem
 			var templ_7745c5c3_Var49 string
 			templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(account.Email)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 270, Col: 77}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 267, Col: 77}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 			if templ_7745c5c3_Err != nil {
@@ -1032,9 +1029,9 @@ func profileAccountSummary(locale i18n.Locale, account ProfileImportAccount) tem
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var50 string
-		templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(profileImportStatusLabel(locale, account.Status))
+		templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(profileImportStatusLabel(ctx, account.Status))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 273, Col: 79}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 270, Col: 76}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 		if templ_7745c5c3_Err != nil {
@@ -1045,9 +1042,9 @@ func profileAccountSummary(locale i18n.Locale, account ProfileImportAccount) tem
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var51 string
-		templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(profileImportStatusDescription(locale, account))
+		templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(profileImportStatusDescription(ctx, account))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 274, Col: 52}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 271, Col: 49}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 		if templ_7745c5c3_Err != nil {
@@ -1089,7 +1086,7 @@ func profileImportSection(name string, title string, description string, checked
 		var templ_7745c5c3_Var53 string
 		templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 280, Col: 129}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 277, Col: 129}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
 		if templ_7745c5c3_Err != nil {
@@ -1110,7 +1107,7 @@ func profileImportSection(name string, title string, description string, checked
 		var templ_7745c5c3_Var54 string
 		templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 283, Col: 66}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 280, Col: 66}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
 		if templ_7745c5c3_Err != nil {
@@ -1123,7 +1120,7 @@ func profileImportSection(name string, title string, description string, checked
 		var templ_7745c5c3_Var55 string
 		templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(description)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 284, Col: 89}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 281, Col: 89}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
 		if templ_7745c5c3_Err != nil {
@@ -1137,69 +1134,22 @@ func profileImportSection(name string, title string, description string, checked
 	})
 }
 
-func profileCount(locale i18n.Locale, n int, oneKey, otherKey string) string {
-	return i18n.TP(locale, n, oneKey, otherKey, n)
-}
-
-func profileSignatureNames(locale i18n.Locale, names []string) string {
+func profileSignatureNames(ctx context.Context, names []string) string {
 	const shown = 4
 	if len(names) <= shown {
-		return profileJoin(locale, names)
+		return settingsJoinAnd(ctx, names)
 	}
-	more := i18n.Tf(locale, "profile.signatures.more", len(names)-shown)
-	return profileJoin(locale, append(append([]string{}, names[:shown]...), more))
+	return settingsJoinAnd(ctx, append(append([]string{}, names[:shown]...), i18n.T(ctx, "transfer.profile.more", "count", len(names)-shown)))
 }
 
-func profileJoin(locale i18n.Locale, items []string) string {
-	switch len(items) {
-	case 0:
-		return ""
-	case 1:
-		return items[0]
-	}
-	out := items[0]
-	for i, item := range items[1:] {
-		if i == len(items)-2 {
-			out += i18n.T(locale, "list.and") + item
-			continue
-		}
-		out += ", " + item
-	}
-	return out
-}
-
-func joinWithAnd(items []string) string {
-	switch len(items) {
-	case 0:
-		return ""
-	case 1:
-		return items[0]
-	}
-	out := ""
-	for i, item := range items {
-		switch {
-		case i == 0:
-			out = item
-		case i == len(items)-1:
-			out += " and " + item
-		default:
-			out += ", " + item
-		}
-	}
-	return out
-}
-
-func profileAccountLabel(locale i18n.Locale, account ProfileImportAccount) string {
+func profileAccountLabel(account ProfileImportAccount) string {
 	if account.Name != "" {
 		return account.Name
 	}
-	if account.Email != "" {
-		return account.Email
-	}
-	return i18n.T(locale, "profile.account_fallback")
+	return account.Email
 }
 
-func ProfileImportResult(locale i18n.Locale, result ProfileImportResultData) templ.Component {
+func ProfileImportResult(result ProfileImportResultData) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -1267,9 +1217,9 @@ func ProfileImportResult(locale i18n.Locale, result ProfileImportResultData) tem
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var60 string
-			templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "profile.result.title"))
+			templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.profile.imported"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 357, Col: 68}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 307, Col: 70}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var60))
 			if templ_7745c5c3_Err != nil {
@@ -1285,9 +1235,9 @@ func ProfileImportResult(locale i18n.Locale, result ProfileImportResultData) tem
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var61 string
-				templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "profile.result.preferences"))
+				templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.profile.result.preferences"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 360, Col: 57}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 310, Col: 63}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var61))
 				if templ_7745c5c3_Err != nil {
@@ -1304,9 +1254,9 @@ func ProfileImportResult(locale i18n.Locale, result ProfileImportResultData) tem
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var62 string
-				templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.TP(locale, result.Signatures, "profile.result.signature_one", "profile.result.signature_other", result.Signatures))
+				templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.N(ctx, "transfer.profile.result.signatures", result.Signatures))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 363, Col: 132}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 313, Col: 81}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var62))
 				if templ_7745c5c3_Err != nil {
@@ -1323,9 +1273,9 @@ func ProfileImportResult(locale i18n.Locale, result ProfileImportResultData) tem
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var63 string
-				templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.TP(locale, result.Contacts, "profile.result.contact_one", "profile.result.contact_other", result.Contacts))
+				templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.N(ctx, "transfer.profile.result.contacts", result.Contacts))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 366, Col: 124}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 316, Col: 77}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var63))
 				if templ_7745c5c3_Err != nil {
@@ -1342,9 +1292,9 @@ func ProfileImportResult(locale i18n.Locale, result ProfileImportResultData) tem
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var64 string
-				templ_7745c5c3_Var64, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.TP(locale, result.ContactsReplaced, "profile.result.contact_replaced_one", "profile.result.contact_replaced_other", result.ContactsReplaced))
+				templ_7745c5c3_Var64, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.N(ctx, "transfer.profile.result.replaced", result.ContactsReplaced))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 369, Col: 158}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 319, Col: 85}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var64))
 				if templ_7745c5c3_Err != nil {
@@ -1361,9 +1311,9 @@ func ProfileImportResult(locale i18n.Locale, result ProfileImportResultData) tem
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var65 string
-				templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.TP(locale, result.ContactsSkipped, "profile.result.contact_skipped_one", "profile.result.contact_skipped_other", result.ContactsSkipped))
+				templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.N(ctx, "transfer.profile.result.skipped", result.ContactsSkipped))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 372, Col: 154}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 322, Col: 83}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var65))
 				if templ_7745c5c3_Err != nil {
@@ -1380,9 +1330,9 @@ func ProfileImportResult(locale i18n.Locale, result ProfileImportResultData) tem
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var66 string
-				templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.JoinStringErrs(profileAccountResult(locale, result.Accounts))
+				templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.N(ctx, "transfer.profile.result.accounts", len(result.Accounts), "accounts", settingsJoinAnd(ctx, result.Accounts)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 375, Col: 58}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 325, Col: 133}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var66))
 				if templ_7745c5c3_Err != nil {
@@ -1399,9 +1349,9 @@ func ProfileImportResult(locale i18n.Locale, result ProfileImportResultData) tem
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var67 string
-				templ_7745c5c3_Var67, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Tf(locale, "profile.result.account_replaced", profileJoin(locale, result.AccountsReplaced)))
+				templ_7745c5c3_Var67, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.profile.result.settings_replaced", "accounts", settingsJoinAnd(ctx, result.AccountsReplaced)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 378, Col: 109}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 328, Col: 128}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var67))
 				if templ_7745c5c3_Err != nil {
@@ -1430,9 +1380,9 @@ func ProfileImportResult(locale i18n.Locale, result ProfileImportResultData) tem
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var68 string
-				templ_7745c5c3_Var68, templ_7745c5c3_Err = templ.JoinStringErrs(profileAccountFailureMessage(locale, result.AccountFailures))
+				templ_7745c5c3_Var68, templ_7745c5c3_Err = templ.JoinStringErrs(profileAccountFailureMessage(ctx, result.AccountFailures))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 386, Col: 70}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 336, Col: 67}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var68))
 				if templ_7745c5c3_Err != nil {
@@ -1484,9 +1434,9 @@ func ProfileImportResult(locale i18n.Locale, result ProfileImportResultData) tem
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var72 string
-			templ_7745c5c3_Var72, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "profile.result.import_another"))
+			templ_7745c5c3_Var72, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.profile.import_another"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 392, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 342, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var72))
 			if templ_7745c5c3_Err != nil {
@@ -1520,9 +1470,9 @@ func ProfileImportResult(locale i18n.Locale, result ProfileImportResultData) tem
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var75 string
-				templ_7745c5c3_Var75, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "profile.result.accounts"))
+				templ_7745c5c3_Var75, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.profile.go_accounts"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 396, Col: 48}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 346, Col: 50}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var75))
 				if templ_7745c5c3_Err != nil {
@@ -1556,9 +1506,9 @@ func ProfileImportResult(locale i18n.Locale, result ProfileImportResultData) tem
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var78 string
-				templ_7745c5c3_Var78, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(locale, "profile.result.reload"))
+				templ_7745c5c3_Var78, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "transfer.profile.reload"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 400, Col: 46}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/profile_transfer.templ`, Line: 350, Col: 45}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var78))
 				if templ_7745c5c3_Err != nil {
@@ -1583,20 +1533,8 @@ func ProfileImportResult(locale i18n.Locale, result ProfileImportResultData) tem
 	})
 }
 
-func profileAccountResult(locale i18n.Locale, accounts []string) string {
-	key := "profile.result.account_one"
-	if len(accounts) != 1 {
-		key = "profile.result.account_other"
-	}
-	return i18n.Tf(locale, key, len(accounts), profileJoin(locale, accounts))
-}
-
-func profileAccountFailureMessage(locale i18n.Locale, emails []string) string {
-	key := "profile.result.failed_other"
-	if len(emails) == 1 {
-		key = "profile.result.failed_one"
-	}
-	return i18n.Tf(locale, key, profileJoin(locale, emails))
+func profileAccountFailureMessage(ctx context.Context, emails []string) string {
+	return i18n.N(ctx, "transfer.profile.result.failures", len(emails), "accounts", settingsJoinAnd(ctx, emails))
 }
 
 var _ = templruntime.GeneratedTemplate

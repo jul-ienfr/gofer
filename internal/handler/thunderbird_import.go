@@ -56,7 +56,7 @@ func (h *Handler) handleThunderbirdPreviewImport(w http.ResponseWriter, r *http.
 	locale := h.uiLocale(ctx, owner)
 	r.Body = http.MaxBytesReader(w, r.Body, thunderbirdUploadMaxBytes+(256<<10))
 	if err := r.ParseMultipartForm(4 << 20); err != nil {
-		renderThunderbirdImportError(w, r, locale, i18n.T(locale, "thunderbird.error.choose_file"))
+		renderThunderbirdImportError(w, r, locale, i18n.L(locale, "thunderbird.error.choose_file"))
 		return
 	}
 	if r.MultipartForm != nil {
@@ -64,13 +64,13 @@ func (h *Handler) handleThunderbirdPreviewImport(w http.ResponseWriter, r *http.
 	}
 	upload, header, err := r.FormFile("thunderbird")
 	if err != nil {
-		renderThunderbirdImportError(w, r, locale, i18n.T(locale, "thunderbird.error.choose_prefs"))
+		renderThunderbirdImportError(w, r, locale, i18n.L(locale, "thunderbird.error.choose_prefs"))
 		return
 	}
 	defer upload.Close()
 	data, err := io.ReadAll(io.LimitReader(upload, thunderbirdUploadMaxBytes+1))
 	if err != nil || len(data) > thunderbirdUploadMaxBytes {
-		renderThunderbirdImportError(w, r, locale, i18n.T(locale, "thunderbird.error.choose_file"))
+		renderThunderbirdImportError(w, r, locale, i18n.L(locale, "thunderbird.error.choose_file"))
 		return
 	}
 	prefs, err := thunderbirdPrefsFromUpload(header.Filename, data)
@@ -87,7 +87,7 @@ func (h *Handler) handleThunderbirdPreviewImport(w http.ResponseWriter, r *http.
 	existing, err := h.profileExistingAccounts(ctx, owner)
 	if err != nil {
 		log.Printf("thunderbird preview: %v", err)
-		renderThunderbirdImportError(w, r, locale, i18n.T(locale, "thunderbird.error.import_failed"))
+		renderThunderbirdImportError(w, r, locale, i18n.L(locale, "thunderbird.error.import_failed"))
 		return
 	}
 	preview := views.ThunderbirdImportPreviewData{Prefs: string(prefs), Warnings: warnings}
@@ -108,12 +108,12 @@ func (h *Handler) handleThunderbirdImport(w http.ResponseWriter, r *http.Request
 	r.Body = http.MaxBytesReader(w, r.Body, thunderbirdFormMaxBytes)
 	body, err := io.ReadAll(io.LimitReader(r.Body, thunderbirdFormMaxBytes+1))
 	if err != nil || len(body) > thunderbirdFormMaxBytes {
-		renderThunderbirdImportError(w, r, locale, i18n.T(locale, "thunderbird.error.read"))
+		renderThunderbirdImportError(w, r, locale, i18n.L(locale, "thunderbird.error.read"))
 		return
 	}
 	values, err := url.ParseQuery(string(body))
 	if err != nil {
-		renderThunderbirdImportError(w, r, locale, i18n.T(locale, "thunderbird.error.read"))
+		renderThunderbirdImportError(w, r, locale, i18n.L(locale, "thunderbird.error.read"))
 		return
 	}
 	profile, err := thunderbird.Parse([]byte(values.Get("prefs")))
@@ -130,7 +130,7 @@ func (h *Handler) handleThunderbirdImport(w http.ResponseWriter, r *http.Request
 	result, err := h.importThunderbirdAccounts(ctx, owner, items, selected, withSignatures)
 	if err != nil {
 		log.Printf("thunderbird import: %v", err)
-		renderThunderbirdImportError(w, r, locale, i18n.T(locale, "thunderbird.error.import_failed"))
+		renderThunderbirdImportError(w, r, locale, i18n.L(locale, "thunderbird.error.import_failed"))
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -143,19 +143,19 @@ func (h *Handler) handleThunderbirdImport(w http.ResponseWriter, r *http.Request
 func thunderbirdErrorMessage(locale i18n.Locale, err error) string {
 	switch {
 	case errors.Is(err, thunderbird.ErrTooLarge):
-		return i18n.T(locale, "thunderbird.error.prefs_too_large")
+		return i18n.L(locale, "thunderbird.error.prefs_too_large")
 	case errors.Is(err, thunderbird.ErrNotPrefs):
-		return i18n.T(locale, "thunderbird.error.not_prefs")
+		return i18n.L(locale, "thunderbird.error.not_prefs")
 	case errors.Is(err, thunderbird.ErrNoAccounts):
-		return i18n.T(locale, "thunderbird.error.no_accounts")
+		return i18n.L(locale, "thunderbird.error.no_accounts")
 	case errors.Is(err, errThunderbirdZipRead):
-		return i18n.T(locale, "thunderbird.error.zip_read")
+		return i18n.L(locale, "thunderbird.error.zip_read")
 	case errors.Is(err, errThunderbirdZipNoPrefs):
-		return i18n.T(locale, "thunderbird.error.zip_no_prefs")
+		return i18n.L(locale, "thunderbird.error.zip_no_prefs")
 	case errors.Is(err, errThunderbirdZipEntry):
-		return i18n.T(locale, "thunderbird.error.zip_entry")
+		return i18n.L(locale, "thunderbird.error.zip_entry")
 	}
-	return i18n.T(locale, "thunderbird.error.import_failed")
+	return i18n.L(locale, "thunderbird.error.import_failed")
 }
 
 func thunderbirdPrefsFromUpload(name string, data []byte) ([]byte, error) {
@@ -226,24 +226,24 @@ func (h *Handler) thunderbirdAccounts(locale i18n.Locale, profile *thunderbird.P
 		email := profile.AccountEmail(source)
 		label := email
 		if label == "" {
-			label = i18n.T(locale, "thunderbird.account_fallback")
+			label = i18n.L(locale, "thunderbird.account_fallback")
 		}
 		serverType := strings.ToLower(strings.TrimSpace(source.Server.Type))
 		switch serverType {
 		case "imap":
 		case "":
 			if strings.TrimSpace(source.Server.Host) == "" {
-				warnings = append(warnings, i18n.Tf(locale, "thunderbird.warning.no_server", label))
+				warnings = append(warnings, i18n.Lf(locale, "thunderbird.warning.no_server", label))
 				continue
 			}
 		case "none":
 			continue
 		default:
-			warnings = append(warnings, i18n.Tf(locale, "thunderbird.warning.unsupported_type", label, strings.ToUpper(serverType)))
+			warnings = append(warnings, i18n.Lf(locale, "thunderbird.warning.unsupported_type", label, strings.ToUpper(serverType)))
 			continue
 		}
 		if email == "" {
-			warnings = append(warnings, i18n.T(locale, "thunderbird.warning.no_email"))
+			warnings = append(warnings, i18n.L(locale, "thunderbird.warning.no_email"))
 			continue
 		}
 		if len(source.Identities) == 0 {
@@ -251,7 +251,7 @@ func (h *Handler) thunderbirdAccounts(locale i18n.Locale, profile *thunderbird.P
 		}
 		key := strings.ToLower(email)
 		if seen[key] {
-			warnings = append(warnings, i18n.Tf(locale, "thunderbird.warning.duplicate", label))
+			warnings = append(warnings, i18n.Lf(locale, "thunderbird.warning.duplicate", label))
 			continue
 		}
 		seen[key] = true
@@ -264,13 +264,13 @@ func (h *Handler) thunderbirdAccounts(locale i18n.Locale, profile *thunderbird.P
 			if h.profileProviderAvailable(providers.ProviderGmail) {
 				provider = providers.ProviderGmail
 			} else {
-				warning = i18n.Tf(locale, "thunderbird.warning.gmail_no_oauth", label)
+				warning = i18n.Lf(locale, "thunderbird.warning.gmail_no_oauth", label)
 			}
 		case thunderbirdOutlookHost(host):
 			if h.profileProviderAvailable(providers.ProviderOutlook) {
 				provider = providers.ProviderOutlook
 			} else {
-				warning = i18n.Tf(locale, "thunderbird.warning.outlook_no_oauth", label)
+				warning = i18n.Lf(locale, "thunderbird.warning.outlook_no_oauth", label)
 			}
 		}
 
@@ -309,7 +309,7 @@ func (h *Handler) thunderbirdAccounts(locale i18n.Locale, profile *thunderbird.P
 				converted.SMTPUsername = email
 			}
 		} else {
-			warning = joinThunderbirdWarning(warning, i18n.Tf(locale, "thunderbird.warning.no_smtp", label))
+			warning = joinThunderbirdWarning(warning, i18n.Lf(locale, "thunderbird.warning.no_smtp", label))
 		}
 
 		signatureRefs := make([]string, len(source.Identities))
@@ -393,9 +393,9 @@ func (h *Handler) thunderbirdAccounts(locale i18n.Locale, profile *thunderbird.P
 func thunderbirdProfileWarning(locale i18n.Locale, warning thunderbird.Warning) string {
 	switch warning.Code {
 	case "no_server":
-		return i18n.T(locale, "thunderbird.warning.account_no_server")
+		return i18n.L(locale, "thunderbird.warning.account_no_server")
 	case "no_email":
-		return i18n.T(locale, "thunderbird.warning.account_no_email")
+		return i18n.L(locale, "thunderbird.warning.account_no_email")
 	}
 	return warning.Message
 }
@@ -412,7 +412,7 @@ func (h *Handler) thunderbirdAccountViews(locale i18n.Locale, items []thunderbir
 		warning := item.warning
 		if thunderbirdPlaintext(item.account) {
 			status = string(profileImportUnsupported)
-			warning = joinThunderbirdWarning(warning, i18n.T(locale, "thunderbird.warning.plaintext"))
+			warning = joinThunderbirdWarning(warning, i18n.L(locale, "thunderbird.warning.plaintext"))
 		}
 		var needs []string
 		if status == string(profileImportNew) {
