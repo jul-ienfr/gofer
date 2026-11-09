@@ -184,7 +184,7 @@ Current status:
 - Mail, contacts, and Calendar content is displayed in its original language, independent of the interface language.
 - Dates and times use the browser and Go formatting paths already present in the application; they have not been audited for every locale.
 - No right-to-left layout support has been implemented or tested.
-- Server-side error strings are mostly English and sometimes include Go error text. The fork-only AI analysis and AI settings templates are still English.
+- Server-side error strings are mostly English and sometimes include Go error text. The fork-only AI templates are translated, but strings rendered by the AI client scripts are still English.
 
 To add a language:
 
@@ -194,7 +194,7 @@ To add a language:
 
 Before claiming full i18n support, still add:
 
-1. Complete translations for every visible string, especially the French catalog and the fork AI templates, with a test that rejects user-facing Go literals.
+1. Complete translations for every visible string, especially the French catalog and the strings rendered by the AI client scripts, with a test that rejects user-facing Go literals.
 2. Locale-aware date, time, number, and relative-time formatting.
 3. RTL layout and icon mirroring tests.
 4. Translation review for security-sensitive messages, especially sign-in, recovery, and deletion.

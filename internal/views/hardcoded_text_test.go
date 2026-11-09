@@ -45,10 +45,7 @@ var untranslatedTextUnusedComponents = map[string]bool{
 
 // The fork's AI pages are still English-only; they are tracked with the rest
 // of the AI UI's translation work.
-var untranslatedTextForkOnly = map[string]bool{
-	"ai_analysis.templ": true,
-	"ai_settings.templ": true,
-}
+var untranslatedTextForkOnly = map[string]bool{}
 
 var (
 	readableText      = regexp.MustCompile(`[A-Za-z]{2}`)

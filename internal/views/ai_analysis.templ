@@ -1,9 +1,12 @@
 package views
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/cristianadrielbraun/gofer/internal/i18n"
 )
 
 type AIAnalysisPanelData struct {
@@ -46,41 +49,41 @@ type AIAnalysisPanelAnswer struct {
 templ AIAnalysisPanel(data AIAnalysisPanelData) {
 	<section id={ fmt.Sprintf("ai-analysis-%d", data.MessageID) } class="mt-5 rounded-lg border border-border bg-muted/20 px-4 py-3" data-ai-analysis-panel>
 		<div class="flex flex-wrap items-center gap-2">
-			<span class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Jev analysis</span>
+			<span class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{ i18n.T(ctx, "ai.analysis.heading") }</span>
 			if data.Model != "" {
 				<span class="text-[11px] text-muted-foreground/70">{ data.Model }</span>
 			}
 			<span class="ml-auto flex items-center gap-2">
-				@aiAnalysisBadge("Priority", aiPriorityText(data.PriorityLabel), aiPriorityClass(data.PriorityLabel))
-				@aiAnalysisBadge("Risk", aiRiskText(data.RiskLabel), aiRiskClass(data.RiskLabel))
+				@aiAnalysisBadge(i18n.T(ctx, "ai.analysis.badge.priority"), aiPriorityText(ctx, data.PriorityLabel), aiPriorityClass(data.PriorityLabel))
+				@aiAnalysisBadge(i18n.T(ctx, "ai.analysis.badge.risk"), aiRiskText(ctx, data.RiskLabel), aiRiskClass(data.RiskLabel))
 				if data.IntentLabel != "" {
-					@aiAnalysisBadge("Reply", aiIntentText(data.IntentLabel), aiIntentClass(data.IntentLabel))
+					@aiAnalysisBadge(i18n.T(ctx, "ai.analysis.badge.reply"), aiIntentText(ctx, data.IntentLabel), aiIntentClass(data.IntentLabel))
 				}
 				if data.ProjectLabel != "" {
-					@aiAnalysisBadge("Domain", data.ProjectLabel, "border-border bg-background text-muted-foreground")
+					@aiAnalysisBadge(i18n.T(ctx, "ai.analysis.badge.domain"), data.ProjectLabel, "border-border bg-background text-muted-foreground")
 				}
 			</span>
 		</div>
 		if data.SenderEmail != "" {
 			<div class="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-				@aiAnalysisBadge("Sender", aiTrustText(data), aiTrustClass(data))
+				@aiAnalysisBadge(i18n.T(ctx, "ai.analysis.badge.sender"), aiTrustText(ctx, data), aiTrustClass(data))
 				<span class="truncate">{ data.SenderEmail }</span>
 				if data.LegitimacyState != "unknown" {
-					<span>{ fmt.Sprintf("trust %s", aiPercent(data.LegitimacyScore)) }</span>
+					<span>{ i18n.T(ctx, "ai.analysis.trust_score", "percent", aiPercent(data.LegitimacyScore)) }</span>
 				}
 			</div>
 		}
 		if data.RiskLabel == "phishing" {
 			<p class="mt-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs font-medium text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
-				Jev flags this message as phishing. No draft or routing action should be trusted without review.
+				{ i18n.T(ctx, "ai.analysis.phishing_warning") }
 			</p>
 		} else if data.RiskLabel == "spam" {
 			<p class="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-				Jev flags this message as spam. Automation follows your opt-in settings and the project permission.
+				{ i18n.T(ctx, "ai.analysis.spam_warning") }
 			</p>
 		} else if data.RiskLabel == "unsure" {
 			<p class="mt-3 rounded-md border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
-				Jev is unsure about this sender. Automated actions require review.
+				{ i18n.T(ctx, "ai.analysis.unsure_warning") }
 			</p>
 		}
 		if data.Summary != "" {
@@ -88,21 +91,21 @@ templ AIAnalysisPanel(data AIAnalysisPanelData) {
 		}
 		if data.AutomationActionID != "" {
 			<div class="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-xs" data-ai-automation>
-				<span class="font-medium text-foreground">{ aiAutomationText(data) }</span>
+				<span class="font-medium text-foreground">{ aiAutomationText(ctx, data) }</span>
 				if data.AutomationState == "executed" && data.AutomationUndoBy.After(time.Now()) {
 					<button
 						type="button"
 						class="rounded-md border border-border px-2 py-1 text-[11px] font-medium hover:bg-muted"
 						data-ai-undo={ data.AutomationActionID }
 						data-ai-undo-message={ fmt.Sprintf("%d", data.MessageID) }
-					>Undo</button>
+					>{ i18n.T(ctx, "ai.analysis.undo") }</button>
 				}
 				<span class="text-muted-foreground" data-ai-undo-status></span>
 			</div>
 		}
 		<div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-			<span>{ fmt.Sprintf("Priority confidence %s", aiPercent(data.PriorityConfidence)) }</span>
-			<span>{ fmt.Sprintf("Risk confidence %s", aiPercent(data.RiskConfidence)) }</span>
+			<span>{ i18n.T(ctx, "ai.analysis.priority_confidence", "percent", aiPercent(data.PriorityConfidence)) }</span>
+			<span>{ i18n.T(ctx, "ai.analysis.risk_confidence", "percent", aiPercent(data.RiskConfidence)) }</span>
 			if data.LatencyMS > 0 {
 				<span>{ fmt.Sprintf("%d ms", data.LatencyMS) }</span>
 			}
@@ -111,12 +114,12 @@ templ AIAnalysisPanel(data AIAnalysisPanelData) {
 			}
 		</div>
 		<details class="mt-3 group">
-			<summary class="cursor-pointer list-none text-[11px] font-medium text-muted-foreground hover:text-foreground">Raw answers</summary>
+			<summary class="cursor-pointer list-none text-[11px] font-medium text-muted-foreground hover:text-foreground">{ i18n.T(ctx, "ai.analysis.raw_answers") }</summary>
 			<div class="mt-2 grid gap-1.5 sm:grid-cols-2">
 				for _, answer := range data.Answers {
 					<div class="rounded-md border border-border/70 bg-background px-2.5 py-1.5 text-[11px]">
 						<span class="font-semibold text-foreground">{ answer.QuestionKey }</span>
-						<span class="text-muted-foreground">{ aiAnswerText(answer) }</span>
+						<span class="text-muted-foreground">{ aiAnswerText(ctx, answer) }</span>
 					</div>
 				}
 			</div>
@@ -130,20 +133,20 @@ templ AIAnalysisPanel(data AIAnalysisPanelData) {
 						hx-post={ fmt.Sprintf("/api/ai/messages/%d/reanalyze", data.MessageID) }
 						hx-target={ fmt.Sprintf("#ai-analysis-%d", data.MessageID) }
 						hx-swap="outerHTML"
-					>Reanalyze</button>
+					>{ i18n.T(ctx, "ai.analysis.reanalyze") }</button>
 				} else {
-					<span class="text-[11px] text-muted-foreground">The Jev worker is not configured.</span>
+					<span class="text-[11px] text-muted-foreground">{ i18n.T(ctx, "ai.analysis.worker_missing") }</span>
 				}
 				if data.RiskLabel == "legit" || data.RiskLabel == "unsure" {
 					<button
 						type="button"
 						class="rounded-md border border-border bg-background px-2 py-1 text-[11px] font-medium text-foreground hover:bg-muted"
 						data-ai-draft={ fmt.Sprintf("%d", data.MessageID) }
-					>Draft reply</button>
+					>{ i18n.T(ctx, "ai.analysis.draft_reply") }</button>
 					<span class="text-[11px] text-muted-foreground" data-ai-draft-status></span>
 				}
 			</div>
-			<span class="text-[11px] text-muted-foreground/70">Draft-first: analysis never sends or deletes mail.</span>
+			<span class="text-[11px] text-muted-foreground/70">{ i18n.T(ctx, "ai.analysis.draft_first") }</span>
 		</div>
 	</section>
 }
@@ -152,7 +155,7 @@ templ AIAnalysisQueued(messageID int64) {
 	<section id={ fmt.Sprintf("ai-analysis-%d", messageID) } class="mt-5 rounded-lg border border-border bg-muted/20 px-4 py-3" data-ai-analysis-panel>
 		<div class="flex items-center gap-2 text-xs text-muted-foreground">
 			<span class="inline-block size-2 animate-pulse rounded-full bg-amber-500"></span>
-			<span>Jev analysis queued. Reload the message to see the result.</span>
+			<span>{ i18n.T(ctx, "ai.analysis.queued") }</span>
 		</div>
 	</section>
 }
@@ -164,16 +167,16 @@ templ aiAnalysisBadge(label, value, class string) {
 	</span>
 }
 
-func aiPriorityText(label string) string {
+func aiPriorityText(ctx context.Context, label string) string {
 	switch label {
 	case "high":
-		return "High"
+		return i18n.T(ctx, "ai.analysis.priority.high")
 	case "normal":
-		return "Normal"
+		return i18n.T(ctx, "ai.analysis.priority.normal")
 	case "low":
-		return "Low"
+		return i18n.T(ctx, "ai.analysis.priority.low")
 	default:
-		return "Unknown"
+		return i18n.T(ctx, "ai.analysis.unknown")
 	}
 }
 
@@ -188,18 +191,18 @@ func aiPriorityClass(label string) string {
 	}
 }
 
-func aiRiskText(label string) string {
+func aiRiskText(ctx context.Context, label string) string {
 	switch label {
 	case "legit":
-		return "Legit"
+		return i18n.T(ctx, "ai.analysis.risk.legit")
 	case "spam":
-		return "Spam"
+		return i18n.T(ctx, "ai.analysis.risk.spam")
 	case "phishing":
-		return "Phishing"
+		return i18n.T(ctx, "ai.analysis.risk.phishing")
 	case "unsure":
-		return "Unsure"
+		return i18n.T(ctx, "ai.analysis.risk.unsure")
 	default:
-		return "Unknown"
+		return i18n.T(ctx, "ai.analysis.unknown")
 	}
 }
 
@@ -216,40 +219,40 @@ func aiRiskClass(label string) string {
 	}
 }
 
-func aiAutomationText(data AIAnalysisPanelData) string {
-	name := "Automation applied"
+func aiAutomationText(ctx context.Context, data AIAnalysisPanelData) string {
+	name := i18n.T(ctx, "ai.analysis.automation.applied")
 	switch data.AutomationKind {
 	case "move_junk":
-		name = "Moved to Junk"
+		name = i18n.T(ctx, "ai.analysis.automation.moved_junk")
 	case "route_move":
-		name = "Moved by a project route"
+		name = i18n.T(ctx, "ai.analysis.automation.moved_route")
 	}
 	if data.AutomationState == "undone" {
-		return name + " · undone"
+		return i18n.T(ctx, "ai.analysis.automation.undone", "action", name)
 	}
 	return name
 }
 
-func aiTrustText(data AIAnalysisPanelData) string {
+func aiTrustText(ctx context.Context, data AIAnalysisPanelData) string {
 	switch {
 	case data.SenderBlocked:
-		return "Blocked"
+		return i18n.T(ctx, "ai.analysis.trust.blocked")
 	case data.SenderVIP:
-		return "VIP"
+		return i18n.T(ctx, "ai.analysis.trust.vip")
 	case data.SenderAllowlisted:
-		return "Trusted"
+		return i18n.T(ctx, "ai.analysis.trust.trusted")
 	}
 	switch data.LegitimacyState {
 	case "trusted":
-		return "Trusted"
+		return i18n.T(ctx, "ai.analysis.trust.trusted")
 	case "neutral":
-		return "Neutral"
+		return i18n.T(ctx, "ai.analysis.trust.neutral")
 	case "suspicious":
-		return "Suspicious"
+		return i18n.T(ctx, "ai.analysis.trust.suspicious")
 	case "malicious":
-		return "Malicious"
+		return i18n.T(ctx, "ai.analysis.trust.malicious")
 	default:
-		return "Unknown"
+		return i18n.T(ctx, "ai.analysis.unknown")
 	}
 }
 
@@ -266,11 +269,11 @@ func aiTrustClass(data AIAnalysisPanelData) string {
 	}
 }
 
-func aiIntentText(label string) string {
+func aiIntentText(ctx context.Context, label string) string {
 	if label == "reply_required" {
-		return "Reply needed"
+		return i18n.T(ctx, "ai.analysis.intent.reply_needed")
 	}
-	return "No reply"
+	return i18n.T(ctx, "ai.analysis.intent.no_reply")
 }
 
 func aiIntentClass(label string) string {
@@ -290,7 +293,7 @@ func aiPercent(value float64) string {
 	return fmt.Sprintf("%.0f%%", value*100)
 }
 
-func aiAnswerText(answer AIAnalysisPanelAnswer) string {
+func aiAnswerText(ctx context.Context, answer AIAnalysisPanelAnswer) string {
 	var value string
 	switch answer.Type {
 	case "score":
@@ -301,10 +304,10 @@ func aiAnswerText(answer AIAnalysisPanelAnswer) string {
 		value = strings.TrimSpace(answer.Choice)
 	}
 	if value == "" {
-		value = "n/a"
+		value = i18n.T(ctx, "ai.analysis.answer.na")
 	}
 	if answer.Confidence > 0 {
-		return fmt.Sprintf("%s (%s confidence)", value, aiPercent(answer.Confidence))
+		return i18n.T(ctx, "ai.analysis.answer.confidence", "value", value, "percent", aiPercent(answer.Confidence))
 	}
 	return value
 }
