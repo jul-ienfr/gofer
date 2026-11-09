@@ -176,29 +176,30 @@ Run this before a release that changes layout or navigation, and at least once p
 
 Current status:
 
-- English (`en`) and French (`fr`) catalogs live in `internal/i18n`. English is the source catalog; a parity test requires every key in both catalogs and rejects empty values.
-- Each user chooses the interface language in **Settings → Regional → Interface language**. The choice is stored as `language` in the user's UI settings and applied to authenticated pages through `<html lang>`. A missing or unknown stored value falls back to English.
+- Catalogs live in `internal/i18n/locales/*.json`: `en.json` is the source, with `fr.json`, `es.json`, `pt-br.json`, and `zh-cn.json`. A parity test requires every catalog to have the same keys as English, reject empty values, and provide `language.native_name`. A missing value falls back to English at runtime.
+- The French catalog has complete key parity, but many values still match English because translation is in progress. Untranslated values are intentional fallbacks, not missing keys.
+- Each user chooses the interface language in **Settings → Regional → Interface language**. The choice is stored as `language` in the user's UI settings and applied to authenticated pages through `<html lang>`. A missing, `auto`, or unknown stored value follows the browser.
 - The unauthenticated login page uses the `gofer_lang` cookie set when a signed-in user saves the interface language, then the browser's `Accept-Language` header. The cookie is HTTP-only, SameSite=Lax, and expires after one year.
-- The settings navigation, section headings, page title, Regional tab, the main login screen, the full MFA sign-in, enrollment, and recovery-repair flow, personal setup, the initial setup token page, and the complete invitation and password-reset flow, including completion messages, are translated. The rest of the interface, including the owner setup wizard and the security settings partials, is still English.
+- Templates call `i18n.T(ctx, "key")`, with `i18n.N(ctx, "key", count)` for counted messages and named placeholders such as `{account}`. Client-side strings live under the `js.` key namespace.
 - Mail, contacts, and Calendar content is displayed in its original language, independent of the interface language.
 - Dates and times use the browser and Go formatting paths already present in the application; they have not been audited for every locale.
 - No right-to-left layout support has been implemented or tested.
-- User-facing error strings are English and sometimes include Go error text.
+- Server-side error strings are mostly English and sometimes include Go error text. The fork-only AI analysis and AI settings templates are still English.
 
 To add a language:
 
-1. Add the locale and a complete catalog map in `internal/i18n`; the parity test requires every English key.
-2. Expose it in `Supported` and add its native name in `NativeName`.
-3. Translate templates with `tr(uiSettings, "key")` instead of Go literals.
+1. Add `internal/i18n/locales/<code>.json` with every key from `en.json` and a `language.native_name` value in that language. Catalogs are discovered from the embedded `locales/` directory, so no Go list needs editing.
+2. Translate templates with `i18n.T`/`i18n.N` instead of Go literals; the hardcoded-text test rejects new English literals.
+3. Run `go test ./internal/i18n ./internal/views` and add the language to the README and setup language lists.
 
 Before claiming full i18n support, still add:
 
-1. Catalog coverage for every visible string, with a test that rejects user-facing Go literals.
+1. Complete translations for every visible string, especially the French catalog and the fork AI templates, with a test that rejects user-facing Go literals.
 2. Locale-aware date, time, number, and relative-time formatting.
 3. RTL layout and icon mirroring tests.
 4. Translation review for security-sensitive messages, especially sign-in, recovery, and deletion.
 
-Until then, release notes should say "English and French settings UI, multilingual mail content" rather than "internationalized".
+Until then, release notes should say "English interface with French, Spanish, Portuguese, and Chinese catalogs in progress" rather than "fully internationalized".
 
 ## Reporting issues
 

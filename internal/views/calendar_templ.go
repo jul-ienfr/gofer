@@ -5347,14 +5347,14 @@ func CalendarMainContent(month CalendarMonthData) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					if day.IsToday {
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 353, "<span class=\"hidden rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary sm:inline-flex\">")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 353, "<span class=\"hidden rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-foreground sm:inline-flex\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var276 string
 						templ_7745c5c3_Var276, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "calendar.today"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/calendar.templ`, Line: 779, Col: 177}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/calendar.templ`, Line: 779, Col: 180}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var276))
 						if templ_7745c5c3_Err != nil {

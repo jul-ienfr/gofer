@@ -8901,7 +8901,7 @@ func MailSecurityExceptionsPanel(data models.MailSecurityAdminData) templ.Compon
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 514, "</div><p class=\"mt-1 text-sm leading-relaxed text-amber-800 dark:text-amber-200\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 514, "</div><p class=\"mt-1 text-sm leading-relaxed text-amber-900 dark:text-amber-200\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -2965,7 +2965,7 @@ func MailSelectAllControl() templ.Component {
 			return templ_7745c5c3_Err
 		}
 		templ_7745c5c3_Err = checkbox.Checkbox(checkbox.Props{
-			Class:      "mail-select-all-toggle",
+			Class:      "mail-select-all-toggle size-6",
 			Attributes: templ.Attributes{"data-mail-select-all-toggle": "", "aria-label": i18n.T(ctx, "mail.select.all_messages")},
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {

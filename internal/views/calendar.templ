@@ -776,7 +776,7 @@ visibleEvents := calendarVisibleEventCount(dayEvents) }}
 									<div class="pointer-events-none relative flex shrink-0 items-start justify-between gap-1">
 										<span class={ calendarDayNumberClass(day) }>{ day.DayNumber }</span>
 										if day.IsToday {
-											<span class="hidden rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary sm:inline-flex">{ i18n.T(ctx, "calendar.today") }</span>
+											<span class="hidden rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-foreground sm:inline-flex">{ i18n.T(ctx, "calendar.today") }</span>
 										}
 									</div>
 									if !month.Loading {
