@@ -60,10 +60,10 @@ const calendarFeedTestData = "BEGIN:VCALENDAR\r\n" +
 
 func TestNormalizeCalendarFeedURL(t *testing.T) {
 	for raw, want := range map[string]string{
-		"webcal://calendar.example.test/holidays.ics":      "https://calendar.example.test/holidays.ics",
+		"webcal://calendar.example.test/holidays.ics":       "https://calendar.example.test/holidays.ics",
 		" WEBCALS://calendar.example.test/a.ics?key=x#top ": "https://calendar.example.test/a.ics?key=x",
-		"https://calendar.example.test/feed":               "https://calendar.example.test/feed",
-		"HTTP://calendar.example.test/feed":                "http://calendar.example.test/feed",
+		"https://calendar.example.test/feed":                "https://calendar.example.test/feed",
+		"HTTP://calendar.example.test/feed":                 "http://calendar.example.test/feed",
 	} {
 		if got, err := normalizeCalendarFeedURL(raw); err != nil || got != want {
 			t.Errorf("normalize %q = %q, %v; want %q", raw, got, err, want)
@@ -230,10 +230,19 @@ func TestSharedCalendarSubscription(t *testing.T) {
 	if titles := waitCalendarEvents(t, db, source.ID); !strings.Contains(strings.Join(titles, "|"), "Seed swap") {
 		t.Fatalf("events = %v", titles)
 	}
-	// It waits its own interval for the next read.
-	sources, _ = db.ListSelectedCalendarSources(t.Context(), "alice")
-	if next := sources[0].NextAttemptAt; next == nil || next.Before(time.Now().Add(5*time.Hour)) {
-		t.Errorf("next refresh at %v", next)
+	// It waits its own interval for the next read. The refresh marks the
+	// events before it schedules that interval, so poll instead of racing it.
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		sources, _ = db.ListSelectedCalendarSources(t.Context(), "alice")
+		next := sources[0].NextAttemptAt
+		if next != nil && next.After(time.Now().Add(5*time.Hour)) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("next refresh at %v", next)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 
 	rec = httptest.NewRecorder()
