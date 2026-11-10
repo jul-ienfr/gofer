@@ -177,12 +177,12 @@ Run this before a release that changes layout or navigation, and at least once p
 Current status:
 
 - Catalogs live in `internal/i18n/locales/*.json`: `en.json` is the source, with `fr.json`, `es.json`, `pt-br.json`, and `zh-cn.json`. A parity test requires every catalog to have the same keys as English, reject empty values, and provide `language.native_name`. A missing value falls back to English at runtime.
-- The French catalog is fully translated. A few values intentionally match English because they are brand names, acronyms, or words spelled the same in French, such as `Contact`, `Messages`, `Date`, `OK`, and `Web Push`. A test rejects double-encoded text in every catalog.
+- The French and Spanish catalogs are fully translated, including the AI settings, analysis, client scripts, and server errors. A few values intentionally match English because they are brand names, acronyms, or words spelled the same, such as `Contact`, `Messages`, `Date`, `OK`, and `Web Push`. A test rejects double-encoded text in every catalog.
 - Each user chooses the interface language in **Settings → Regional → Interface language**. The choice is stored as `language` in the user's UI settings and applied to authenticated pages through `<html lang>`. A missing, `auto`, or unknown stored value follows the browser.
 - The unauthenticated login page uses the `gofer_lang` cookie set when a signed-in user saves the interface language, then the browser's `Accept-Language` header. The cookie is HTTP-only, SameSite=Lax, and expires after one year.
 - Templates call `i18n.T(ctx, "key")`, with `i18n.N(ctx, "key", count)` for counted messages and named placeholders such as `{account}`. Client-side strings live under the `js.` key namespace.
 - Mail, contacts, and Calendar content is displayed in its original language, independent of the interface language.
-- Dates, times, numbers, byte units, and relative times follow the language's catalog settings, including date order, 12- or 24-hour clocks, decimal marks, digit grouping, and French plural rules. They have not been manually reviewed for every locale.
+- Dates, times, numbers, byte units, and relative times follow the language's catalog settings, including date order, 12- or 24-hour clocks, decimal marks, digit grouping, and French, Portuguese, and Chinese plural forms. They have not been manually reviewed for every locale.
 - No right-to-left layout support has been implemented or tested.
 - Server-side errors, including the fork's AI, Thunderbird import, and AI client-script messages, use catalog keys. Raw Go error details may still be appended after a translated prefix.
 
