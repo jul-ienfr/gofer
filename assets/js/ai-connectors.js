@@ -7,6 +7,12 @@
 
   const t = (key, params) => (window.goferT ? window.goferT(key, params) : key);
   const tn = (key, count, params) => (window.goferTn ? window.goferTn(key, count, params) : key);
+  const stateLabel = (state) => {
+    if (!state) return "";
+    const key = "js.ai.state." + String(state).toLowerCase();
+    const label = t(key);
+    return label === key ? state : label;
+  };
 
   const setStatus = (message, error = false) => {
     if (!status) return;
@@ -97,7 +103,7 @@
         const badge = document.createElement("span");
         badge.className = "text-muted-foreground";
         badge.textContent = t("js.ai.connectors.summary", {
-          state: item.State,
+          state: stateLabel(item.State),
           attempts: tn("js.ai.connectors.attempts", item.Attempts),
         });
         head.append(label, badge);
@@ -121,7 +127,7 @@
         const right = document.createElement("span");
         right.className = "flex items-center gap-2 text-muted-foreground";
         const badge = document.createElement("span");
-        badge.textContent = item.State;
+        badge.textContent = stateLabel(item.State);
         right.append(badge);
         const deadline = Date.parse(item.UndoDeadline || "");
         if (item.State === "executed" && Number.isFinite(deadline) && deadline > Date.now()) {
@@ -157,7 +163,7 @@
         label.textContent = t("js.ai.connectors.unsubscribe", { id: item.MessageID });
         const badge = document.createElement("span");
         badge.className = "text-muted-foreground";
-        badge.textContent = `${item.Status}${item.HTTPStatus ? ` · HTTP ${item.HTTPStatus}` : ""}`;
+        badge.textContent = `${stateLabel(item.Status)}${item.HTTPStatus ? ` · HTTP ${item.HTTPStatus}` : ""}`;
         head.append(label, badge);
         line.append(head);
         if (item.Error) {

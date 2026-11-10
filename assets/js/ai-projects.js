@@ -17,6 +17,13 @@
     return window.goferT ? window.goferT(key, params) : key
   }
 
+  function classificationText(value) {
+    var slug = value || "internal"
+    var key = slug === "internal" ? "js.ai.projects.internal_label" : "js.ai.projects." + slug
+    var label = t(key)
+    return label === key ? slug : label
+  }
+
   function checkbox(labelText, checked) {
     var label = document.createElement("label")
     label.className = "inline-flex items-center gap-2 text-xs text-foreground"
@@ -234,7 +241,7 @@
       title.textContent = project.Name
       var slug = document.createElement("span")
       slug.className = "ml-2 text-xs text-muted-foreground"
-      slug.textContent = project.Slug + " · " + (project.DataClassification || t("js.ai.projects.internal"))
+      slug.textContent = project.Slug + " · " + classificationText(project.DataClassification)
       title.appendChild(slug)
       heading.appendChild(title)
       row.appendChild(heading)

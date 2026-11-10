@@ -11,6 +11,12 @@
 
   const t = (key, params) => (window.goferT ? window.goferT(key, params) : key);
   const tn = (key, count, params) => (window.goferTn ? window.goferTn(key, count, params) : key);
+  const stateLabel = (state) => {
+    if (!state) return "";
+    const key = "js.ai.state." + String(state).toLowerCase();
+    const label = t(key);
+    return label === key ? state : label;
+  };
 
   const toggle = (labelText, checked) => {
     const label = document.createElement("label");
@@ -49,7 +55,7 @@
     const meta = document.createElement("span");
     meta.className = "text-xs text-muted-foreground";
     meta.textContent = t("js.ai.legitimacy.summary", {
-      state: profile.State,
+      state: stateLabel(profile.State),
       messages: tn("js.ai.legitimacy.messages", profile.MessageCount),
       replies: tn("js.ai.legitimacy.replies", profile.ReplyCount),
     });
