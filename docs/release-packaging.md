@@ -60,7 +60,9 @@ VERSION=v0.21.0 bash scripts/release-package.sh
 
 A manual `version=dev` dispatch on 2026-11-10 regenerated the assets, passed the
 attribution check, built all six archives, wrote `checksums.txt`, and uploaded
-the workflow artifact without publishing a release. Signing and notarization
+the workflow artifact without publishing a release. The downloaded artifact
+passed `sha256sum -c checksums.txt`, and each archive contains the binary,
+`README.md`, `LICENSE`, and `THIRD_PARTY_NOTICES.txt`. Signing and notarization
 remain outside this workflow and are still untested.
 
 ## Limits
