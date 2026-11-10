@@ -192,6 +192,7 @@ Current status:
 - Mail, contacts, and Calendar content is displayed in its original language, independent of the interface language.
 - Dates, times, numbers, byte units, and relative times follow the language's catalog settings, including date order, 12- or 24-hour clocks, decimal marks, digit grouping, and French, Portuguese, and Chinese plural forms. They have not been manually reviewed for every locale.
 - The HTML root declares `dir` from the catalog's `language.direction` setting; all current catalogs are left-to-right. A forced `dir="rtl"` smoke test mirrors the app shell on `/`, `/settings`, `/contacts`, and `/calendar` at 1280×900 without horizontal overflow, the skip link moves to the reading edge, panel resize drags follow the direction, mobile pane transitions enter from the reading edge, the three-state filter indicator follows the mirrored segment order, and directional icons mirror while vertical icons stay upright. A real RTL catalog and a full visual review remain untested.
+- Forced `dir="rtl"` reflow: all 17 primary pages pass at 1280×900 and 320×800 with WCAG text-spacing overrides.
 - Server-side errors, including the fork's AI, Thunderbird import, and AI client-script messages, use catalog keys. Raw Go error details may still be appended after a translated prefix. A test checks that every mapped server error has a value in all four catalogs.
 
 To add a language:
