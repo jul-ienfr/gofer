@@ -109,6 +109,7 @@ var appPanelsSlideRemaining;
     var panel = getPanel(handle);
     var panelName = handle.dataset.panel;
     var axis = isStackedMailList(panelName) ? "y" : "x";
+    var rtl = window.getComputedStyle(document.documentElement).direction === "rtl";
     var startX = e.clientX || (e.touches && e.touches[0].clientX) || 0;
     var startY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
     var startSize = getSize(panel, axis);
@@ -120,7 +121,6 @@ var appPanelsSlideRemaining;
     function onMove(ev) {
       var cx = ev.clientX || (ev.touches && ev.touches[0].clientX) || 0;
       var cy = ev.clientY || (ev.touches && ev.touches[0].clientY) || 0;
-      var rtl = window.getComputedStyle(document.documentElement).direction === "rtl";
       var delta = resizeDelta(axis, startX, startY, cx, cy, rtl);
       var b = getBounds(panelName);
       setSize(panel, clamp(startSize + delta, b.min, b.max), axis);
