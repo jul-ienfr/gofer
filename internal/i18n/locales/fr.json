@@ -16,7 +16,7 @@
   "about.updates.check_again": "Vérifier à nouveau",
   "about.updates.compared": "Comparé à {base} :",
   "about.updates.current": "Comparé à {base} : cette version contient tout.",
-  "about.updates.diverged": "Comparé à {base} : cette version contient des commits absents de {base}, et rien de nouveau là-bas.",
+  "about.updates.diverged": "Comparé à {base} : cette version contient des commits absents de celle-ci, et rien de nouveau là-bas.",
   "about.updates.latest_on": "Dernier sur {base} :",
   "about.updates.newer.one": "{count} commit plus récent.",
   "about.updates.newer.other": "{count} commits plus récents.",
