@@ -102,7 +102,7 @@ These are real gaps, not documentation placeholders:
 3. No recorded live Jev/LLM/webhook/provider fault drill. A process-kill, restart, and corrupt-database drill is recorded in [the chaos evidence](../perf/evidence-2026-10-25-chaos.md).
 4. No recorded RPO/RTO restore drill with production data. The local 35.7 MB drill is recorded in [backup-restore.md](./backup-restore.md).
 5. No manual screen-reader or assistive-technology audit. The keyboard script covers the skip link, Compose focus trap and return, and positive tabindex, but not announcements, full page focus order, or real assistive technology.
-6. No localization or RTL support.
+6. No RTL layout support. The localization foundation is implemented, French is fully translated, and the other catalogs are in progress.
 7. Restore overwrites listed files but does not delete unrelated files already in the target directory.
 8. No production upgrade/rollback drill or Helm/Docker rollback. The local same-host migration rollback drill is recorded in [release-rollback.md](./release-rollback.md).
 
