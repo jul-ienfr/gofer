@@ -6345,6 +6345,30 @@ body.mail-list-column-resizing {
     visibility: visible !important;
     animation: pane-pop-in 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
+
+  /* Right-to-left: the reader enters and leaves from the left, and the list
+     slides the other way. */
+  html[dir="rtl"][data-pane-anim="open"] #main-content > [data-mail-reader] {
+    box-shadow: 0.5rem 0 1.5rem rgb(0 0 0 / 0.15);
+    animation-name: pane-push-in-rtl;
+  }
+
+  html[dir="rtl"][data-pane-anim="open"] #main-content > #mail-list {
+    animation-name: pane-push-under-rtl;
+  }
+
+  html[dir="rtl"][data-pane-anim="close"] #main-content > #mail-list {
+    animation-name: pane-pop-in-rtl;
+  }
+
+  html[dir="rtl"][data-pane-anim="closing"] #main-content > [data-mail-reader] {
+    box-shadow: 0.5rem 0 1.5rem rgb(0 0 0 / 0.15);
+    animation-name: pane-push-out-rtl;
+  }
+
+  html[dir="rtl"][data-pane-anim="closing"] #main-content > #mail-list {
+    animation-name: pane-pop-in-rtl;
+  }
 }
 
 @keyframes list-pane-reader-in {
@@ -6430,6 +6454,50 @@ body.mail-list-column-resizing {
 @keyframes pane-pop-in {
   from {
     transform: translateX(-25%);
+    opacity: 0.6;
+  }
+
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes pane-push-out-rtl {
+  from {
+    transform: none;
+  }
+
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes pane-push-in-rtl {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: none;
+  }
+}
+
+@keyframes pane-push-under-rtl {
+  from {
+    transform: none;
+    opacity: 1;
+  }
+
+  to {
+    transform: translateX(25%);
+    opacity: 0.6;
+  }
+}
+
+@keyframes pane-pop-in-rtl {
+  from {
+    transform: translateX(25%);
     opacity: 0.6;
   }
 
