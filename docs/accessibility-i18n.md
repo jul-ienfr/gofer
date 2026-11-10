@@ -191,6 +191,7 @@ To add a language:
 1. Add `internal/i18n/locales/<code>.json` with every key from `en.json` and a `language.native_name` value in that language. Catalogs are discovered from the embedded `locales/` directory, so no Go list needs editing.
 2. Translate templates with `i18n.T`/`i18n.N` instead of Go literals; the hardcoded-text test rejects new English literals.
 3. Run `go test ./internal/i18n ./internal/views` and add the language to the README and setup language lists.
+4. Follow [i18n-style.md](./i18n-style.md) for placeholders, plural forms, terminology, and the review checklist.
 
 Before claiming full i18n support, still add:
 
