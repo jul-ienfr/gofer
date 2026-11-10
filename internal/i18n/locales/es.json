@@ -4337,7 +4337,7 @@
   "server.error.ai_settings_load_failed": "no se pudo cargar la configuración de IA",
   "server.error.ai_settings_payload_invalid": "configuración de IA no válida",
   "server.error.ai_settings_save_failed": "no se pudo guardar la configuración de IA",
-  "server.error.ai_streaming_unsupported": "la transmisión no es compatible",
+  "server.error.ai_streaming_unsupported": "no se admite la transmisión",
   "server.error.ai_token_count_failed": "no se pudieron contar los tokens",
   "server.error.ai_token_create_failed": "no se pudo crear el token",
   "server.error.ai_token_generate_failed": "no se pudo generar el token",
