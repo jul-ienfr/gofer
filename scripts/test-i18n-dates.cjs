@@ -1,5 +1,6 @@
-// Checks that goferDates in assets/js/i18n.js writes dates exactly as the
-// server's i18n.DateFormatter does (see internal/i18n/dates_test.go).
+// Checks that goferDates, goferNumber and goferTn in assets/js/i18n.js write
+// dates, numbers and counted messages as the server's i18n package does (see
+// internal/i18n/dates_test.go and internal/i18n/i18n_test.go).
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
@@ -48,6 +49,9 @@ assert.equal(w.goferDates.dateRange(sample, end, 'UTC'), '2–9 nov 2026')
 assert.equal(w.goferDates.hourRange(3, 7), '03–07')
 assert.equal(w.goferDates.relative(new Date(Date.UTC(2026, 10, 1, 9)), now, 'UTC'), 'Ayer')
 assert.equal(w.goferNumber(12345), '12.345')
+assert.equal(w.goferTn('admin.accounts_count', 0), '0 cuentas')
+assert.equal(w.goferTn('admin.accounts_count', 1), '1 cuenta')
+assert.equal(w.goferTn('admin.accounts_count', 2), '2 cuentas')
 
 w = load('pt-br', 'auto', 'auto')
 assert.equal(w.goferDates.date(sample, 'UTC'), '2 nov 2026')
