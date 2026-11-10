@@ -173,13 +173,16 @@ var (
 )
 
 // Every literal key the code asks for exists in English.
-// French values were once written as UTF-8 bytes decoded as Windows-1252.
-// These sequences are not French letters, so they can only be mojibake.
-func TestFrenchCatalogHasNoMojibake(t *testing.T) {
+// Values were once written as UTF-8 bytes decoded as Windows-1252. These
+// sequences are not normal text in any supported language, so they can only
+// be mojibake.
+func TestCatalogsHaveNoMojibake(t *testing.T) {
 	mojibake := regexp.MustCompile(`Ã[\x80-\xBF]|Â[\x80-\xBF]|â€|\x{FFFD}`)
-	for key, value := range catalogs[French] {
-		if mojibake.MatchString(value) {
-			t.Errorf("%s contains mojibake: %q", key, value)
+	for locale, messages := range catalogs {
+		for key, value := range messages {
+			if mojibake.MatchString(value) {
+				t.Errorf("%s: %s contains mojibake: %q", locale, key, value)
+			}
 		}
 	}
 }
