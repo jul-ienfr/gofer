@@ -56,6 +56,13 @@ VERSION=v0.21.0 bash scripts/release-package.sh
 
 `DIST` overrides the output directory (default `dist`).
 
+## Validation
+
+A manual `version=dev` dispatch on 2026-11-10 regenerated the assets, passed the
+attribution check, built all six archives, wrote `checksums.txt`, and uploaded
+the workflow artifact without publishing a release. Signing and notarization
+remain outside this workflow and are still untested.
+
 ## Limits
 
 The workflow does not sign Windows binaries, notarize macOS binaries, or build
