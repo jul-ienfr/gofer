@@ -184,7 +184,7 @@ Current status:
 - Mail, contacts, and Calendar content is displayed in its original language, independent of the interface language.
 - Dates, times, numbers, byte units, and relative times follow the language's catalog settings, including date order, 12- or 24-hour clocks, decimal marks, digit grouping, and French, Portuguese, and Chinese plural forms. They have not been manually reviewed for every locale.
 - No right-to-left layout support has been implemented or tested.
-- Server-side errors, including the fork's AI, Thunderbird import, and AI client-script messages, use catalog keys. Raw Go error details may still be appended after a translated prefix.
+- Server-side errors, including the fork's AI, Thunderbird import, and AI client-script messages, use catalog keys. Raw Go error details may still be appended after a translated prefix. A test checks that every mapped server error has a value in all four catalogs.
 
 To add a language:
 
