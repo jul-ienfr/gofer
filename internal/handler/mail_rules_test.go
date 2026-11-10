@@ -264,9 +264,21 @@ func TestMailRuleSettingsRoutes(t *testing.T) {
 	if strings.Join(states, ",") != "counted,running,done" {
 		t.Fatalf("run events = %v", states)
 	}
-	runs, err := db.ListMailRuleRuns(ctx, "owner", 0)
-	if err != nil || len(runs) != 1 || runs[0].Trigger != models.MailRuleTriggerManual || mailrules.DetailText(context.Background(), runs[0].Detail) != "Run by hand on Inbox: changed 1 message" {
-		t.Fatalf("activity = %+v, %v", runs, err)
+	// The done event can arrive just before the run record is committed.
+	deadline := time.Now().Add(10 * time.Second)
+	var runs []models.MailRuleRun
+	for {
+		runs, err = db.ListMailRuleRuns(ctx, "owner", 0)
+		if err == nil && len(runs) == 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("activity = %+v, %v", runs, err)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if runs[0].Trigger != models.MailRuleTriggerManual || mailrules.DetailText(context.Background(), runs[0].Detail) != "Run by hand on Inbox: changed 1 message" {
+		t.Fatalf("activity = %+v", runs)
 	}
 
 	// A second run finds nothing; a change of folder counts again there.
