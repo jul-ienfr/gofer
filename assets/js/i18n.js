@@ -20,11 +20,10 @@
   }
 
   // English and Spanish only tell one from other for whole numbers. French
-  // and Brazilian Portuguese treat zero as one; Chinese has no one/other
-  // distinction.
+  // and Brazilian Portuguese treat zero as one. Chinese has no grammatical
+  // plural, but its catalog uses "one" for the natural singular wording.
   function pluralForm(count) {
     var locale = String(window.goferLocale).toLowerCase()
-    if (locale === "zh-cn") return "other"
     return count === 1 || (count === 0 && (locale === "fr" || locale === "pt-br")) ? "one" : "other"
   }
 

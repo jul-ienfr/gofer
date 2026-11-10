@@ -102,6 +102,8 @@ assert.equal(w.goferNumber(12345), '12,345')
 assert.equal(w.goferTn('admin.accounts_count', 0), '0 个账户')
 assert.equal(w.goferTn('admin.accounts_count', 1), '1 个账户')
 assert.equal(w.goferTn('admin.accounts_count', 2), '2 个账户')
+assert.equal(w.goferTn('js.calendar.repeat.every.day', 1), '每天')
+assert.equal(w.goferTn('js.calendar.repeat.every.day', 2), '每 2 天')
 
 w = load('zh-cn', 'auto', '12h')
 assert.equal(w.goferDates.time(sample, 'UTC'), '下午3:04')

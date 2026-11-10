@@ -198,11 +198,9 @@ func lookup(locale Locale, key string) string {
 // pluralForm returns the CLDR plural category for count. English and Spanish
 // only tell one from other for whole numbers; Spanish's "many" applies only
 // to exact millions, which read fine with "other". French and Brazilian
-// Portuguese treat zero as one; Chinese has no one/other distinction.
+// Portuguese treat zero as one. Chinese has no grammatical plural, but its
+// catalog uses "one" for the natural singular wording.
 func pluralForm(locale Locale, count int) string {
-	if locale == Locale("zh-cn") {
-		return "other"
-	}
 	if count == 1 || (count == 0 && (locale == French || locale == Locale("pt-br"))) {
 		return "one"
 	}

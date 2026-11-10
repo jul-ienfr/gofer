@@ -140,7 +140,7 @@ func TestPluralRulesFollowCLDR(t *testing.T) {
 		{Locale("pt-br"), 1, "one"},
 		{Locale("pt-br"), 2, "other"},
 		{Locale("zh-cn"), 0, "other"},
-		{Locale("zh-cn"), 1, "other"},
+		{Locale("zh-cn"), 1, "one"},
 		{Locale("zh-cn"), 2, "other"},
 	}
 	for _, c := range cases {
