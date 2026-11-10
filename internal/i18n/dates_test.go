@@ -167,6 +167,7 @@ func TestNumbers(t *testing.T) {
 	en := WithLocale(context.Background(), English)
 	es := WithLocale(context.Background(), "es")
 	zh := WithLocale(context.Background(), "zh-cn")
+	fr := WithLocale(context.Background(), French)
 	cases := []struct{ got, want string }{
 		{Number(en, 999), "999"},
 		{Number(en, 1234), "1,234"},
@@ -183,6 +184,9 @@ func TestNumbers(t *testing.T) {
 		{Bytes(es, 1500), "1,5 kB"},
 		{Bytes(en, 9960), "10 kB"},
 		{Bytes(es, 23_400_000), "23 MB"},
+		{Bytes(fr, 5), "5 o"},
+		{Bytes(fr, 1500), "1,5 ko"},
+		{Bytes(fr, 23_400_000), "23 Mo"},
 		{Number(zh, 1234), "1,234"},
 		{Decimal(zh, 1.5), "1.5"},
 		{Bytes(zh, 1500), "1.5 kB"},

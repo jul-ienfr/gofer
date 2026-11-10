@@ -409,10 +409,19 @@ func Decimal(ctx context.Context, value float64) string {
 // Bytes writes a size in decimal units, as go-humanize does: "1.2 MB",
 // "1,2 MB".
 func Bytes(ctx context.Context, size uint64) string {
+	byteUnit := Translate(FromContext(ctx), "number.unit.byte")
 	if size < 10 {
-		return strconv.FormatUint(size, 10) + " B"
+		return strconv.FormatUint(size, 10) + " " + byteUnit
 	}
-	units := []string{"B", "kB", "MB", "GB", "TB", "PB", "EB"}
+	units := []string{
+		"number.unit.byte",
+		"number.unit.kilobyte",
+		"number.unit.megabyte",
+		"number.unit.gigabyte",
+		"number.unit.terabyte",
+		"number.unit.petabyte",
+		"number.unit.exabyte",
+	}
 	value := float64(size)
 	unit := 0
 	for value >= 1000 && unit < len(units)-1 {
@@ -422,11 +431,11 @@ func Bytes(ctx context.Context, size uint64) string {
 	// Round to a tenth first, as go-humanize does, so 9.96 kB shows as 10.
 	value = math.Floor(value*10+0.5) / 10
 	if unit == 0 {
-		return strconv.FormatUint(size, 10) + " B"
+		return strconv.FormatUint(size, 10) + " " + byteUnit
 	}
 	text := strconv.FormatFloat(value, 'f', 0, 64)
 	if value < 10 {
 		text = strconv.FormatFloat(value, 'f', 1, 64)
 	}
-	return strings.Replace(text, ".", Translate(FromContext(ctx), "number.decimal"), 1) + " " + units[unit]
+	return strings.Replace(text, ".", Translate(FromContext(ctx), "number.decimal"), 1) + " " + Translate(FromContext(ctx), units[unit])
 }

@@ -1430,7 +1430,7 @@ document.addEventListener("DOMContentLoaded", function () {
         return
       }
       if (file.size > 8 * 1024 * 1024) {
-        showGoferToast({ id: "contact-avatar-error", title: goferT("js.contacts.avatar.too_large"), description: goferT("js.contacts.avatar.too_large_detail", { size: goferNumber(8) + " MB" }), variant: "error", icon: "error", position: "bottom-right", duration: 5000, dismissible: true })
+        showGoferToast({ id: "contact-avatar-error", title: goferT("js.contacts.avatar.too_large"), description: goferT("js.contacts.avatar.too_large_detail", { size: goferNumber(8) + " " + goferT("number.unit.megabyte") }), variant: "error", icon: "error", position: "bottom-right", duration: 5000, dismissible: true })
         return
       }
       var objectURL = URL.createObjectURL(file)
@@ -6810,8 +6810,8 @@ document.addEventListener("DOMContentLoaded", function () {
       if (filters.body) pills.push({ name: "body", label: L("body"), value: filters.body })
       if (filters.attachment) pills.push({ name: "attachment", label: L("attachment"), value: filters.attachment })
       if (filters.attachmentType) pills.push({ name: "attachment_type", label: L("attachment_type"), value: attachmentTypeLabel(filters.attachmentType, filters.attachmentExtension) })
-      if (filters.minSizeMB) pills.push({ name: "min_size_mb", label: L("min_size_mb"), value: filters.minSizeMB + " MB" })
-      if (filters.maxSizeMB) pills.push({ name: "max_size_mb", label: L("max_size_mb"), value: filters.maxSizeMB + " MB" })
+      if (filters.minSizeMB) pills.push({ name: "min_size_mb", label: L("min_size_mb"), value: filters.minSizeMB + " " + goferT("number.unit.megabyte") })
+      if (filters.maxSizeMB) pills.push({ name: "max_size_mb", label: L("max_size_mb"), value: filters.maxSizeMB + " " + goferT("number.unit.megabyte") })
       if (filters.tag) pills.push({ name: "tag", label: L("tag"), value: filters.tag })
       return pills
     }
@@ -21365,9 +21365,9 @@ function removeComposeAttachment(item, keepFile) {
 
 function formatComposeAttachmentSize(size) {
   size = Number(size || 0)
-  if (size >= 1024 * 1024) return (size / (1024 * 1024)).toFixed(1).replace(".", goferT("number.decimal")) + " MB"
-  if (size >= 1024) return Math.round(size / 1024) + " KB"
-  return size + " B"
+  if (size >= 1024 * 1024) return (size / (1024 * 1024)).toFixed(1).replace(".", goferT("number.decimal")) + " " + goferT("number.unit.megabyte")
+  if (size >= 1024) return Math.round(size / 1024) + " " + goferT("number.unit.kilobyte")
+  return size + " " + goferT("number.unit.byte")
 }
 
 function renderComposeAttachments(form, attachments) {
