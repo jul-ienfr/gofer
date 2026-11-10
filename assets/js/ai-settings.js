@@ -18,10 +18,14 @@
     status.classList.toggle("dark:text-red-300", !!isError)
   }
 
+  function t(key) {
+    return window.goferT ? window.goferT(key) : key
+  }
+
   function save(form) {
     var button = form.querySelector("[data-ai-settings-save]")
     if (button) button.disabled = true
-    setStatus(form, "Saving", false)
+    setStatus(form, t("js.settings.status.saving"), false)
     fetch("/api/ai/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -31,16 +35,16 @@
       .then(function (response) {
         if (!response.ok) {
           return response.text().then(function (text) {
-            throw new Error((text || "Save failed").trim())
+            throw new Error((text || t("js.settings.status.save_failed")).trim())
           })
         }
         return response.json()
       })
       .then(function () {
-        setStatus(form, "Saved", false)
+        setStatus(form, t("js.settings.status.saved"), false)
       })
       .catch(function (error) {
-        setStatus(form, error.message || "Save failed", true)
+        setStatus(form, error.message || t("js.settings.status.save_failed"), true)
       })
       .then(function () {
         if (button) button.disabled = false

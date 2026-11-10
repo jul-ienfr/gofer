@@ -15,6 +15,10 @@
     status.classList.toggle("dark:text-red-300", !!isError)
   }
 
+  function t(key, params) {
+    return window.goferT ? window.goferT(key, params) : key
+  }
+
   function load() {
     fetch("/api/ai/tokens", { credentials: "same-origin" })
       .then(function (response) {
@@ -27,7 +31,7 @@
         if (!tokens.length) {
           var empty = document.createElement("p")
           empty.className = "py-3 text-xs text-muted-foreground"
-          empty.textContent = "No API token yet."
+          empty.textContent = t("js.ai.tokens.empty")
           list.appendChild(empty)
           return
         }
@@ -37,14 +41,22 @@
           var label = document.createElement("span")
           var revoked = token.RevokedAt && new Date(token.RevokedAt).getFullYear() > 1970
           var expires = token.ExpiresAt && new Date(token.ExpiresAt).getFullYear() > 1970
-          var state = revoked ? " · revoked" : expires ? " · expires " + new Date(token.ExpiresAt).toLocaleDateString() : ""
+          var expiry = expires
+            ? new Date(token.ExpiresAt)
+            : null
+          var expiryText = expiry
+            ? " · " + t("js.ai.tokens.expires", {
+                date: window.goferDates ? window.goferDates.date(expiry) : expiry.toLocaleDateString(),
+              })
+            : ""
+          var state = revoked ? " · " + t("js.ai.tokens.revoked") : expiryText
           label.textContent = token.Name + " · " + token.Scopes + state
           row.appendChild(label)
           if (!revoked) {
             var revoke = document.createElement("button")
             revoke.type = "button"
             revoke.className = "rounded border border-border px-2 py-0.5 hover:bg-muted"
-            revoke.textContent = "Revoke"
+            revoke.textContent = t("js.ai.tokens.revoke")
             revoke.addEventListener("click", function () {
               revoke.disabled = true
               fetch("/api/ai/tokens/" + encodeURIComponent(token.ID), {
@@ -53,11 +65,11 @@
               })
                 .then(function (response) {
                   if (!response.ok) throw new Error("revoke failed")
-                  setStatus("Token revoked.", false)
+                  setStatus(t("js.ai.tokens.revoked_status"), false)
                   load()
                 })
                 .catch(function () {
-                  setStatus("Could not revoke this token.", true)
+                  setStatus(t("js.ai.tokens.revoke_failed"), true)
                   revoke.disabled = false
                 })
             })
@@ -67,7 +79,7 @@
         })
       })
       .catch(function () {
-        list.textContent = "Could not load API tokens."
+        list.textContent = t("js.ai.tokens.load_failed")
       })
   }
 
@@ -93,8 +105,8 @@
       .then(function (response) {
         if (!response.ok) {
           return response.json().then(
-            function (payload) { throw new Error((payload && payload.error) || "Could not create token.") },
-            function () { throw new Error("Could not create token.") }
+            function (payload) { throw new Error((payload && payload.error) || t("js.ai.tokens.create_failed")) },
+            function () { throw new Error(t("js.ai.tokens.create_failed")) }
           )
         }
         return response.json()
@@ -105,11 +117,11 @@
           result.classList.remove("hidden")
         }
         form.reset()
-        setStatus("Token created. Copy it before leaving this page.", false)
+        setStatus(t("js.ai.tokens.created"), false)
         load()
       })
       .catch(function (error) {
-        setStatus(error.message || "Could not create token.", true)
+        setStatus(error.message || t("js.ai.tokens.create_failed"), true)
       })
       .then(function () {
         button.disabled = false

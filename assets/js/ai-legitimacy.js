@@ -9,6 +9,9 @@
     status.className = `mt-3 text-xs ${error ? "text-destructive" : "text-muted-foreground"}`;
   };
 
+  const t = (key, params) => (window.goferT ? window.goferT(key, params) : key);
+  const tn = (key, count, params) => (window.goferTn ? window.goferTn(key, count, params) : key);
+
   const toggle = (labelText, checked) => {
     const label = document.createElement("label");
     label.className = "flex items-center gap-1.5 text-xs";
@@ -28,10 +31,10 @@
         body: JSON.stringify({ vip, allowlisted, blocked }),
       });
       if (!response.ok) throw new Error(await response.text());
-      setStatus(`Sender ${profile.SenderEmail} updated.`);
+      setStatus(t("js.ai.legitimacy.updated", { email: profile.SenderEmail }));
       await load();
     } catch (error) {
-      setStatus(error.message || "Could not update sender.", true);
+      setStatus(error.message || t("js.ai.legitimacy.update_failed"), true);
     }
   };
 
@@ -45,13 +48,17 @@
     email.textContent = profile.SenderEmail;
     const meta = document.createElement("span");
     meta.className = "text-xs text-muted-foreground";
-    meta.textContent = `${profile.State} · ${profile.MessageCount} message(s) · ${profile.ReplyCount} reply(ies)`;
+    meta.textContent = t("js.ai.legitimacy.summary", {
+      state: profile.State,
+      messages: tn("js.ai.legitimacy.messages", profile.MessageCount),
+      replies: tn("js.ai.legitimacy.replies", profile.ReplyCount),
+    });
     head.append(email, meta);
     const controls = document.createElement("div");
     controls.className = "flex flex-wrap items-center gap-4";
-    const vip = toggle("VIP", profile.VIP);
-    const trusted = toggle("Trusted", profile.Allowlisted);
-    const blocked = toggle("Blocked", profile.Blocked);
+    const vip = toggle(t("js.ai.legitimacy.vip"), profile.VIP);
+    const trusted = toggle(t("js.ai.legitimacy.trusted"), profile.Allowlisted);
+    const blocked = toggle(t("js.ai.legitimacy.blocked"), profile.Blocked);
     const apply = () => save(profile, vip.input.checked, trusted.input.checked, blocked.input.checked);
     vip.input.addEventListener("change", apply);
     trusted.input.addEventListener("change", () => {
@@ -77,13 +84,13 @@
       if (profiles.length === 0) {
         const empty = document.createElement("p");
         empty.className = "py-3 text-xs text-muted-foreground";
-        empty.textContent = "No sender profile yet. They appear after Jev analyzes incoming mail.";
+        empty.textContent = t("js.ai.legitimacy.empty");
         root.append(empty);
         return;
       }
       profiles.forEach((profile) => root.append(row(profile)));
     } catch (error) {
-      setStatus(error.message || "Could not load senders.", true);
+      setStatus(error.message || t("js.ai.legitimacy.load_failed"), true);
     }
   };
 

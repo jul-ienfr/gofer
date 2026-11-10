@@ -13,6 +13,10 @@
     status.classList.toggle("dark:text-red-300", !!isError)
   }
 
+  function t(key, params) {
+    return window.goferT ? window.goferT(key, params) : key
+  }
+
   function checkbox(labelText, checked) {
     var label = document.createElement("label")
     label.className = "inline-flex items-center gap-2 text-xs text-foreground"
@@ -42,14 +46,14 @@
     details.className = "text-xs"
     var summary = document.createElement("summary")
     summary.className = "cursor-pointer text-muted-foreground hover:text-foreground"
-    summary.textContent = "Routes"
+    summary.textContent = t("js.ai.projects.routes")
     details.appendChild(summary)
     var body = document.createElement("div")
     body.className = "mt-2 space-y-2 border-l border-border pl-3"
     details.appendChild(body)
 
     function loadRoutes() {
-      body.textContent = "Loading routes…"
+      body.textContent = t("js.ai.projects.loading_routes")
       fetch("/api/ai/projects/" + encodeURIComponent(project.ID) + "/routes", { credentials: "same-origin" })
         .then(function (response) {
           if (!response.ok) throw new Error("load failed")
@@ -61,7 +65,7 @@
           if (!routes.length) {
             var empty = document.createElement("p")
             empty.className = "text-muted-foreground"
-            empty.textContent = "No route for this project."
+            empty.textContent = t("js.ai.projects.no_routes")
             body.appendChild(empty)
           }
           routes.forEach(function (route) {
@@ -74,21 +78,24 @@
                 .map(function (action) { return action.kind + (action.value ? ":" + action.value : "") })
                 .join(", ")
             } catch (_) {}
-            text.textContent = route.Name + " · priority " + route.Priority + (actionText ? " · " + actionText : "") + (route.Enabled ? "" : " · disabled")
+            var textParts = [t("js.ai.projects.route_meta", { name: route.Name, priority: route.Priority })]
+            if (actionText) textParts.push(actionText)
+            if (!route.Enabled) textParts.push(t("js.ai.projects.disabled"))
+            text.textContent = textParts.join(" · ")
             var remove = document.createElement("button")
             remove.type = "button"
             remove.className = "rounded border border-border px-2 py-0.5 hover:bg-muted"
-            remove.textContent = "Delete"
+            remove.textContent = t("js.ai.projects.delete")
             remove.addEventListener("click", function () {
               fetch("/api/ai/routes/" + encodeURIComponent(route.ID), {
                 method: "DELETE",
                 credentials: "same-origin",
               }).then(function (response) {
                 if (!response.ok) throw new Error("delete failed")
-                setStatus("Route deleted.", false)
+                setStatus(t("js.ai.projects.route_deleted"), false)
                 loadRoutes()
               }).catch(function () {
-                setStatus("Could not delete route.", true)
+                setStatus(t("js.ai.projects.route_delete_failed"), true)
               })
             })
             line.appendChild(text)
@@ -98,21 +105,21 @@
           body.appendChild(addForm())
         })
         .catch(function () {
-          body.textContent = "Could not load routes."
+          body.textContent = t("js.ai.projects.routes_failed")
         })
     }
 
     function addForm() {
       var form = document.createElement("div")
       form.className = "space-y-2 pt-2"
-      var name = field("Route name", "text", "Recruiters")
-      var sender = field("Sender email", "email", "recruiter@example.com")
+      var name = field(t("js.ai.projects.route_name"), "text", t("js.ai.projects.route_name_placeholder"))
+      var sender = field(t("js.ai.projects.sender_email"), "email", "recruiter@example.com")
       var kindLabel = document.createElement("label")
       kindLabel.className = "text-xs font-medium text-foreground"
-      kindLabel.textContent = "Action"
+      kindLabel.textContent = t("js.ai.projects.action")
       var kind = document.createElement("select")
       kind.className = "mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-xs"
-      ;[["webhook", "Webhook"], ["label", "Label"], ["move", "Move to folder"]].forEach(function (item) {
+      ;[["webhook", t("js.ai.projects.webhook")], ["label", t("js.ai.projects.label")], ["move", t("js.ai.projects.move_folder")]].forEach(function (item) {
         var option = document.createElement("option")
         option.value = item[0]
         option.textContent = item[1]
@@ -121,26 +128,26 @@
       kindLabel.appendChild(kind)
       var connectorLabel = document.createElement("label")
       connectorLabel.className = "text-xs font-medium text-foreground"
-      connectorLabel.textContent = "Webhook connector"
+      connectorLabel.textContent = t("js.ai.projects.webhook_connector")
       var select = document.createElement("select")
       select.className = "mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-xs"
       var placeholder = document.createElement("option")
       placeholder.value = ""
-      placeholder.textContent = "Loading connectors…"
+      placeholder.textContent = t("js.ai.projects.loading_connectors")
       select.appendChild(placeholder)
       connectorLabel.appendChild(select)
       var targetLabel = document.createElement("label")
       targetLabel.className = "hidden text-xs font-medium text-foreground"
-      targetLabel.textContent = "Label or folder name/role"
+      targetLabel.textContent = t("js.ai.projects.target")
       var target = document.createElement("input")
       target.type = "text"
       target.className = "mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-xs"
-      target.placeholder = "Recruiters or Archive"
+      target.placeholder = t("js.ai.projects.target_placeholder")
       targetLabel.appendChild(target)
       var add = document.createElement("button")
       add.type = "button"
       add.className = "rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-muted"
-      add.textContent = "Add route"
+      add.textContent = t("js.ai.projects.add_route")
       form.appendChild(name.label)
       form.appendChild(sender.label)
       form.appendChild(kindLabel)
@@ -158,7 +165,7 @@
           select.textContent = ""
           var list = Array.isArray(data.connectors) ? data.connectors : []
           if (!list.length) {
-            placeholder.textContent = "Add a connector above first"
+            placeholder.textContent = t("js.ai.projects.add_connector_first")
             select.appendChild(placeholder)
             return
           }
@@ -173,7 +180,7 @@
       add.addEventListener("click", function () {
         var value = kind.value === "webhook" ? select.value : target.value.trim()
         if (!sender.input.value || !value) {
-          setStatus(kind.value === "webhook" ? "A sender and a connector are required." : "A sender and a label or folder are required.", true)
+          setStatus(kind.value === "webhook" ? t("js.ai.projects.need_sender_connector") : t("js.ai.projects.need_sender_target"), true)
           return
         }
         add.disabled = true
@@ -182,7 +189,7 @@
           headers: { "Content-Type": "application/json" },
           credentials: "same-origin",
           body: JSON.stringify({
-            name: name.input.value || "Project route",
+            name: name.input.value || t("js.ai.projects.default_route_name"),
             enabled: true,
             priority: 10,
             match_json: JSON.stringify({ senders: [sender.input.value.trim().toLowerCase()] }),
@@ -191,11 +198,11 @@
         })
           .then(function (response) {
             if (!response.ok) throw new Error("create failed")
-            setStatus(kind.value === "webhook" ? "Route created. Enable external routing on the project to queue it." : "Route created. It applies on the next analysis.", false)
+            setStatus(kind.value === "webhook" ? t("js.ai.projects.route_created_external") : t("js.ai.projects.route_created"), false)
             loadRoutes()
           })
           .catch(function () {
-            setStatus("Could not create route.", true)
+            setStatus(t("js.ai.projects.route_create_failed"), true)
             add.disabled = false
           })
       })
@@ -213,7 +220,7 @@
     if (!projects.length) {
       var empty = document.createElement("p")
       empty.className = "py-3 text-xs text-muted-foreground"
-      empty.textContent = "No projects yet. Create the defaults or add one through the API."
+      empty.textContent = t("js.ai.projects.empty")
       root.appendChild(empty)
       return
     }
@@ -227,21 +234,21 @@
       title.textContent = project.Name
       var slug = document.createElement("span")
       slug.className = "ml-2 text-xs text-muted-foreground"
-      slug.textContent = project.Slug + " · " + (project.DataClassification || "internal")
+      slug.textContent = project.Slug + " · " + (project.DataClassification || t("js.ai.projects.internal"))
       title.appendChild(slug)
       heading.appendChild(title)
       row.appendChild(heading)
       var options = document.createElement("div")
       options.className = "flex flex-wrap items-center gap-4"
-      var routing = checkbox("External routing", project.AllowExternalRouting)
-      var drafting = checkbox("LLM draft", project.AllowLLMDraft !== false)
-      var spam = checkbox("Auto-spam & unsub", project.AllowAutoSpam)
+      var routing = checkbox(t("js.ai.projects.external_routing"), project.AllowExternalRouting)
+      var drafting = checkbox(t("js.ai.projects.llm_draft"), project.AllowLLMDraft !== false)
+      var spam = checkbox(t("js.ai.projects.auto_spam"), project.AllowAutoSpam)
       var classificationLabel = document.createElement("label")
       classificationLabel.className = "text-xs font-medium text-foreground"
-      classificationLabel.textContent = "Data"
+      classificationLabel.textContent = t("js.ai.projects.data")
       var classification = document.createElement("select")
       classification.className = "ml-1 rounded-md border border-border bg-background px-2 py-1 text-xs"
-      ;[["public", "Public"], ["internal", "Internal"], ["confidential", "Confidential"], ["restricted", "Restricted"]].forEach(function (item) {
+      ;[["public", t("js.ai.projects.public")], ["internal", t("js.ai.projects.internal_label")], ["confidential", t("js.ai.projects.confidential")], ["restricted", t("js.ai.projects.restricted")]].forEach(function (item) {
         var option = document.createElement("option")
         option.value = item[0]
         option.textContent = item[1]
@@ -263,10 +270,10 @@
       var save = document.createElement("button")
       save.type = "button"
       save.className = "ml-auto rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-muted"
-      save.textContent = "Save"
+      save.textContent = t("js.ai.projects.save")
       save.addEventListener("click", function () {
         save.disabled = true
-        setStatus("Saving " + project.Name + "…", false)
+        setStatus(t("js.ai.projects.saving", { name: project.Name }), false)
         fetch("/api/ai/projects/" + encodeURIComponent(project.ID), {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -279,14 +286,14 @@
           }),
         })
           .then(function (response) {
-            if (!response.ok) throw new Error("Save failed")
+            if (!response.ok) throw new Error(t("js.settings.status.save_failed"))
             return response.json()
           })
           .then(function () {
-            setStatus("Project permissions saved.", false)
+            setStatus(t("js.ai.projects.saved"), false)
           })
           .catch(function () {
-            setStatus("Could not save project permissions.", true)
+            setStatus(t("js.ai.projects.save_failed"), true)
           })
           .then(function () {
             save.disabled = false
@@ -312,7 +319,7 @@
         root.textContent = ""
         var error = document.createElement("p")
         error.className = "py-3 text-xs text-red-700 dark:text-red-300"
-        error.textContent = "Could not load projects."
+        error.textContent = t("js.ai.projects.load_failed")
         root.appendChild(error)
       })
   }
@@ -327,10 +334,10 @@
         })
         .then(function (data) {
           render(Array.isArray(data.projects) ? data.projects : [])
-          setStatus("Default projects are ready.", false)
+          setStatus(t("js.ai.projects.defaults_ready"), false)
         })
         .catch(function () {
-          setStatus("Could not create default projects.", true)
+          setStatus(t("js.ai.projects.defaults_failed"), true)
         })
         .then(function () {
           seed.disabled = false

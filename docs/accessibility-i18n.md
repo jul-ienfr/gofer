@@ -177,14 +177,14 @@ Run this before a release that changes layout or navigation, and at least once p
 Current status:
 
 - Catalogs live in `internal/i18n/locales/*.json`: `en.json` is the source, with `fr.json`, `es.json`, `pt-br.json`, and `zh-cn.json`. A parity test requires every catalog to have the same keys as English, reject empty values, and provide `language.native_name`. A missing value falls back to English at runtime.
-- The French catalog has complete key parity, but many values still match English because translation is in progress. Untranslated values are intentional fallbacks, not missing keys.
+- The French catalog is fully translated. A few values intentionally match English because they are brand names, acronyms, or words spelled the same in French, such as `Contact`, `Messages`, `Date`, `OK`, and `Web Push`.
 - Each user chooses the interface language in **Settings → Regional → Interface language**. The choice is stored as `language` in the user's UI settings and applied to authenticated pages through `<html lang>`. A missing, `auto`, or unknown stored value follows the browser.
 - The unauthenticated login page uses the `gofer_lang` cookie set when a signed-in user saves the interface language, then the browser's `Accept-Language` header. The cookie is HTTP-only, SameSite=Lax, and expires after one year.
 - Templates call `i18n.T(ctx, "key")`, with `i18n.N(ctx, "key", count)` for counted messages and named placeholders such as `{account}`. Client-side strings live under the `js.` key namespace.
 - Mail, contacts, and Calendar content is displayed in its original language, independent of the interface language.
-- Dates and times use the browser and Go formatting paths already present in the application; they have not been audited for every locale.
+- Dates, times, and numbers follow the language's catalog settings, including date order, 12- or 24-hour clocks, decimal marks, and digit grouping. They have not been manually reviewed for every locale.
 - No right-to-left layout support has been implemented or tested.
-- Server-side error strings are mostly English and sometimes include Go error text. The fork-only AI templates are translated, but strings rendered by the AI client scripts are still English.
+- Server-side errors, including the fork's AI, Thunderbird import, and AI client-script messages, use catalog keys. Raw Go error details may still be appended after a translated prefix.
 
 To add a language:
 
@@ -194,12 +194,12 @@ To add a language:
 
 Before claiming full i18n support, still add:
 
-1. Complete translations for every visible string, especially the French catalog and the strings rendered by the AI client scripts, with a test that rejects user-facing Go literals.
+1. Review every visible string, especially security-sensitive messages, and keep adding tests that reject user-facing Go literals and hardcoded client-script text.
 2. Locale-aware date, time, number, and relative-time formatting.
 3. RTL layout and icon mirroring tests.
 4. Translation review for security-sensitive messages, especially sign-in, recovery, and deletion.
 
-Until then, release notes should say "English interface with French, Spanish, Portuguese, and Chinese catalogs in progress" rather than "fully internationalized".
+Until then, release notes should say "French is fully translated; Spanish, Portuguese, and Chinese catalogs are in progress" rather than "fully internationalized".
 
 ## Reporting issues
 

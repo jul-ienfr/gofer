@@ -1,6 +1,10 @@
 (function () {
   "use strict"
 
+  function t(key) {
+    return window.goferT ? window.goferT(key) : key
+  }
+
   function statusFor(button) {
     var panel = button.closest("[data-ai-analysis-panel]")
     return panel ? panel.querySelector("[data-ai-draft-status]") : null
@@ -25,26 +29,26 @@
       var section = undoButton.closest("[data-ai-analysis-panel]")
       var undoStatus = section ? section.querySelector("[data-ai-undo-status]") : null
       undoButton.disabled = true
-      if (undoStatus) undoStatus.textContent = "Restoring…"
+      if (undoStatus) undoStatus.textContent = t("js.ai.draft.restoring")
       fetch("/api/ai/automation/" + encodeURIComponent(actionID || "") + "/undo", {
         method: "POST",
         credentials: "same-origin",
       })
         .then(function (response) {
-          if (!response.ok) throw new Error("Could not undo this move.")
+          if (!response.ok) throw new Error(t("js.ai.draft.undo_failed"))
           return fetch("/api/ai/messages/" + encodeURIComponent(messageID || "") + "/analysis/panel", {
             credentials: "same-origin",
           })
         })
         .then(function (response) {
-          if (!response.ok) throw new Error("Could not refresh the analysis.")
+          if (!response.ok) throw new Error(t("js.ai.draft.refresh_failed"))
           return response.text()
         })
         .then(function (html) {
           if (section) section.outerHTML = html
         })
         .catch(function (error) {
-          if (undoStatus) undoStatus.textContent = error.message || "Could not undo this move."
+          if (undoStatus) undoStatus.textContent = error.message || t("js.ai.draft.undo_failed")
           undoButton.disabled = false
         })
       return
@@ -57,7 +61,7 @@
     var messageID = button.getAttribute("data-ai-draft")
     if (!/^\d+$/.test(messageID || "")) return
     button.disabled = true
-    setStatus(button, "Generating draft…", false)
+    setStatus(button, t("js.ai.draft.generating"), false)
     fetch("/api/ai/messages/" + encodeURIComponent(messageID) + "/draft", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -68,10 +72,10 @@
         if (!response.ok) {
           return response.json().then(
             function (data) {
-              throw new Error((data && data.error) || "Draft generation failed")
+              throw new Error((data && data.error) || t("js.ai.draft.failed"))
             },
             function () {
-              throw new Error("Draft generation failed")
+              throw new Error(t("js.ai.draft.failed"))
             }
           )
         }
@@ -79,17 +83,17 @@
       })
       .then(function (payload) {
         if (typeof window.openComposePrefill !== "function" || !payload.compose) {
-          throw new Error("The composer is not available on this page.")
+          throw new Error(t("js.ai.draft.composer_unavailable"))
         }
         var values = payload.compose
         values._composeDirty = "true"
         return window.openComposePrefill(values, "reply")
       })
       .then(function (opened) {
-        setStatus(button, opened ? "Review the draft before sending." : "Close the current draft before using this one.", !opened)
+        setStatus(button, opened ? t("js.ai.draft.review") : t("js.ai.draft.close_current"), !opened)
       })
       .catch(function (error) {
-        setStatus(button, error.message || "Draft generation failed", true)
+        setStatus(button, error.message || t("js.ai.draft.failed"), true)
       })
       .then(function () {
         button.disabled = false

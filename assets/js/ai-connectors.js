@@ -5,6 +5,9 @@
   const deliveries = document.querySelector("[data-ai-deliveries]");
   if (!root) return;
 
+  const t = (key, params) => (window.goferT ? window.goferT(key, params) : key);
+  const tn = (key, count, params) => (window.goferTn ? window.goferTn(key, count, params) : key);
+
   const setStatus = (message, error = false) => {
     if (!status) return;
     status.textContent = message;
@@ -39,26 +42,26 @@
           body: JSON.stringify({ enabled: checkbox.checked }),
         });
         if (!response.ok) throw new Error(await response.text());
-        setStatus("Connector updated.");
+        setStatus(t("js.ai.connectors.updated"));
       } catch (error) {
         checkbox.checked = !checkbox.checked;
-        setStatus(error.message || "Could not update connector.", true);
+        setStatus(error.message || t("js.ai.connectors.update_failed"), true);
       }
     });
-    toggle.append(checkbox, document.createTextNode("Enabled"));
+    toggle.append(checkbox, document.createTextNode(t("js.ai.connectors.enabled")));
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "rounded-md border border-border px-2 py-1 text-xs hover:bg-muted";
-    remove.textContent = "Delete";
+    remove.textContent = t("js.ai.connectors.delete");
     remove.addEventListener("click", async () => {
-      if (!confirm(`Delete connector “${connector.name}”?`)) return;
+      if (!confirm(t("js.ai.connectors.delete_confirm", { name: connector.name }))) return;
       try {
         const response = await fetch(`/api/ai/connectors/${encodeURIComponent(connector.id)}`, { method: "DELETE" });
         if (!response.ok) throw new Error(await response.text());
         item.remove();
-        setStatus("Connector deleted.");
+        setStatus(t("js.ai.connectors.deleted"));
       } catch (error) {
-        setStatus(error.message || "Could not delete connector.", true);
+        setStatus(error.message || t("js.ai.connectors.delete_failed"), true);
       }
     });
     actions.append(toggle, remove);
@@ -79,7 +82,7 @@
       if (items.length === 0 && unsubscribes.length === 0 && actions.length === 0) {
         const empty = document.createElement("p");
         empty.className = "py-3 text-xs text-muted-foreground";
-        empty.textContent = "No automation activity yet.";
+        empty.textContent = t("js.ai.connectors.empty_activity");
         deliveries.append(empty);
         return;
       }
@@ -90,10 +93,13 @@
         head.className = "flex flex-wrap items-center justify-between gap-2";
         const label = document.createElement("span");
         label.className = "font-medium";
-        label.textContent = `${item.Project || "project"} → ${item.Connector || "connector"}`;
+        label.textContent = `${item.Project || t("js.ai.connectors.project_fallback")} → ${item.Connector || t("js.ai.connectors.connector_fallback")}`;
         const badge = document.createElement("span");
         badge.className = "text-muted-foreground";
-        badge.textContent = `${item.State} · ${item.Attempts} attempt(s)`;
+        badge.textContent = t("js.ai.connectors.summary", {
+          state: item.State,
+          attempts: tn("js.ai.connectors.attempts", item.Attempts),
+        });
         head.append(label, badge);
         line.append(head);
         if (item.LastError) {
@@ -111,7 +117,7 @@
         head.className = "flex flex-wrap items-center justify-between gap-2";
         const label = document.createElement("span");
         label.className = "font-medium";
-        label.textContent = `${item.Kind === "move_junk" ? "Moved to Junk" : item.Kind === "route_move" ? "Route move" : item.Kind} · message #${item.MessageID}`;
+        label.textContent = `${item.Kind === "move_junk" ? t("js.ai.connectors.moved_junk") : item.Kind === "route_move" ? t("js.ai.connectors.route_move") : item.Kind} · ${t("js.ai.connectors.message_ref", { id: item.MessageID })}`;
         const right = document.createElement("span");
         right.className = "flex items-center gap-2 text-muted-foreground";
         const badge = document.createElement("span");
@@ -122,16 +128,16 @@
           const undo = document.createElement("button");
           undo.type = "button";
           undo.className = "rounded-md border border-border px-2 py-1 hover:bg-muted";
-          undo.textContent = "Undo";
+          undo.textContent = t("js.ai.connectors.undo");
           undo.addEventListener("click", async () => {
             undo.disabled = true;
             try {
               const response = await fetch(`/api/ai/automation/${encodeURIComponent(item.ID)}/undo`, { method: "POST" });
               if (!response.ok) throw new Error(await response.text());
-              setStatus("Automation undone.");
+              setStatus(t("js.ai.connectors.undone"));
               await loadDeliveries();
             } catch (error) {
-              setStatus(error.message || "Could not undo automation.", true);
+              setStatus(error.message || t("js.ai.connectors.undo_failed"), true);
               undo.disabled = false;
             }
           });
@@ -148,7 +154,7 @@
         head.className = "flex flex-wrap items-center justify-between gap-2";
         const label = document.createElement("span");
         label.className = "font-medium";
-        label.textContent = `Unsubscribe · message #${item.MessageID}`;
+        label.textContent = t("js.ai.connectors.unsubscribe", { id: item.MessageID });
         const badge = document.createElement("span");
         badge.className = "text-muted-foreground";
         badge.textContent = `${item.Status}${item.HTTPStatus ? ` · HTTP ${item.HTTPStatus}` : ""}`;
@@ -163,7 +169,7 @@
         deliveries.append(line);
       });
     } catch (error) {
-      deliveries.textContent = "Could not load deliveries.";
+      deliveries.textContent = t("js.ai.connectors.deliveries_failed");
     }
   };
 
@@ -176,13 +182,13 @@
       if (!payload.connectors || payload.connectors.length === 0) {
         const empty = document.createElement("p");
         empty.className = "py-3 text-xs text-muted-foreground";
-        empty.textContent = "No routing connector yet.";
+        empty.textContent = t("js.ai.connectors.empty");
         root.append(empty);
         return;
       }
       payload.connectors.forEach((connector) => root.append(row(connector)));
     } catch (error) {
-      setStatus(error.message || "Could not load connectors.", true);
+      setStatus(error.message || t("js.ai.connectors.load_failed"), true);
     }
   };
 
@@ -204,10 +210,10 @@
       });
       if (!response.ok) throw new Error(await response.text());
       form.reset();
-      setStatus("Connector created.");
+      setStatus(t("js.ai.connectors.created"));
       await load();
     } catch (error) {
-      setStatus(error.message || "Could not create connector.", true);
+      setStatus(error.message || t("js.ai.connectors.create_failed"), true);
     }
   });
 
