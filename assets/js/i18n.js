@@ -20,9 +20,12 @@
   }
 
   // English and Spanish only tell one from other for whole numbers. French
-  // treats zero as one, as its plural rules require.
+  // and Brazilian Portuguese treat zero as one; Chinese has no one/other
+  // distinction.
   function pluralForm(count) {
-    return count === 1 || (String(window.goferLocale).split("-")[0] === "fr" && count === 0) ? "one" : "other"
+    var locale = String(window.goferLocale).toLowerCase()
+    if (locale === "zh-cn") return "other"
+    return count === 1 || (count === 0 && (locale === "fr" || locale === "pt-br")) ? "one" : "other"
   }
 
   window.goferLocale = catalog.locale || "en"

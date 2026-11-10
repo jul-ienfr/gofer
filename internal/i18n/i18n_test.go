@@ -125,6 +125,31 @@ func placeholders(message string) []string {
 
 // Every catalog has exactly English's messages, using only its placeholders,
 // so a language can't silently fall behind.
+func TestPluralRulesFollowCLDR(t *testing.T) {
+	cases := []struct {
+		locale Locale
+		count  int
+		want   string
+	}{
+		{English, 0, "other"},
+		{English, 1, "one"},
+		{French, 0, "one"},
+		{French, 1, "one"},
+		{French, 2, "other"},
+		{Locale("pt-br"), 0, "one"},
+		{Locale("pt-br"), 1, "one"},
+		{Locale("pt-br"), 2, "other"},
+		{Locale("zh-cn"), 0, "other"},
+		{Locale("zh-cn"), 1, "other"},
+		{Locale("zh-cn"), 2, "other"},
+	}
+	for _, c := range cases {
+		if got := pluralForm(c.locale, c.count); got != c.want {
+			t.Errorf("pluralForm(%q, %d) = %q, want %q", c.locale, c.count, got, c.want)
+		}
+	}
+}
+
 func TestCatalogsMatchEnglish(t *testing.T) {
 	english := catalogs[English]
 	for _, locale := range Locales() {
