@@ -23,6 +23,12 @@ var appPanelsSlideRemaining;
     else el.style.width = typeof size === "string" ? size : size + "px";
   }
 
+  // A right-to-left flex row grows a panel by dragging toward the left.
+  function resizeDelta(axis, startX, startY, x, y, rtl) {
+    if (axis === "y") return y - startY;
+    return rtl ? startX - x : x - startX;
+  }
+
   function isSideMailList(panelName) {
     return panelName === "maillist" && !isStackedMailList(panelName);
   }
@@ -114,7 +120,8 @@ var appPanelsSlideRemaining;
     function onMove(ev) {
       var cx = ev.clientX || (ev.touches && ev.touches[0].clientX) || 0;
       var cy = ev.clientY || (ev.touches && ev.touches[0].clientY) || 0;
-      var delta = axis === "y" ? cy - startY : cx - startX;
+      var rtl = window.getComputedStyle(document.documentElement).direction === "rtl";
+      var delta = resizeDelta(axis, startX, startY, cx, cy, rtl);
       var b = getBounds(panelName);
       setSize(panel, clamp(startSize + delta, b.min, b.max), axis);
     }

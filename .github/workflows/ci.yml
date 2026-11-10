@@ -61,6 +61,8 @@ jobs:
             ./internal/aievents
       - name: Test client i18n formatting
         run: node scripts/test-i18n-dates.cjs
+      - name: Test resize direction
+        run: node scripts/test-resize-direction.cjs
       - name: Build
         run: go build ./...
 

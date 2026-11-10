@@ -124,6 +124,7 @@ The latest automated checks on 2026-11-01 used an open-mode, empty data set; an 
 - Seeded browser audit: zero violations for `/`, `/contacts`, and `/calendar` at desktop and mobile after fixing month-event target size.
 - Keyboard audit: 10 checks pass on both the empty and seeded databases.
 - Reflow audit: 17 pages pass at 320 CSS pixels with no horizontal document scroll, including with WCAG 1.4.12 text-spacing overrides.
+- Resize direction test: LTR and RTL horizontal drags and vertical drags pass.
 - Reduced-motion audit: 7 pages pass with no non-essential animation running; fade-in, slide, and pulse utilities are disabled under the preference.
 - Theme audit: 136 checks pass (4 looks × 2 modes × 17 pages) with zero axe violations.
 - Opened dialogs: zero violations in Compose, Filters, New event, Add Account, the IMAP/SMTP account wizard, and Contact actions.
@@ -187,7 +188,7 @@ Current status:
 - Templates call `i18n.T(ctx, "key")`, with `i18n.N(ctx, "key", count)` for counted messages and named placeholders such as `{account}`. Client-side strings live under the `js.` key namespace.
 - Mail, contacts, and Calendar content is displayed in its original language, independent of the interface language.
 - Dates, times, numbers, byte units, and relative times follow the language's catalog settings, including date order, 12- or 24-hour clocks, decimal marks, digit grouping, and French, Portuguese, and Chinese plural forms. They have not been manually reviewed for every locale.
-- The HTML root declares `dir` from the catalog's `language.direction` setting; all current catalogs are left-to-right. A forced `dir="rtl"` smoke test mirrors the app shell on `/`, `/settings`, `/contacts`, and `/calendar` at 1280×900 without horizontal overflow. A real RTL catalog, mirrored icons, and a full visual review remain untested.
+- The HTML root declares `dir` from the catalog's `language.direction` setting; all current catalogs are left-to-right. A forced `dir="rtl"` smoke test mirrors the app shell on `/`, `/settings`, `/contacts`, and `/calendar` at 1280×900 without horizontal overflow, and panel resize drags follow the direction. A real RTL catalog, mirrored icons, and a full visual review remain untested.
 - Server-side errors, including the fork's AI, Thunderbird import, and AI client-script messages, use catalog keys. Raw Go error details may still be appended after a translated prefix. A test checks that every mapped server error has a value in all four catalogs.
 
 To add a language:
