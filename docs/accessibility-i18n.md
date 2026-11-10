@@ -120,6 +120,7 @@ The latest automated checks on 2026-11-01 used an open-mode, empty data set; an 
 - Structural checker: zero violations for `/`, `/contacts`, `/calendar`, `/settings`, `/login`, and `/setup`.
 - Browser audit: zero violations for `/`, `/contacts`, `/calendar`, all 13 settings pages, and `/setup` at 1280×900 and 390×844, with light and dark color schemes.
 - Repeat browser audit on 2026-11-10: zero violations for `/`, `/contacts`, `/calendar`, and `/settings` at 1280×900 in light and dark, and at 320×900 in light.
+- Localized repeat on 2026-11-10: zero axe violations for French, Spanish, and Simplified Chinese on the same 17 pages at 1280×900.
 - Seeded browser audit: zero violations for `/`, `/contacts`, and `/calendar` at desktop and mobile after fixing month-event target size.
 - Keyboard audit: 10 checks pass on both the empty and seeded databases.
 - Reflow audit: 17 pages pass at 320 CSS pixels with no horizontal document scroll, including with WCAG 1.4.12 text-spacing overrides.
