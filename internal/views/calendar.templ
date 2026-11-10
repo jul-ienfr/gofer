@@ -25,7 +25,7 @@ import (
 
 templ CalendarLayout(accounts []models.Account, month CalendarMonthData, uiSettings map[string]string) {
 	<!DOCTYPE html>
-	<html lang={ pageLang(ctx) } class={ themeClass(uiSettings) } data-theme={ themeStyle(uiSettings) } { themeLookAttributes(uiSettings)... }>
+	<html lang={ pageLang(ctx) } dir={ pageDirection(ctx) } class={ themeClass(uiSettings) } data-theme={ themeStyle(uiSettings) } { themeLookAttributes(uiSettings)... }>
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>

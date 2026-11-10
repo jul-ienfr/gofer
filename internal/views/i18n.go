@@ -10,3 +10,8 @@ import (
 func pageLang(ctx context.Context) string {
 	return i18n.Lang(ctx)
 }
+
+// pageDirection is the HTML dir attribute for the request's language.
+func pageDirection(ctx context.Context) string {
+	return i18n.Direction(i18n.FromContext(ctx))
+}

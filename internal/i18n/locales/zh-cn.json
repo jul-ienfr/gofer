@@ -3475,6 +3475,7 @@
   "language.name.ru": "俄语",
   "language.name.uk": "乌克兰语",
   "language.name.zh": "中文",
+  "language.direction": "ltr",
   "language.native_name": "简体中文",
   "mail.actions.delete_permanently": "永久删除",
   "mail.actions.download": "下载",

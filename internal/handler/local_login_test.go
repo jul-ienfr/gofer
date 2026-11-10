@@ -28,8 +28,8 @@ func TestLoginPageRendersTheChosenLanguage(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	handler.LocaleMiddleware(http.HandlerFunc(handler.handleLogin)).ServeHTTP(recorder, request)
 	body := recorder.Body.String()
-	if !strings.Contains(body, `lang="es"`) || !strings.Contains(body, "Iniciar sesión") {
-		t.Errorf("login page did not render in Spanish: lang=%v body=%d bytes", strings.Contains(body, `lang="es"`), len(body))
+	if !strings.Contains(body, `lang="es"`) || !strings.Contains(body, `dir="ltr"`) || !strings.Contains(body, "Iniciar sesión") {
+		t.Errorf("login page did not render in Spanish: lang=%v dir=%v body=%d bytes", strings.Contains(body, `lang="es"`), strings.Contains(body, `dir="ltr"`), len(body))
 	}
 }
 

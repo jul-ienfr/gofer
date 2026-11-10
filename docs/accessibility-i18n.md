@@ -184,12 +184,12 @@ Current status:
 - Templates call `i18n.T(ctx, "key")`, with `i18n.N(ctx, "key", count)` for counted messages and named placeholders such as `{account}`. Client-side strings live under the `js.` key namespace.
 - Mail, contacts, and Calendar content is displayed in its original language, independent of the interface language.
 - Dates, times, numbers, byte units, and relative times follow the language's catalog settings, including date order, 12- or 24-hour clocks, decimal marks, digit grouping, and French, Portuguese, and Chinese plural forms. They have not been manually reviewed for every locale.
-- No right-to-left layout support has been implemented or tested.
+- The HTML root declares `dir` from the catalog's `language.direction` setting; all current catalogs are left-to-right. Right-to-left layout mirroring and an RTL catalog have not been implemented or tested.
 - Server-side errors, including the fork's AI, Thunderbird import, and AI client-script messages, use catalog keys. Raw Go error details may still be appended after a translated prefix. A test checks that every mapped server error has a value in all four catalogs.
 
 To add a language:
 
-1. Add `internal/i18n/locales/<code>.json` with every key from `en.json` and a `language.native_name` value in that language. Catalogs are discovered from the embedded `locales/` directory, so no Go list needs editing.
+1. Add `internal/i18n/locales/<code>.json` with every key from `en.json`, a `language.native_name` value in that language, and `language.direction` set to `ltr` or `rtl`. Catalogs are discovered from the embedded `locales/` directory, so no Go list needs editing.
 2. Translate templates with `i18n.T`/`i18n.N` instead of Go literals; the hardcoded-text test rejects new English literals.
 3. Run `go test ./internal/i18n ./internal/views` and add the language to the README and setup language lists.
 4. Follow [i18n-style.md](./i18n-style.md) for placeholders, plural forms, terminology, and the review checklist.

@@ -24,7 +24,7 @@ func escaped(value string) string { return templ.EscapeString(value) }
 
 func ManagementLoginPage(errorMessage, identifier string) templ.Component {
 	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
-		if err := writeHTML(w, `<!DOCTYPE html><html lang="`, escaped(pageLang(ctx)), `" class="dark" data-theme="classic"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>`, escaped(i18n.T(ctx, "admin.login.page_title")), `</title><link rel="icon" type="image/svg+xml" href="/assets/logo.svg"><link rel="stylesheet" href="/assets/css/output.css"></head><body class="bg-background text-foreground antialiased surface-desk">`); err != nil {
+		if err := writeHTML(w, `<!DOCTYPE html><html lang="`, escaped(pageLang(ctx)), `" dir="`, escaped(pageDirection(ctx)), `" class="dark" data-theme="classic"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>`, escaped(i18n.T(ctx, "admin.login.page_title")), `</title><link rel="icon" type="image/svg+xml" href="/assets/logo.svg"><link rel="stylesheet" href="/assets/css/output.css"></head><body class="bg-background text-foreground antialiased surface-desk">`); err != nil {
 			return err
 		}
 		if err := PublicPageCorners().Render(ctx, w); err != nil {
@@ -44,7 +44,7 @@ func ManagementLoginPage(errorMessage, identifier string) templ.Component {
 
 func ManagementMFAContinuationPage(errorMessage string) templ.Component {
 	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
-		if err := writeHTML(w, `<!DOCTYPE html><html lang="`, escaped(pageLang(ctx)), `" class="dark" data-theme="classic"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>`, escaped(i18n.T(ctx, "admin.mfa.page_title")), `</title><link rel="icon" type="image/svg+xml" href="/assets/logo.svg"><link rel="stylesheet" href="/assets/css/output.css"></head><body class="bg-background text-foreground antialiased surface-desk">`); err != nil {
+		if err := writeHTML(w, `<!DOCTYPE html><html lang="`, escaped(pageLang(ctx)), `" dir="`, escaped(pageDirection(ctx)), `" class="dark" data-theme="classic"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>`, escaped(i18n.T(ctx, "admin.mfa.page_title")), `</title><link rel="icon" type="image/svg+xml" href="/assets/logo.svg"><link rel="stylesheet" href="/assets/css/output.css"></head><body class="bg-background text-foreground antialiased surface-desk">`); err != nil {
 			return err
 		}
 		if err := PublicPageCorners().Render(ctx, w); err != nil {
@@ -197,7 +197,7 @@ func ManagementAdminActivityLayout(uiSettings map[string]string, data AdminSecur
 
 func managementAdminLayout(uiSettings map[string]string, activeSection string, scope models.AdminWebmailScope, content templ.Component) templ.Component {
 	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
-		if err := writeHTML(w, `<!DOCTYPE html><html lang="`, escaped(pageLang(ctx)), `" class="`, escaped(themeClass(uiSettings)), `" data-theme="`, escaped(themeStyle(uiSettings)), `"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>`, escaped(i18n.T(ctx, "admin.page_title")), `</title><link rel="icon" type="image/svg+xml" href="/assets/logo.svg"><link rel="stylesheet" href="/assets/css/output.css">`); err != nil {
+		if err := writeHTML(w, `<!DOCTYPE html><html lang="`, escaped(pageLang(ctx)), `" dir="`, escaped(pageDirection(ctx)), `" class="`, escaped(themeClass(uiSettings)), `" data-theme="`, escaped(themeStyle(uiSettings)), `"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>`, escaped(i18n.T(ctx, "admin.page_title")), `</title><link rel="icon" type="image/svg+xml" href="/assets/logo.svg"><link rel="stylesheet" href="/assets/css/output.css">`); err != nil {
 			return err
 		}
 		if err := I18nScripts().Render(ctx, w); err != nil {
@@ -233,7 +233,7 @@ func managementAdminLayout(uiSettings map[string]string, activeSection string, s
 
 func ManagementSecurityLayout(uiSettings map[string]string, content templ.Component) templ.Component {
 	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
-		if err := writeHTML(w, `<!DOCTYPE html><html lang="`, escaped(pageLang(ctx)), `" class="`, escaped(themeClass(uiSettings)), `" data-theme="`, escaped(themeStyle(uiSettings)), `"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>`, escaped(i18n.T(ctx, "admin.security_page_title")), `</title><link rel="icon" type="image/svg+xml" href="/assets/logo.svg"><link rel="stylesheet" href="/assets/css/output.css">`); err != nil {
+		if err := writeHTML(w, `<!DOCTYPE html><html lang="`, escaped(pageLang(ctx)), `" dir="`, escaped(pageDirection(ctx)), `" class="`, escaped(themeClass(uiSettings)), `" data-theme="`, escaped(themeStyle(uiSettings)), `"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>`, escaped(i18n.T(ctx, "admin.security_page_title")), `</title><link rel="icon" type="image/svg+xml" href="/assets/logo.svg"><link rel="stylesheet" href="/assets/css/output.css">`); err != nil {
 			return err
 		}
 		if err := I18nScripts().Render(ctx, w); err != nil {
@@ -266,7 +266,7 @@ func ManagementSecurityLayout(uiSettings map[string]string, content templ.Compon
 
 func SeparatedSetupOwnerPage(data SetupOwnerData) templ.Component {
 	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
-		if err := writeHTML(w, `<!DOCTYPE html><html lang="`, escaped(pageLang(ctx)), `" class="dark" data-theme="classic"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>`, escaped(i18n.T(ctx, "admin.owner.page_title")), `</title><link rel="icon" type="image/svg+xml" href="/assets/logo.svg"><link rel="stylesheet" href="/assets/css/output.css"></head><body class="bg-background text-foreground antialiased surface-desk">`); err != nil {
+		if err := writeHTML(w, `<!DOCTYPE html><html lang="`, escaped(pageLang(ctx)), `" dir="`, escaped(pageDirection(ctx)), `" class="dark" data-theme="classic"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>`, escaped(i18n.T(ctx, "admin.owner.page_title")), `</title><link rel="icon" type="image/svg+xml" href="/assets/logo.svg"><link rel="stylesheet" href="/assets/css/output.css"></head><body class="bg-background text-foreground antialiased surface-desk">`); err != nil {
 			return err
 		}
 		if err := PublicPageCorners().Render(ctx, w); err != nil {

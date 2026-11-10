@@ -43,7 +43,7 @@ type LoginPageData struct {
 
 templ LoginPage(data LoginPageData) {
 	<!DOCTYPE html>
-	<html lang={ pageLang(ctx) } class="dark" data-theme="classic">
+	<html lang={ pageLang(ctx) } dir={ pageDirection(ctx) } class="dark" data-theme="classic">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -217,7 +217,7 @@ type LoginMFAFactors struct {
 
 templ LoginMFAContinuationPage(errorMessage string, factors LoginMFAFactors) {
 	<!DOCTYPE html>
-	<html lang={ pageLang(ctx) } class="dark" data-theme="classic">
+	<html lang={ pageLang(ctx) } dir={ pageDirection(ctx) } class="dark" data-theme="classic">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -287,7 +287,7 @@ templ LoginMFAContinuationPage(errorMessage string, factors LoginMFAFactors) {
 
 templ RecoveryCodeLoginPage(errorMessage string) {
 	<!DOCTYPE html>
-	<html lang={ pageLang(ctx) } class="dark" data-theme="classic">
+	<html lang={ pageLang(ctx) } dir={ pageDirection(ctx) } class="dark" data-theme="classic">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -346,7 +346,7 @@ templ RecoveryCodeLoginPage(errorMessage string) {
 
 templ RecoveryRepairMFAPage(data RecoveryRepairMFAData) {
 	<!DOCTYPE html>
-	<html lang={ pageLang(ctx) } class="dark" data-theme="classic">
+	<html lang={ pageLang(ctx) } dir={ pageDirection(ctx) } class="dark" data-theme="classic">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -404,7 +404,7 @@ templ RecoveryRepairMFAPage(data RecoveryRepairMFAData) {
 
 templ MFAEnrollmentPage(data MFAEnrollmentData) {
 	<!DOCTYPE html>
-	<html lang={ pageLang(ctx) } class="dark" data-theme="classic">
+	<html lang={ pageLang(ctx) } dir={ pageDirection(ctx) } class="dark" data-theme="classic">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -462,7 +462,7 @@ templ MFAEnrollmentPage(data MFAEnrollmentData) {
 
 templ MFAEnrollmentCodesPage(data MFAEnrollmentCodesData) {
 	<!DOCTYPE html>
-	<html lang={ pageLang(ctx) } class="dark" data-theme="classic">
+	<html lang={ pageLang(ctx) } dir={ pageDirection(ctx) } class="dark" data-theme="classic">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -536,7 +536,7 @@ templ MFAEnrollmentCodesPage(data MFAEnrollmentCodesData) {
 
 templ RecoveryRepairCodesPage(data RecoveryRepairCodesData) {
 	<!DOCTYPE html>
-	<html lang={ pageLang(ctx) } class="dark" data-theme="classic">
+	<html lang={ pageLang(ctx) } dir={ pageDirection(ctx) } class="dark" data-theme="classic">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>

@@ -152,6 +152,15 @@ func Lang(ctx context.Context) string {
 	return string(FromContext(ctx))
 }
 
+// Direction returns "rtl" when a catalog declares a right-to-left script,
+// otherwise "ltr". Catalogs without the setting stay left-to-right.
+func Direction(locale Locale) string {
+	if lookup(locale, "language.direction") == "rtl" {
+		return "rtl"
+	}
+	return "ltr"
+}
+
 // NativeName is a language's name in that language, such as "Español", for
 // language pickers.
 func NativeName(locale Locale) string {

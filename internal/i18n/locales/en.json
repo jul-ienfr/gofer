@@ -3476,6 +3476,7 @@
   "language.name.ru": "Russian",
   "language.name.uk": "Ukrainian",
   "language.name.zh": "Chinese",
+  "language.direction": "ltr",
   "language.native_name": "English",
   "mail.actions.delete_permanently": "Permanently delete",
   "mail.actions.download": "Download",

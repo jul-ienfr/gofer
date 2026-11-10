@@ -3475,6 +3475,7 @@
   "language.name.ru": "Russo",
   "language.name.uk": "Ucraniano",
   "language.name.zh": "Chinês",
+  "language.direction": "ltr",
   "language.native_name": "Português (Brasil)",
   "mail.actions.delete_permanently": "Excluir permanentemente",
   "mail.actions.download": "Baixar",

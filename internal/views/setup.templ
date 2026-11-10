@@ -101,7 +101,7 @@ func setupOwnerDescription(helpID, errorID string, hasError bool) string {
 
 templ SetupTokenPage(data SetupTokenData) {
 	<!DOCTYPE html>
-	<html lang={ pageLang(ctx) } class="dark" data-theme="classic">
+	<html lang={ pageLang(ctx) } dir={ pageDirection(ctx) } class="dark" data-theme="classic">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -157,7 +157,7 @@ templ SetupTokenPage(data SetupTokenData) {
 
 templ SetupOwnerPage(data SetupOwnerData) {
 	<!DOCTYPE html>
-	<html lang={ pageLang(ctx) } class="dark" data-theme="classic">
+	<html lang={ pageLang(ctx) } dir={ pageDirection(ctx) } class="dark" data-theme="classic">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -297,7 +297,7 @@ templ SetupOwnerPage(data SetupOwnerData) {
 
 templ SetupPasswordPage(data SetupPasswordData) {
 	<!DOCTYPE html>
-	<html lang={ pageLang(ctx) } class="dark" data-theme="classic">
+	<html lang={ pageLang(ctx) } dir={ pageDirection(ctx) } class="dark" data-theme="classic">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -369,7 +369,7 @@ templ SetupPasswordPage(data SetupPasswordData) {
 
 templ SetupMFAPage(data SetupMFAData) {
 	<!DOCTYPE html>
-	<html lang={ pageLang(ctx) } class="dark" data-theme="classic">
+	<html lang={ pageLang(ctx) } dir={ pageDirection(ctx) } class="dark" data-theme="classic">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -454,7 +454,7 @@ templ SetupMFAPage(data SetupMFAData) {
 
 templ SetupRecoveryPage(data SetupRecoveryData) {
 	<!DOCTYPE html>
-	<html lang={ pageLang(ctx) } class="dark" data-theme="classic">
+	<html lang={ pageLang(ctx) } dir={ pageDirection(ctx) } class="dark" data-theme="classic">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -530,7 +530,7 @@ templ SetupRecoveryPage(data SetupRecoveryData) {
 
 templ SetupReviewPage(data SetupReviewData) {
 	<!DOCTYPE html>
-	<html lang={ pageLang(ctx) } class="dark" data-theme="classic">
+	<html lang={ pageLang(ctx) } dir={ pageDirection(ctx) } class="dark" data-theme="classic">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>

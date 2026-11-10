@@ -17,7 +17,7 @@ type CredentialRedemptionData struct {
 
 templ InvitationEnrollmentPage(data InvitationEnrollmentData) {
 	<!DOCTYPE html>
-	<html lang={ pageLang(ctx) } class="dark" data-theme="classic">
+	<html lang={ pageLang(ctx) } dir={ pageDirection(ctx) } class="dark" data-theme="classic">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -125,7 +125,7 @@ templ InvitationEnrollmentPage(data InvitationEnrollmentData) {
 
 templ CredentialRedemptionPage(data CredentialRedemptionData) {
 	<!DOCTYPE html>
-	<html lang={ pageLang(ctx) } class="dark" data-theme="classic">
+	<html lang={ pageLang(ctx) } dir={ pageDirection(ctx) } class="dark" data-theme="classic">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -222,7 +222,7 @@ templ CredentialRedemptionCompletePage() {
 
 templ passwordTokenCompletePage(title string, message string) {
 	<!DOCTYPE html>
-	<html lang={ pageLang(ctx) } class="dark" data-theme="classic">
+	<html lang={ pageLang(ctx) } dir={ pageDirection(ctx) } class="dark" data-theme="classic">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>

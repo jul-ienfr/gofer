@@ -405,6 +405,26 @@ func TestLanguageNames(t *testing.T) {
 	}
 }
 
+func TestDirectionFollowsCatalogMetadata(t *testing.T) {
+	for _, locale := range Locales() {
+		got := Direction(locale)
+		if got != "ltr" && got != "rtl" {
+			t.Errorf("%s direction = %q", locale, got)
+		}
+		if want := catalogs[locale]["language.direction"]; want != got {
+			t.Errorf("%s direction = %q, catalog declares %q", locale, got, want)
+		}
+	}
+	if got := Direction(Locale("zz")); got != "ltr" {
+		t.Errorf("unknown locale direction = %q, want ltr", got)
+	}
+	catalogs[Locale("zz")] = map[string]string{"language.direction": "rtl"}
+	defer delete(catalogs, Locale("zz"))
+	if got := Direction(Locale("zz")); got != "rtl" {
+		t.Errorf("RTL locale direction = %q, want rtl", got)
+	}
+}
+
 func TestForUserPrefersTheLastPageThenTheSavedChoice(t *testing.T) {
 	ctx := context.Background()
 	SetUserPrefsLoader(func(_ context.Context, userID string) (string, string, string, bool) {
