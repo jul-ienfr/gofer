@@ -74,7 +74,7 @@ func (h *Handler) handleAISettingsGet(w http.ResponseWriter, r *http.Request) {
 		settings, err = aisettings.Load(r.Context(), db, userID)
 		return err
 	}); err != nil {
-		http.Error(w, "failed to load AI settings", http.StatusInternalServerError)
+		http.Error(w, serverText(r.Context(), "failed to load AI settings"), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -87,16 +87,16 @@ func (h *Handler) handleAISettingsUpdate(w http.ResponseWriter, r *http.Request)
 	decoder.DisallowUnknownFields()
 	var payload aiSettingsPayload
 	if err := decoder.Decode(&payload); err != nil {
-		http.Error(w, "invalid AI settings payload", http.StatusBadRequest)
+		http.Error(w, serverText(r.Context(), "invalid AI settings payload"), http.StatusBadRequest)
 		return
 	}
 	desired := payload.settings()
 	if desired.AnalysisEnabled && !h.aiWorkerReady {
-		http.Error(w, "AI analysis is unavailable: the Jev worker is not configured", http.StatusConflict)
+		http.Error(w, serverText(r.Context(), "AI analysis is unavailable: the Jev worker is not configured"), http.StatusConflict)
 		return
 	}
 	if desired.DraftingEnabled && h.aiLLMClient == nil {
-		http.Error(w, "AI drafting is unavailable: no LLM endpoint is configured", http.StatusConflict)
+		http.Error(w, serverText(r.Context(), "AI drafting is unavailable: no LLM endpoint is configured"), http.StatusConflict)
 		return
 	}
 	var before aisettings.Settings
@@ -141,7 +141,7 @@ func (h *Handler) handleAISettingsUpdate(w http.ResponseWriter, r *http.Request)
 		}
 		return nil
 	}); err != nil {
-		http.Error(w, "failed to save AI settings", http.StatusInternalServerError)
+		http.Error(w, serverText(r.Context(), "failed to save AI settings"), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -154,7 +154,7 @@ func (h *Handler) handleAIAuditList(w http.ResponseWriter, r *http.Request) {
 	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
 		parsed, err := strconv.Atoi(raw)
 		if err != nil || parsed <= 0 {
-			http.Error(w, "invalid limit", http.StatusBadRequest)
+			http.Error(w, serverText(r.Context(), "invalid limit"), http.StatusBadRequest)
 			return
 		}
 		limit = parsed
@@ -165,7 +165,7 @@ func (h *Handler) handleAIAuditList(w http.ResponseWriter, r *http.Request) {
 		events, err = aiaudit.List(r.Context(), db, userID, limit)
 		return err
 	}); err != nil {
-		http.Error(w, "failed to load AI audit events", http.StatusInternalServerError)
+		http.Error(w, serverText(r.Context(), "failed to load AI audit events"), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -174,12 +174,12 @@ func (h *Handler) handleAIAuditList(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleAIEvents(w http.ResponseWriter, r *http.Request) {
 	if h.aiEvents == nil {
-		http.Error(w, "AI events are unavailable", http.StatusServiceUnavailable)
+		http.Error(w, serverText(r.Context(), "AI events are unavailable"), http.StatusServiceUnavailable)
 		return
 	}
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		http.Error(w, "streaming is unsupported", http.StatusInternalServerError)
+		http.Error(w, serverText(r.Context(), "streaming is unsupported"), http.StatusInternalServerError)
 		return
 	}
 	userID := h.userID(r.Context())

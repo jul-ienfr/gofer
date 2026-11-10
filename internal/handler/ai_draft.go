@@ -24,7 +24,7 @@ func (h *Handler) SetAIDraftingClient(client *llm.Client) {
 
 func (h *Handler) handleAIDraft(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		http.Error(w, serverText(r.Context(), "method not allowed"), http.StatusMethodNotAllowed)
 		return
 	}
 	if h.aiLLMClient == nil {

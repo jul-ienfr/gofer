@@ -80,13 +80,13 @@ func (h *Handler) handleAIProjects(w http.ResponseWriter, r *http.Request) {
 		}
 		writeAIJSON(w, http.StatusCreated, created)
 	default:
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		http.Error(w, serverText(r.Context(), "method not allowed"), http.StatusMethodNotAllowed)
 	}
 }
 
 func (h *Handler) handleAIProjectDefaults(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		http.Error(w, serverText(r.Context(), "method not allowed"), http.StatusMethodNotAllowed)
 		return
 	}
 	userID := h.userID(r.Context())
@@ -207,7 +207,7 @@ func (h *Handler) handleAIProject(w http.ResponseWriter, r *http.Request) {
 		}
 		w.WriteHeader(http.StatusNoContent)
 	default:
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		http.Error(w, serverText(r.Context(), "method not allowed"), http.StatusMethodNotAllowed)
 	}
 }
 
@@ -271,7 +271,7 @@ func (h *Handler) handleAIProjectRoutes(w http.ResponseWriter, r *http.Request) 
 		}
 		writeAIJSON(w, http.StatusCreated, created)
 	default:
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		http.Error(w, serverText(r.Context(), "method not allowed"), http.StatusMethodNotAllowed)
 	}
 }
 
@@ -302,7 +302,7 @@ func (h *Handler) handleAIRoute(w http.ResponseWriter, r *http.Request) {
 		}
 		w.WriteHeader(http.StatusNoContent)
 	default:
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		http.Error(w, serverText(r.Context(), "method not allowed"), http.StatusMethodNotAllowed)
 	}
 }
 
@@ -338,7 +338,7 @@ func (h *Handler) handleAILegitimacyProfiles(w http.ResponseWriter, r *http.Requ
 
 func (h *Handler) handleAILegitimacyProfile(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut && r.Method != http.MethodPatch {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		http.Error(w, serverText(r.Context(), "method not allowed"), http.StatusMethodNotAllowed)
 		return
 	}
 	userID := h.userID(r.Context())

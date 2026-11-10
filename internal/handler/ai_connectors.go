@@ -105,13 +105,13 @@ func (h *Handler) handleAIConnectors(w http.ResponseWriter, r *http.Request) {
 			Enabled: created.Enabled, AllowPrivate: created.AllowPrivate, HasSecret: created.SecretEncrypted != "",
 		})
 	default:
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		http.Error(w, serverText(r.Context(), "method not allowed"), http.StatusMethodNotAllowed)
 	}
 }
 
 func (h *Handler) handleAIRoutingStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		http.Error(w, serverText(r.Context(), "method not allowed"), http.StatusMethodNotAllowed)
 		return
 	}
 	userID := h.userID(r.Context())
@@ -208,7 +208,7 @@ func (h *Handler) handleAIConnector(w http.ResponseWriter, r *http.Request) {
 		}
 		w.WriteHeader(http.StatusNoContent)
 	default:
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		http.Error(w, serverText(r.Context(), "method not allowed"), http.StatusMethodNotAllowed)
 	}
 }
 

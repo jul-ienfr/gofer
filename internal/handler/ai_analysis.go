@@ -81,7 +81,7 @@ func aiAnalysisResponse(result *storage.AIAnalysisResult, answers []storage.AIAn
 func (h *Handler) handleAIMessageAnalysis(w http.ResponseWriter, r *http.Request) {
 	messageID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil || messageID <= 0 {
-		http.Error(w, "invalid message id", http.StatusBadRequest)
+		http.Error(w, serverText(r.Context(), "invalid message id"), http.StatusBadRequest)
 		return
 	}
 	userID := h.userID(r.Context())
@@ -93,10 +93,10 @@ func (h *Handler) handleAIMessageAnalysis(w http.ResponseWriter, r *http.Request
 		return err
 	}); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			http.Error(w, "analysis not found", http.StatusNotFound)
+			http.Error(w, serverText(r.Context(), "analysis not found"), http.StatusNotFound)
 			return
 		}
-		http.Error(w, "failed to load analysis", http.StatusInternalServerError)
+		http.Error(w, serverText(r.Context(), "failed to load analysis"), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -106,7 +106,7 @@ func (h *Handler) handleAIMessageAnalysis(w http.ResponseWriter, r *http.Request
 func (h *Handler) handleAIAnalysisPanel(w http.ResponseWriter, r *http.Request) {
 	messageID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil || messageID <= 0 {
-		http.Error(w, "invalid message id", http.StatusBadRequest)
+		http.Error(w, serverText(r.Context(), "invalid message id"), http.StatusBadRequest)
 		return
 	}
 	userID := h.userID(r.Context())
@@ -138,7 +138,7 @@ func (h *Handler) handleAIAnalysisPanel(w http.ResponseWriter, r *http.Request) 
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		http.Error(w, "failed to load analysis", http.StatusInternalServerError)
+		http.Error(w, serverText(r.Context(), "failed to load analysis"), http.StatusInternalServerError)
 		return
 	}
 	legitimacyState := profile.State
@@ -188,12 +188,12 @@ func (h *Handler) handleAIAnalysisPanel(w http.ResponseWriter, r *http.Request) 
 
 func (h *Handler) handleAIReanalyze(w http.ResponseWriter, r *http.Request) {
 	if !h.aiWorkerReady {
-		http.Error(w, "AI analysis is unavailable: the Jev worker is not configured", http.StatusConflict)
+		http.Error(w, serverText(r.Context(), "AI analysis is unavailable: the Jev worker is not configured"), http.StatusConflict)
 		return
 	}
 	messageID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil || messageID <= 0 {
-		http.Error(w, "invalid message id", http.StatusBadRequest)
+		http.Error(w, serverText(r.Context(), "invalid message id"), http.StatusBadRequest)
 		return
 	}
 	userID := h.userID(r.Context())
@@ -222,11 +222,11 @@ func (h *Handler) handleAIReanalyze(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
-			http.Error(w, "message not found", http.StatusNotFound)
+			http.Error(w, serverText(r.Context(), "message not found"), http.StatusNotFound)
 		case errors.Is(err, storage.ErrAnalysisDisabled), errors.Is(err, storage.ErrAnalysisFolderNotAllowed):
 			http.Error(w, err.Error(), http.StatusConflict)
 		default:
-			http.Error(w, "failed to queue analysis", http.StatusInternalServerError)
+			http.Error(w, serverText(r.Context(), "failed to queue analysis"), http.StatusInternalServerError)
 		}
 		return
 	}

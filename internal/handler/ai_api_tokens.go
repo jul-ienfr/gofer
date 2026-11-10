@@ -229,13 +229,13 @@ func (h *Handler) handleAIAPITokens(w http.ResponseWriter, r *http.Request) {
 			"expires_at": token.ExpiresAt, "token": plain,
 		})
 	default:
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		http.Error(w, serverText(r.Context(), "method not allowed"), http.StatusMethodNotAllowed)
 	}
 }
 
 func (h *Handler) handleAIAPIToken(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		http.Error(w, serverText(r.Context(), "method not allowed"), http.StatusMethodNotAllowed)
 		return
 	}
 	userID := h.userID(r.Context())
