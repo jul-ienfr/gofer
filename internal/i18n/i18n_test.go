@@ -177,7 +177,7 @@ var (
 // sequences are not normal text in any supported language, so they can only
 // be mojibake.
 func TestCatalogsHaveNoMojibake(t *testing.T) {
-	mojibake := regexp.MustCompile(`Ã[\x80-\xBF]|Â[\x80-\xBF]|â€|\x{FFFD}`)
+	mojibake := regexp.MustCompile(`Ã[\x80-\xBF]|Â[\x80-\xBF]|[ÅÆ][\x{2018}-\x{201E}]|â€|\x{FFFD}`)
 	for locale, messages := range catalogs {
 		for key, value := range messages {
 			if mojibake.MatchString(value) {
