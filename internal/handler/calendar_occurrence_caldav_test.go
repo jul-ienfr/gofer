@@ -173,6 +173,9 @@ func TestCalendarCalDAVOccurrencePreservesResource(t *testing.T) {
 				davHTTPTransport = server.Client().Transport
 				defer func() { davHTTPTransport = old }()
 				source := storage.CalendarSource{RemoteID: server.URL + "/cal/", TimeZone: "Europe/Prague"}
+				// A reused local port can inherit an earlier test's refusal cache.
+				calDAVExpandRefused.Delete(source.RemoteID)
+				t.Cleanup(func() { calDAVExpandRefused.Delete(source.RemoteID) })
 				events, err := parseCalDAVEvents(server.URL+"/cal/series.ics", `"v1"`, expanded, time.UTC)
 				if err != nil {
 					t.Fatal(err)
