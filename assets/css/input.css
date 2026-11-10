@@ -8238,3 +8238,16 @@ aside [data-sidebar-account-toggle][data-mail-drop-active] {
   left: auto;
   right: 1rem;
 }
+
+/* Directional icons point toward the reading direction. */
+[dir="rtl"] svg[data-lucide="arrow-left"],
+[dir="rtl"] svg[data-lucide="arrow-right"],
+[dir="rtl"] svg[data-lucide="chevron-left"],
+[dir="rtl"] svg[data-lucide="chevron-right"],
+[dir="rtl"] svg[data-lucide="forward"],
+[dir="rtl"] svg[data-lucide="reply"],
+[dir="rtl"] svg[data-lucide="reply-all"],
+[dir="rtl"] svg[data-lucide="undo-2"],
+[dir="rtl"] svg[data-lucide="redo-2"] {
+  transform: scaleX(-1);
+}
