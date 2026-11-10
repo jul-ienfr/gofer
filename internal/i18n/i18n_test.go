@@ -187,6 +187,39 @@ func TestCatalogsHaveNoMojibake(t *testing.T) {
 	}
 }
 
+// A translated value must keep every placeholder from English, and must not
+// invent one. Singular forms may leave out {count} when the language does not
+// read the number aloud.
+func TestPlaceholdersMatchEnglish(t *testing.T) {
+	placeholder := regexp.MustCompile(`\{([a-zA-Z0-9_]+)\}`)
+	names := func(text string) map[string]bool {
+		found := map[string]bool{}
+		for _, match := range placeholder.FindAllStringSubmatch(text, -1) {
+			found[match[1]] = true
+		}
+		return found
+	}
+	for locale, messages := range catalogs {
+		if locale == English {
+			continue
+		}
+		for key, english := range catalogs[English] {
+			want, got := names(english), names(messages[key])
+			for name := range got {
+				if !want[name] {
+					t.Errorf("%s: %s has unknown placeholder {%s}", locale, key, name)
+				}
+			}
+			for name := range want {
+				if got[name] || (name == "count" && strings.HasSuffix(key, ".one")) {
+					continue
+				}
+				t.Errorf("%s: %s is missing placeholder {%s}", locale, key, name)
+			}
+		}
+	}
+}
+
 func TestUsedKeysExist(t *testing.T) {
 	root := filepath.Join("..", "..")
 	english := catalogs[English]
