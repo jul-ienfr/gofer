@@ -198,7 +198,7 @@ Before claiming full i18n support, still add:
 2. RTL layout and icon mirroring tests.
 3. Translation review for security-sensitive messages, especially sign-in, recovery, and deletion.
 
-Until then, release notes should say "French is fully translated; Spanish, Portuguese, and Chinese catalogs are in progress" rather than "fully internationalized".
+Until then, release notes should say the four catalogs are fully translated, with RTL and human review still pending, rather than "fully internationalized".
 
 ## Reporting issues
 
