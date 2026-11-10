@@ -101,6 +101,7 @@ templ Layout(accounts []models.Account, activeFolder string, emails []models.Ema
 			<script src={ assetver.URL("/assets/js/resize.js") }></script>
 			@AppNavigationScripts()
 			@AppDialogs()
+			<script src={ assetver.URL("/assets/js/ai-draft.js") }></script>
 		</body>
 	</html>
 }
@@ -168,6 +169,7 @@ templ SettingsLayout(accounts []models.Account, syncSettings models.SyncSettings
 			@SettingsRuntime(accounts)
 			@AppNavigationScripts()
 			@AppDialogs()
+			<script src={ assetver.URL("/assets/js/ai-draft.js") }></script>
 		</body>
 	</html>
 }
@@ -197,7 +199,6 @@ templ SettingsRuntime(accounts []models.Account) {
 	<script src={ assetver.URL("/assets/js/mail-search.js") }></script>
 	<script src={ assetver.URL("/assets/js/virtual-scroll.js") }></script>
 	<script src={ assetver.URL("/assets/js/app.js") }></script>
-	<script src={ assetver.URL("/assets/js/ai-draft.js") }></script>
 	<script src={ assetver.URL("/assets/js/ai-projects.js") }></script>
 	<script src={ assetver.URL("/assets/js/ai-connectors.js") }></script>
 	<script src={ assetver.URL("/assets/js/ai-tokens.js") }></script>
@@ -310,6 +311,7 @@ templ ContactsLayout(accounts []models.Account, contacts []models.Contact, selec
 			<script src={ assetver.URL("/assets/js/resize.js") }></script>
 			@AppNavigationScripts()
 			@AppDialogs()
+			<script src={ assetver.URL("/assets/js/ai-draft.js") }></script>
 		</body>
 	</html>
 }
@@ -403,6 +405,7 @@ templ AdminLayout(uiSettings map[string]string, userData AdminUsersData, avatarS
 			<script src={ assetver.URL("/assets/js/ui-settings.js") }></script>
 			<script src={ assetver.URL("/assets/js/admin.js") }></script>
 			@AppDialogs()
+			<script src={ assetver.URL("/assets/js/ai-draft.js") }></script>
 		</body>
 	</html>
 }
