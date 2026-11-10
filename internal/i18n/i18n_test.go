@@ -122,7 +122,8 @@ func TestCatalogsMatchEnglish(t *testing.T) {
 			t.Errorf("%s: language.native_name is empty", locale)
 		}
 		for key, message := range messages {
-			if strings.TrimSpace(message) == "" {
+			// A thin or non-breaking space is a valid thousands separator.
+			if message == "" || (key != "number.group" && strings.TrimSpace(message) == "") {
 				t.Errorf("%s: %s is empty", locale, key)
 			}
 			if _, ok := english[key]; !ok {
