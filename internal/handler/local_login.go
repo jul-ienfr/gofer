@@ -240,12 +240,6 @@ func (h *Handler) renderTypedLoginPage(w http.ResponseWriter, r *http.Request, u
 	h.renderLoginPage(w, r, status, message, identifier)
 }
 
-// loginLocale prefers the language last chosen in this browser, then the
-// browser's Accept-Language header.
-func loginLocale(r *http.Request) i18n.Locale {
-	return i18n.FromRequest(r)
-}
-
 // renderLoginPage shows the username step, or, with a username, the ways it
 // can sign in.
 func (h *Handler) renderLoginPage(w http.ResponseWriter, r *http.Request, status int, message, identifier string) {

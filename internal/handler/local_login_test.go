@@ -21,16 +21,15 @@ import (
 
 const localLoginPassword = "a safe local login passphrase"
 
-func TestLoginLocaleUsesChosenLanguage(t *testing.T) {
+func TestLoginPageRendersTheChosenLanguage(t *testing.T) {
+	handler, _, _ := newLocalLoginHandler(t, auth.UserStatusActive, false, false, false, false)
 	request := httptest.NewRequest(http.MethodGet, "/login", nil)
 	request.AddCookie(&http.Cookie{Name: "gofer_lang", Value: "es"})
-	if got := loginLocale(request); got != "es" {
-		t.Errorf("loginLocale with a Spanish cookie = %q, want es", got)
-	}
-	request = httptest.NewRequest(http.MethodGet, "/login", nil)
-	request.Header.Set("Accept-Language", "pt-BR,pt;q=0.9")
-	if got := loginLocale(request); got != "pt-br" {
-		t.Errorf("loginLocale with Brazilian Portuguese = %q, want pt-br", got)
+	recorder := httptest.NewRecorder()
+	handler.LocaleMiddleware(http.HandlerFunc(handler.handleLogin)).ServeHTTP(recorder, request)
+	body := recorder.Body.String()
+	if !strings.Contains(body, `lang="es"`) || !strings.Contains(body, "Iniciar sesión") {
+		t.Errorf("login page did not render in Spanish: lang=%v body=%d bytes", strings.Contains(body, `lang="es"`), len(body))
 	}
 }
 
