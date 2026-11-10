@@ -79,6 +79,7 @@ func TestTranslateFallsBackAndFillsPlaceholders(t *testing.T) {
 	catalogs = map[Locale]map[string]string{
 		English: {"greet": "Hello, {name}", "only.en": "English only", "msg.one": "{count} message", "msg.other": "{count} messages"},
 		"es":    {"greet": "Hola, {name}", "msg.one": "{count} mensaje", "msg.other": "{count} mensajes"},
+		French:  {"greet": "Bonjour, {name}", "msg.one": "{count} message", "msg.other": "{count} messages"},
 	}
 	ctx := WithLocale(context.Background(), "es")
 	if got := T(ctx, "greet", "name", "Ana"); got != "Hola, Ana" {
@@ -98,6 +99,16 @@ func TestTranslateFallsBackAndFillsPlaceholders(t *testing.T) {
 	}
 	if got := N(ctx, "msg", 1234, "count", "1.234"); got != "1.234 mensajes" {
 		t.Errorf("N with a formatted count = %q", got)
+	}
+	frCtx := WithLocale(context.Background(), French)
+	if got := N(frCtx, "msg", 0); got != "0 message" {
+		t.Errorf("French N 0 = %q", got)
+	}
+	if got := N(frCtx, "msg", 1); got != "1 message" {
+		t.Errorf("French N 1 = %q", got)
+	}
+	if got := N(frCtx, "msg", 2); got != "2 messages" {
+		t.Errorf("French N 2 = %q", got)
 	}
 	if got := T(context.Background(), "greet", "name", "Ana"); got != "Hello, Ana" {
 		t.Errorf("no locale in context = %q, want English", got)

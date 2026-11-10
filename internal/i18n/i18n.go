@@ -197,9 +197,9 @@ func lookup(locale Locale, key string) string {
 
 // pluralForm returns the CLDR plural category for count. English and Spanish
 // only tell one from other for whole numbers; Spanish's "many" applies only
-// to exact millions, which read fine with "other".
-func pluralForm(_ Locale, count int) string {
-	if count == 1 {
+// to exact millions, which read fine with "other". French treats zero as one.
+func pluralForm(locale Locale, count int) string {
+	if count == 1 || (locale == French && count == 0) {
 		return "one"
 	}
 	return "other"

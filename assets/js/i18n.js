@@ -19,9 +19,10 @@
     })
   }
 
-  // English and Spanish only tell one from other for whole numbers.
+  // English and Spanish only tell one from other for whole numbers. French
+  // treats zero as one, as its plural rules require.
   function pluralForm(count) {
-    return count === 1 ? "one" : "other"
+    return count === 1 || (String(window.goferLocale).split("-")[0] === "fr" && count === 0) ? "one" : "other"
   }
 
   window.goferLocale = catalog.locale || "en"
