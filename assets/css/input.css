@@ -8232,3 +8232,9 @@ aside [data-sidebar-account-toggle][data-mail-drop-active] {
 :is([data-folder-appearance-icon], [data-folder-icon-options])[data-folder-icon-style="filled"] [data-folder-symbol-filled] {
   display: inline-flex;
 }
+
+/* The skip link follows the reading edge, not the physical left. */
+[dir="rtl"] .skip-link:focus {
+  left: auto;
+  right: 1rem;
+}

@@ -188,7 +188,7 @@ Current status:
 - Templates call `i18n.T(ctx, "key")`, with `i18n.N(ctx, "key", count)` for counted messages and named placeholders such as `{account}`. Client-side strings live under the `js.` key namespace.
 - Mail, contacts, and Calendar content is displayed in its original language, independent of the interface language.
 - Dates, times, numbers, byte units, and relative times follow the language's catalog settings, including date order, 12- or 24-hour clocks, decimal marks, digit grouping, and French, Portuguese, and Chinese plural forms. They have not been manually reviewed for every locale.
-- The HTML root declares `dir` from the catalog's `language.direction` setting; all current catalogs are left-to-right. A forced `dir="rtl"` smoke test mirrors the app shell on `/`, `/settings`, `/contacts`, and `/calendar` at 1280×900 without horizontal overflow, and panel resize drags follow the direction. A real RTL catalog, mirrored icons, and a full visual review remain untested.
+- The HTML root declares `dir` from the catalog's `language.direction` setting; all current catalogs are left-to-right. A forced `dir="rtl"` smoke test mirrors the app shell on `/`, `/settings`, `/contacts`, and `/calendar` at 1280×900 without horizontal overflow, the skip link moves to the reading edge, and panel resize drags follow the direction. A real RTL catalog, mirrored icons, and a full visual review remain untested.
 - Server-side errors, including the fork's AI, Thunderbird import, and AI client-script messages, use catalog keys. Raw Go error details may still be appended after a translated prefix. A test checks that every mapped server error has a value in all four catalogs.
 
 To add a language:
