@@ -243,12 +243,7 @@ func (h *Handler) renderTypedLoginPage(w http.ResponseWriter, r *http.Request, u
 // loginLocale prefers the language last chosen in this browser, then the
 // browser's Accept-Language header.
 func loginLocale(r *http.Request) i18n.Locale {
-	if cookie, err := r.Cookie(i18n.CookieName); err == nil {
-		if locale, ok := i18n.Normalize(cookie.Value); ok {
-			return locale
-		}
-	}
-	return i18n.Match(r.Header.Get("Accept-Language"))
+	return i18n.FromRequest(r)
 }
 
 // renderLoginPage shows the username step, or, with a username, the ways it

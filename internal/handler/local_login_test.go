@@ -21,6 +21,19 @@ import (
 
 const localLoginPassword = "a safe local login passphrase"
 
+func TestLoginLocaleUsesChosenLanguage(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/login", nil)
+	request.AddCookie(&http.Cookie{Name: "gofer_lang", Value: "es"})
+	if got := loginLocale(request); got != "es" {
+		t.Errorf("loginLocale with a Spanish cookie = %q, want es", got)
+	}
+	request = httptest.NewRequest(http.MethodGet, "/login", nil)
+	request.Header.Set("Accept-Language", "pt-BR,pt;q=0.9")
+	if got := loginLocale(request); got != "pt-br" {
+		t.Errorf("loginLocale with Brazilian Portuguese = %q, want pt-br", got)
+	}
+}
+
 func newLocalLoginHandler(t *testing.T, status auth.UserStatus, isAdmin, mfaRequired, insertUser, showGoogle bool) (*Handler, *auth.Manager, *storage.DB) {
 	t.Helper()
 	db, err := storage.New(filepath.Join(t.TempDir(), "gofer.db"))
