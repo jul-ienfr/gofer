@@ -329,7 +329,9 @@ func (f *managedMailFixture) form(owner, method, path string, form url.Values) *
 
 func awaitManagedCondition(t *testing.T, condition func() bool) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	// Shared CI runners can be slow; this waits for eventual consistency, not
+	// for a latency target.
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
