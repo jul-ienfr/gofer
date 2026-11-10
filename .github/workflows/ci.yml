@@ -59,6 +59,8 @@ jobs:
             ./internal/aisettings \
             ./internal/aiaudit \
             ./internal/aievents
+      - name: Test client i18n formatting
+        run: node scripts/test-i18n-dates.cjs
       - name: Build
         run: go build ./...
 
