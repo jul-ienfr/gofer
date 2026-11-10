@@ -2,6 +2,8 @@ package views
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -43,6 +45,41 @@ func TestPageLangFollowsTheRequest(t *testing.T) {
 	}
 	if got := pageLang(context.Background()); got != "en" {
 		t.Fatalf("default pageLang = %q", got)
+	}
+}
+
+func TestEveryHTMLRootDeclaresDirection(t *testing.T) {
+	files, err := filepath.Glob("*.templ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	roots := 0
+	for _, file := range files {
+		data, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			if !strings.Contains(line, "<html lang={ pageLang(ctx) }") {
+				continue
+			}
+			roots++
+			if !strings.Contains(line, "dir={ pageDirection(ctx) }") {
+				t.Errorf("%s: HTML root lacks dir: %s", file, strings.TrimSpace(line))
+			}
+		}
+	}
+	if roots < 20 {
+		t.Fatalf("found only %d templ HTML roots", roots)
+	}
+	management, err := os.ReadFile("management.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rawRoots := strings.Count(string(management), `<html lang="`)
+	directedRoots := strings.Count(string(management), `pageDirection(ctx)`)
+	if rawRoots != 5 || directedRoots != rawRoots {
+		t.Fatalf("management HTML roots = %d, with direction = %d, want 5 each", rawRoots, directedRoots)
 	}
 }
 
