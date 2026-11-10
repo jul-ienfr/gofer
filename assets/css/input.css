@@ -1075,6 +1075,22 @@
   transform: translateX(200%);
 }
 
+[dir="rtl"] .mail-filter-tristate-indicator {
+  left: auto;
+  right: 0.125rem;
+  transform: translateX(-100%);
+}
+
+[dir="rtl"] [data-mail-tristate-value="unread"] > .mail-filter-tristate-indicator,
+[dir="rtl"] [data-mail-tristate-value="no"] > .mail-filter-tristate-indicator {
+  transform: translateX(0);
+}
+
+[dir="rtl"] [data-mail-tristate-value="read"] > .mail-filter-tristate-indicator,
+[dir="rtl"] [data-mail-tristate-value="yes"] > .mail-filter-tristate-indicator {
+  transform: translateX(-200%);
+}
+
 .account-color-marker {
   border-radius: 9999px;
 }
