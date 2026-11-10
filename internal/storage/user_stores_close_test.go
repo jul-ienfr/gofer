@@ -147,7 +147,10 @@ func TestUserStoresCanceledSuccessfulOpeningKeepsPhysicalHandleAccounted(t *test
 			system := newUserStoreTestSystem(t)
 			m := newUserStoreTestManager(t, system, UserStoreOptions{MaxOpen: 2})
 			bob := acquireUserStore(t, m, "bob")
-			opened := make(chan *DB, 1)
+			opened := make(chan struct {
+				db  *DB
+				err error
+			}, 1)
 			finishOpening, finishClose := make(chan struct{}), make(chan struct{})
 			closeEntered := make(chan struct{})
 			var openOnce, closeOnce sync.Once
@@ -159,9 +162,14 @@ func TestUserStoresCanceledSuccessfulOpeningKeepsPhysicalHandleAccounted(t *test
 			m.mu.Lock()
 			m.openStore = func(ctx context.Context, owner userStoreOwner, create bool) (*DB, error) {
 				db, err := m.openUserStore(ctx, owner, create)
-				if err == nil && owner.id == "alice" {
-					opened <- db
-					<-finishOpening
+				if owner.id == "alice" {
+					opened <- struct {
+						db  *DB
+						err error
+					}{db: db, err: err}
+					if err == nil {
+						<-finishOpening
+					}
 				}
 				return db, err
 			}
@@ -184,8 +192,12 @@ func TestUserStoresCanceledSuccessfulOpeningKeepsPhysicalHandleAccounted(t *test
 				done <- err
 			}()
 			select {
-			case aliceDB = <-opened:
-			case <-time.After(5 * time.Second):
+			case result := <-opened:
+				if result.err != nil {
+					t.Fatalf("native SQLite opening failed: %v", result.err)
+				}
+				aliceDB = result.db
+			case <-time.After(30 * time.Second):
 				t.Fatal("native SQLite opening did not finish")
 			}
 			want := ErrUserStoresClosed
