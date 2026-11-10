@@ -125,7 +125,7 @@ func placeholders(message string) []string {
 
 // Every catalog has exactly English's messages, using only its placeholders,
 // so a language can't silently fall behind.
-func TestPluralRulesFollowCLDR(t *testing.T) {
+func TestPluralRulesMatchCatalogWording(t *testing.T) {
 	cases := []struct {
 		locale Locale
 		count  int
