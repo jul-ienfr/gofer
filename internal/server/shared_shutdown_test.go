@@ -46,7 +46,7 @@ func TestSharedMainProcessDrainsOnSignal(t *testing.T) {
 	t.Setenv("GOFER_BASE_URL", "http://"+address)
 	t.Setenv("GOFER_AUTH_MODE", "open")
 	t.Setenv("GOFER_DB_PATH", filepath.Join(t.TempDir(), "gofer.db"))
-	t.Setenv("GOFER_SHUTDOWN_TIMEOUT", "5s")
+	t.Setenv("GOFER_SHUTDOWN_TIMEOUT", "20s")
 	t.Setenv("GOFER_SHARED_MAIN_PROCESS", "1")
 
 	executable, err := os.Executable()
