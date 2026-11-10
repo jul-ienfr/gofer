@@ -245,6 +245,76 @@ func TestPlaceholdersMatchEnglish(t *testing.T) {
 	}
 }
 
+// AI settings, analysis, and errors must be translated in every catalog.
+// The allowlist holds values that are legitimately identical: product names,
+// acronyms, format strings, and words spelled the same.
+func TestAIStringsAreTranslated(t *testing.T) {
+	allowed := map[Locale]map[string]bool{
+		French: {
+			"js.ai.connectors.summary":          true,
+			"js.ai.legitimacy.messages.one":     true,
+			"js.ai.legitimacy.messages.other":   true,
+			"js.ai.legitimacy.summary":          true,
+			"js.ai.legitimacy.vip":              true,
+			"js.ai.projects.action":             true,
+			"js.ai.projects.public":             true,
+			"js.ai.projects.webhook":            true,
+			"ai.analysis.risk.spam":             true,
+			"ai.analysis.risk.phishing":         true,
+			"ai.analysis.trust.vip":             true,
+			"ai.settings.connector_placeholder": true,
+			"ai.settings.url_placeholder":       true,
+		},
+		"es": {
+			"js.ai.connectors.summary":    true,
+			"js.ai.legitimacy.summary":    true,
+			"js.ai.legitimacy.vip":        true,
+			"js.ai.projects.webhook":      true,
+			"js.ai.state.neutral":         true,
+			"ai.analysis.priority.normal": true,
+			"ai.analysis.risk.spam":       true,
+			"ai.analysis.risk.phishing":   true,
+			"ai.analysis.trust.vip":       true,
+			"ai.analysis.trust.neutral":   true,
+			"ai.settings.url_placeholder": true,
+		},
+		"pt-br": {
+			"js.ai.connectors.summary":    true,
+			"js.ai.legitimacy.summary":    true,
+			"js.ai.legitimacy.vip":        true,
+			"js.ai.projects.webhook":      true,
+			"ai.analysis.priority.normal": true,
+			"ai.analysis.risk.spam":       true,
+			"ai.analysis.risk.phishing":   true,
+			"ai.analysis.trust.vip":       true,
+			"ai.settings.url_placeholder": true,
+		},
+		"zh-cn": {
+			"js.ai.connectors.summary":    true,
+			"js.ai.legitimacy.summary":    true,
+			"js.ai.legitimacy.vip":        true,
+			"js.ai.projects.webhook":      true,
+			"ai.analysis.trust.vip":       true,
+			"ai.settings.url":             true,
+			"ai.settings.url_placeholder": true,
+		},
+	}
+	for locale, messages := range catalogs {
+		if locale == English {
+			continue
+		}
+		for key, english := range catalogs[English] {
+			if !strings.HasPrefix(key, "ai.") && !strings.HasPrefix(key, "js.ai.") && !strings.HasPrefix(key, "server.error.ai_") {
+				continue
+			}
+			if messages[key] != english || allowed[locale][key] {
+				continue
+			}
+			t.Errorf("%s: %s is still English: %q", locale, key, english)
+		}
+	}
+}
+
 func TestUsedKeysExist(t *testing.T) {
 	root := filepath.Join("..", "..")
 	english := catalogs[English]
