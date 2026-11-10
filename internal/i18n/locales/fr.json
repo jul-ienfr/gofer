@@ -527,7 +527,7 @@
   "admin.proxies.save": "Enregistrer le proxy",
   "admin.proxies.saved": "Proxy {name} enregistrÃ©. Les comptes se reconnectent.",
   "admin.proxies.signs_in_as": "Se connecte en tant que {username}",
-  "admin.proxies.tab": "Proxies",
+  "admin.proxies.tab": "Proxys",
   "admin.proxies.title": "Proxies sortants",
   "admin.proxies.total": "{count} au total",
   "admin.proxies.type": "Type",
