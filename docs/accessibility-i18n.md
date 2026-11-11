@@ -187,7 +187,7 @@ Run this before a release that changes layout or navigation, and at least once p
 Current status:
 
 - Catalogs live in `internal/i18n/locales/*.json`: `en.json` is the source, with `fr.json`, `es.json`, `pt-br.json`, and `zh-cn.json`. A parity test requires every catalog to have the same keys as English, reject empty values, and provide `language.native_name`. A missing value falls back to English at runtime.
-- All four catalogs are fully translated, including the AI settings, analysis, client scripts, and server errors. A few values intentionally match English because they are brand names, acronyms, or words spelled the same, such as `Contact`, `Messages`, `Date`, `OK`, and `Web Push`. Tests reject double-encoded text and AI strings left in English, with a short allowlist for those terms.
+- The English source and its four translations are complete, including the AI settings, analysis, client scripts, and server errors. A few values intentionally match English because they are brand names, acronyms, or words spelled the same, such as `Contact`, `Messages`, `Date`, `OK`, and `Web Push`. Tests reject double-encoded text and AI strings left in English, with a short allowlist for those terms.
 - Each user chooses the interface language in **Settings → Regional → Interface language**. The choice is stored as `language` in the user's UI settings and applied to authenticated pages through `<html lang>`. A missing, `auto`, or unknown stored value follows the browser.
 - The unauthenticated login page uses the `gofer_lang` cookie set when a signed-in user saves the interface language, then the browser's `Accept-Language` header. The cookie is HTTP-only, SameSite=Lax, and expires after one year.
 - Templates call `i18n.T(ctx, "key")`, with `i18n.N(ctx, "key", count)` for counted messages and named placeholders such as `{account}`. Client-side strings live under the `js.` key namespace.
@@ -196,7 +196,7 @@ Current status:
 - The HTML root declares `dir` from the catalog's `language.direction` setting; all current catalogs are left-to-right. A forced `dir="rtl"` smoke test mirrors the app shell on `/`, `/settings`, `/contacts`, and `/calendar` at 1280×900 without horizontal overflow, the skip link moves to the reading edge, panel resize drags follow the direction, mobile pane transitions enter from the reading edge, the three-state filter indicator follows the mirrored segment order, and directional icons mirror while vertical icons stay upright. A real RTL catalog and a full visual review remain untested.
 - Forced `dir="rtl"` reflow: all 17 primary pages pass at 1280×900 and 320×800 with WCAG text-spacing overrides.
 - Forced `dir="rtl"` content check: blockquote rails, list indentation, thread rails, selected-row bars, and search field icons mirror with the text direction.
-- Server-side errors, including the fork's AI, Thunderbird import, and AI client-script messages, use catalog keys. Raw Go error details may still be appended after a translated prefix. A test checks that every mapped server error has a value in all four catalogs.
+- Server-side errors, including the fork's AI, Thunderbird import, and AI client-script messages, use catalog keys. Raw Go error details may still be appended after a translated prefix. A test checks that every mapped server error has a value in all five catalogs.
 
 To add a language:
 
@@ -208,10 +208,10 @@ To add a language:
 Before claiming full i18n support, still add:
 
 1. Review every visible string, especially security-sensitive messages, and keep adding tests that reject user-facing Go literals and hardcoded client-script text.
-2. RTL layout and icon mirroring tests.
+2. A real RTL catalog and a native RTL visual review; the forced-RTL layout, icon, search, pane, and reflow checks are in place.
 3. Translation review for security-sensitive messages, especially sign-in, recovery, and deletion.
 
-Until then, release notes should say the four catalogs are fully translated, with RTL and human review still pending, rather than "fully internationalized".
+Until then, release notes should say the English catalog and its four translations are complete, with the RTL layout foundation in place but no native RTL catalog or human review yet, rather than "fully internationalized".
 
 ## Reporting issues
 
