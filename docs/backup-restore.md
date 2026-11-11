@@ -100,7 +100,7 @@ gofer storage restore \
 
 The restore creates `backups/pre-restore-<timestamp>.tar.gz` inside the data directory before changing data. Keep that archive until the restored installation has been checked. `--no-safety-backup` skips it and is intended only for low-disk emergencies.
 
-`--force` overwrites files named in the archive. It does not delete unrelated files already in the data directory. For a disaster recovery where the old data may be corrupt, restore into an empty directory and switch the service to it.
+`--force` overwrites files named in the archive and removes files that are not in the archive, so the restored directory matches the backup. Existing `backups/` archives are kept, including the new safety archive. For a disaster recovery where the old data may be corrupt, restoring into an empty directory and switching the service to it is still the safest option.
 
 ## Docker and Kubernetes
 

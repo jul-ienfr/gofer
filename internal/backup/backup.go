@@ -211,7 +211,73 @@ func Restore(ctx context.Context, archivePath string, opts RestoreOptions) (*Man
 			}
 		}
 	}
+	if nonEmpty {
+		if err := pruneRestoredFiles(dataDir, manifest); err != nil {
+			return nil, fmt.Errorf("remove files not in backup: %w", err)
+		}
+	}
 	return manifest, nil
+}
+
+// pruneRestoredFiles makes a forced restore reproduce the backup instead of
+// leaving files from the installation it replaced. Backups are kept: they are
+// the operator's safety net and are not part of the archived data.
+func pruneRestoredFiles(dataDir string, manifest *Manifest) error {
+	keep := make(map[string]bool, len(manifest.Files))
+	for _, file := range manifest.Files {
+		clean, err := cleanArchivePath(file.Path)
+		if err != nil {
+			return err
+		}
+		keep[filepath.FromSlash(clean)] = true
+	}
+	var dirs []string
+	err := filepath.WalkDir(dataDir, func(p string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if p == dataDir {
+			return nil
+		}
+		rel, err := filepath.Rel(dataDir, p)
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if rel == "backups" {
+				return filepath.SkipDir
+			}
+			dirs = append(dirs, p)
+			return nil
+		}
+		if keep[rel] {
+			return nil
+		}
+		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("%s: %w", rel, err)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	sort.Slice(dirs, func(i, j int) bool { return len(dirs[i]) > len(dirs[j]) })
+	for _, dir := range dirs {
+		entries, err := os.ReadDir(dir)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if len(entries) > 0 {
+			continue
+		}
+		if err := os.Remove(dir); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	return nil
 }
 
 func stageData(ctx context.Context, dataDir, dbPath, outPath, stage string) ([]File, error) {

@@ -78,6 +78,7 @@ A local release build on 2026-10-25 produced all six targets (Windows, Linux, an
 - Restore rejects absolute paths, backslashes, `..`, symlinks, hardlinks, devices, duplicate entries, duplicate manifests, unlisted files, and unsafe database paths.
 - Restore limits the manifest to 10 MiB, entries to 1,000,000, and total extraction to 100 GiB, enforcing the size cap while copying.
 - Restore writes a safety archive before changing an existing installation.
+- A forced restore removes files that are not in the archive, keeping `backups/` and the safety archive, with a regression test in [restore_prune_test.go](../internal/backup/restore_prune_test.go).
 - `gofer storage verify` checks the complete archive and every checksum.
 - Backup skips WAL/SHM/journal files, earlier archives, sockets, and its own output.
 - The CLI exposes backup, verify, and restore with explicit force and schema controls.
@@ -108,7 +109,6 @@ These are real gaps, not documentation placeholders:
 4. No recorded RPO/RTO restore drill with production data. The local 35.7 MB drill is recorded in [backup-restore.md](./backup-restore.md).
 5. No manual screen-reader or assistive-technology audit. The keyboard script covers the skip link, Compose focus trap and return, and positive tabindex, but not announcements, full page focus order, or real assistive technology.
 6. No real RTL catalog or native RTL visual review. The direction metadata, mirrored shell, icons, search fields, panes, and forced-RTL reflow checks are implemented; a real Arabic or Hebrew catalog and native visual review remain.
-7. Restore overwrites listed files but does not delete unrelated files already in the target directory.
-8. No production upgrade/rollback drill or Helm/Docker rollback. The local same-host migration rollback drill is recorded in [release-rollback.md](./release-rollback.md).
+7. No production upgrade/rollback drill or Helm/Docker rollback. The local same-host migration rollback drill is recorded in [release-rollback.md](./release-rollback.md).
 
-Gate G8 should remain open until items 1 through 4 have recorded evidence, and the accessibility claim should remain "targeting WCAG 2.2 AA" until item 5 is complete. Item 8 also needs production evidence.
+Gate G8 should remain open until items 1 through 4 have recorded evidence, and the accessibility claim should remain "targeting WCAG 2.2 AA" until item 5 is complete. Item 7 also needs production evidence.
