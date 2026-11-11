@@ -12,7 +12,7 @@ This file maps the Phase 8 work to repository evidence. It distinguishes what is
 | S2/S3 load test | Seeded S2 pass and 100-VU stress pass on one host; production-sized S3 and maximum-capacity result pending | [perf/load.js](../perf/load.js), [perf/README.md](../perf/README.md), [seeded S2 evidence](../perf/evidence-2026-10-25-seeded.md), [stress evidence](../perf/evidence-2026-10-25-stress.md) |
 | Chaos: Jev/LLM/webhook/DB | DB crash/corruption drill passed; LLM, Jev, and webhook failures covered by HTTP fault tests; live end-to-end provider injection pending | [chaos evidence](../perf/evidence-2026-10-25-chaos.md), [perf/README.md](../perf/README.md), `internal/jev`, `internal/llm`, `internal/routing`, `internal/aiworker` tests |
 | RPO 15 min / RTO 1 h | Targets documented; local 35.7 MB restore drill passed, production drill pending | [backup-restore.md](./backup-restore.md) |
-| WCAG 2.2 AA | Structural, axe, keyboard/focus, and 320 px reflow automation pass on empty and seeded data; manual assistive-technology audit pending | [accessibility-i18n.md](./accessibility-i18n.md), [a11ycheck](../cmd/a11ycheck/main.go), [a11y-browser.cjs](../scripts/a11y-browser.cjs), [a11y-keyboard.cjs](../scripts/a11y-keyboard.cjs), [a11y-reflow.cjs](../scripts/a11y-reflow.cjs), [a11y-motion.cjs](../scripts/a11y-motion.cjs), [a11y-themes.cjs](../scripts/a11y-themes.cjs) |
+| WCAG 2.2 AA | Structural, axe, keyboard/focus, 320 px reflow, and forced-RTL automation pass on empty and seeded data; manual assistive-technology audit pending | [accessibility-i18n.md](./accessibility-i18n.md), [a11ycheck](../cmd/a11ycheck/main.go), [a11y-browser.cjs](../scripts/a11y-browser.cjs), [a11y-keyboard.cjs](../scripts/a11y-keyboard.cjs), [a11y-reflow.cjs](../scripts/a11y-reflow.cjs), [a11y-rtl.cjs](../scripts/a11y-rtl.cjs), [a11y-motion.cjs](../scripts/a11y-motion.cjs), [a11y-themes.cjs](../scripts/a11y-themes.cjs) |
 | i18n | Five catalogs complete; RTL layout foundation tested; real RTL catalog and human review pending | JSON catalogs for English, French, Spanish, Brazilian Portuguese, and Simplified Chinese under `internal/i18n/locales`; a per-user interface language stored as `language` and a `gofer_lang` cookie for signed-out pages; template strings use `i18n.T`/`i18n.N` with English fallback. All five catalogs are complete, including the fork AI templates and client scripts, with only brand names and identical terms left in English. Dates, times, numbers, and AI status labels follow the language settings. The direction metadata, mirrored shell, icons, search fields, panes, and forced-RTL reflow checks are in place; a real RTL catalog and human translation review remain. See [accessibility-i18n.md](./accessibility-i18n.md). |
 | Three-OS packaging | Implemented; six-target archives and checksums built by the release workflow on `v*` tags, with Windows, Linux/WSL2, and Docker audits verified | [release packaging](./release-packaging.md); [release build evidence](./release-build-2026-10-25.md); [.github/workflows/release.yml](../.github/workflows/release.yml); [release-package.sh](../scripts/release-package.sh) |
 | Runbooks | Implemented | [backup-restore.md](./backup-restore.md), [release-rollback.md](./release-rollback.md) |
@@ -59,9 +59,13 @@ node scripts/a11y-browser.cjs --base http://127.0.0.1:8090 \
   --path / --path /contacts --path /calendar --path /settings
 GOFER_BASE_URL=http://127.0.0.1:8090 node scripts/a11y-keyboard.cjs
 GOFER_BASE_URL=http://127.0.0.1:8090 node scripts/a11y-reflow.cjs
+GOFER_BASE_URL=http://127.0.0.1:8090 node scripts/a11y-reflow.cjs --locale=fr --text-spacing
+GOFER_BASE_URL=http://127.0.0.1:8090 node scripts/a11y-rtl.cjs
 GOFER_BASE_URL=http://127.0.0.1:8090 node scripts/a11y-motion.cjs
 GOFER_BASE_URL=http://127.0.0.1:8090 node scripts/a11y-themes.cjs
 ```
+
+The accessibility workflow also runs the French desktop axe audit and the localized reflow in French, Spanish, Simplified Chinese, and Brazilian Portuguese.
 
 A local open-mode run with an empty database returned zero structural and browser-audit violations on 2026-10-25 for `/`, `/contacts`, `/calendar`, all 13 settings pages, and `/setup` at 1280×900 and 390×844, in light and dark color schemes. The seeded 10,000-message database also returned zero axe violations on `/`, `/contacts`, and `/calendar` at desktop and mobile, and the 10-check keyboard script passed on both databases. This does not replace the manual checklist.
 
