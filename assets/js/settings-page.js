@@ -1250,15 +1250,6 @@
   });
 })();
 
-// Regional tab: the server renders the new locale after the preference reloads.
-(function() {
-  document.addEventListener('change', function(e) {
-    var language = e.target.closest('[data-language-picker]');
-    if (!language || typeof GoferSettings === 'undefined') return;
-    GoferSettings.set('language', language.value);
-  });
-})();
-
 // Contacts tab
 (function() {
   function syncContactsAutoCreateDependents() {
