@@ -1,0 +1,114 @@
+const { chromium } = require('playwright');
+
+const base = process.env.GOFER_BASE_URL || 'http://127.0.0.1:8090';
+const paths = [
+  '/', '/contacts', '/calendar', '/settings',
+  '/settings/accounts', '/settings/sync', '/settings/rules',
+  '/settings/operations', '/settings/contacts', '/settings/appearance',
+  '/settings/regional', '/settings/compose-display', '/settings/ai',
+  '/settings/security', '/settings/advanced', '/settings/export-import',
+  '/settings/about',
+];
+const spacing = `
+  * { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; }
+  p { margin-bottom: 2em !important; }
+`;
+
+const failures = [];
+const fail = (message) => failures.push(message);
+
+(async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    // Reflow every primary page under a forced right-to-left root.
+    for (const viewport of [{ width: 1280, height: 900 }, { width: 320, height: 800 }]) {
+      const page = await browser.newPage({ viewport });
+      for (const path of paths) {
+        await page.goto(base + path, { waitUntil: 'load' });
+        await page.evaluate(() => { document.documentElement.dir = 'rtl'; });
+        if (viewport.width === 320) await page.addStyleTag({ content: spacing });
+        const size = await page.evaluate(() => ({
+          client: document.documentElement.clientWidth,
+          scroll: document.documentElement.scrollWidth,
+        }));
+        if (size.scroll > size.client + 1) {
+          fail(`${viewport.width}px ${path}: horizontal overflow ${size.scroll} > ${size.client}`);
+        }
+      }
+      await page.close();
+    }
+
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.goto(base + '/', { waitUntil: 'load' });
+    await page.evaluate(() => { document.documentElement.dir = 'rtl'; });
+
+    const skip = await page.evaluate(() => {
+      const link = document.querySelector('.skip-link');
+      if (!link) return { missing: true };
+      link.focus();
+      const rect = link.getBoundingClientRect();
+      return { width: rect.width, right: rect.right, client: document.documentElement.clientWidth };
+    });
+    if (skip.missing) fail('skip link is missing');
+    else if (skip.width < 50 || skip.right < skip.client - 40) {
+      fail(`skip link is not at the RTL reading edge (width=${skip.width}, right=${skip.right})`);
+    }
+
+    const search = await page.evaluate(() => {
+      const input = document.querySelector('[data-mail-search-input]');
+      if (!input) return { missing: true };
+      const icon = input.parentElement.querySelector('svg[data-lucide="search"]');
+      if (!icon) return { missingIcon: true };
+      const i = getComputedStyle(icon);
+      const s = getComputedStyle(input);
+      return {
+        iconRight: parseFloat(i.right),
+        inputLeft: parseFloat(s.paddingLeft),
+        inputRight: parseFloat(s.paddingRight),
+      };
+    });
+    if (search.missing || search.missingIcon) fail('mail search field or its icon is missing');
+    else if (search.iconRight > 20 || search.inputRight <= search.inputLeft) {
+      fail(`mail search is not at the RTL reading edge (${JSON.stringify(search)})`);
+    }
+
+    const icons = await page.evaluate(() => {
+      const probe = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      probe.setAttribute('data-lucide', 'arrow-left');
+      document.body.append(probe);
+      const mirrored = getComputedStyle(probe).transform;
+      probe.setAttribute('data-lucide', 'arrow-up');
+      const upright = getComputedStyle(probe).transform;
+      probe.remove();
+      return { mirrored, upright };
+    });
+    if (icons.mirrored === 'none') fail('directional icons do not mirror under dir="rtl"');
+    if (icons.upright !== 'none') fail('vertical icons mirror under dir="rtl"');
+
+    const tristate = await page.evaluate(() => {
+      const probe = document.createElement('div');
+      probe.className = 'mail-filter-tristate';
+      probe.dataset.mailTristateValue = '';
+      const indicator = document.createElement('div');
+      indicator.className = 'mail-filter-tristate-indicator';
+      probe.append(indicator);
+      document.body.append(probe);
+      const transform = getComputedStyle(indicator).transform;
+      probe.remove();
+      return transform;
+    });
+    if (tristate === 'none') fail('three-state filter indicator does not follow the RTL segments');
+    await page.close();
+  } finally {
+    await browser.close();
+  }
+
+  if (failures.length) {
+    for (const message of failures) console.error(`RTL: ${message}`);
+    process.exit(1);
+  }
+  console.log(`RTL layout passed: ${paths.length} paths at 1280x900 and 320x800, skip link, search, icons, filter.`);
+})().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

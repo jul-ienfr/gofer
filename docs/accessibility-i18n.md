@@ -128,6 +128,7 @@ The latest automated checks on 2026-11-01 used an open-mode, empty data set; an 
 - RTL icon test: directional icons mirror and vertical icons stay upright under `dir="rtl"`.
 - RTL pane test: mobile reader and list animations use mirrored keyframes under `dir="rtl"`.
 - RTL filter test: the three-state indicator selects the mirrored segment under `dir="rtl"`.
+- Forced RTL script: all 17 primary pages at 1280×900 and 320×800 with text spacing, plus the skip link, search fields, icons, and filter, pass in the Accessibility workflow.
 - Reduced-motion audit: 7 pages pass with no non-essential animation running; fade-in, slide, and pulse utilities are disabled under the preference.
 - Theme audit: 136 checks pass (4 looks × 2 modes × 17 pages) with zero axe violations.
 - Opened dialogs: zero violations in Compose, Filters, New event, Add Account, the IMAP/SMTP account wizard, and Contact actions.
