@@ -5270,6 +5270,16 @@ body.mail-list-column-resizing {
     padding-left: 2.625rem;
   }
 
+  html[dir="rtl"] #mail-list[data-mail-list-view] .mail-list-search-field > svg {
+    left: auto;
+    right: 0.875rem;
+  }
+
+  html[dir="rtl"] #mail-list[data-mail-list-view] [data-mail-search-input] {
+    padding-left: 0.5rem;
+    padding-right: 2.625rem;
+  }
+
   .mail-filters-sheet-body {
     height: min(34rem, 85dvh);
   }
@@ -5989,6 +5999,16 @@ body.mail-list-column-resizing {
   #mail-list[data-contact-list-shell] [data-contact-search-input] {
     height: 2.5rem;
     padding-left: 2.625rem;
+  }
+
+  html[dir="rtl"] #mail-list[data-contact-list-shell] [data-contact-search-input] {
+    padding-left: 0.75rem;
+    padding-right: 2.625rem;
+  }
+
+  html[dir="rtl"] #mail-list[data-contact-list-shell] [data-contact-search-form] > svg {
+    left: auto;
+    right: 0.875rem;
   }
 
   #mail-list[data-contact-list-shell] [data-contact-search-form] > svg {
@@ -8334,4 +8354,21 @@ aside [data-sidebar-account-toggle][data-mail-drop-active] {
 [dir="rtl"] svg[data-lucide="undo-2"],
 [dir="rtl"] svg[data-lucide="redo-2"] {
   transform: scaleX(-1);
+}
+
+/* Search icons sit at the inline start, with room for the field text. */
+[dir="rtl"] .mail-list-search-field > svg[data-lucide="search"],
+[dir="rtl"] [data-contact-search-form] > svg[data-lucide="search"] {
+  left: auto;
+  right: 0.625rem;
+}
+
+[dir="rtl"] .mail-list-search-field [data-mail-search-input] {
+  padding-left: 0.5rem;
+  padding-right: 2rem;
+}
+
+[dir="rtl"] [data-contact-search-input] {
+  padding-left: 0.75rem;
+  padding-right: 2rem;
 }
