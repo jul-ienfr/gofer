@@ -5469,7 +5469,7 @@ body.mail-list-column-resizing {
     justify-self: end;
     z-index: 1;
     margin-top: 2rem;
-    margin-right: -0.125rem;
+    margin-inline-end: -0.125rem;
   }
 
   #mail-list[data-mail-list-view] .mail-list-card [data-mail-card-field="accountMarker"] > .account-color-marker {
