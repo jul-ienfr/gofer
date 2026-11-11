@@ -2509,9 +2509,9 @@ func SidebarHeader(accounts []models.Account, activeApp string) templ.Component 
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var108 string
-		templ_7745c5c3_Var108, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(sidebarAppIndicatorStyle(activeApp))
+		templ_7745c5c3_Var108, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(sidebarAppIndicatorStyle(activeApp, pageDirection(ctx)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/sidebar.templ`, Line: 583, Col: 234}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/sidebar.templ`, Line: 583, Col: 254}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var108))
 		if templ_7745c5c3_Err != nil {
@@ -3587,14 +3587,14 @@ func sidebarCalendarAccountSyncValues(accountID string) string {
 	return fmt.Sprintf(`{"account_id":%q}`, accountID)
 }
 
-func sidebarAppIndicatorStyle(activeApp string) string {
-	transform := "translateX(0)"
+func sidebarAppIndicatorStyle(activeApp, direction string) string {
+	step := 0
 	if activeApp == "contacts" {
-		transform = "translateX(calc(100% + 2px))"
+		step = 1
 	} else if activeApp == "calendar" {
-		transform = "translateX(calc(200% + 4px))"
+		step = 2
 	}
-	return "width:calc((100% - 8px)/3);transform:" + transform
+	return "width:calc((100% - 8px)/3);transform:" + slideIndicatorTransform(step, 3, direction)
 }
 
 func mailSyncErrorCount(accounts []models.Account) int {

@@ -1039,11 +1039,28 @@ func mailListViewMode(mode string) string {
 	return "cards"
 }
 
-func mailListViewIndicatorStyle(mode string) string {
-	if mailListViewMode(mode) == "table" {
-		return "transform: translateX(calc(100% + 2px));"
+// slideIndicatorTransform moves a segment indicator by step slots. Right-to-
+// left layouts place the first DOM slot at the right, so the same logical slot
+// needs the mirrored physical offset.
+func slideIndicatorTransform(step, slots int, direction string) string {
+	if step < 0 || step >= slots {
+		return "translateX(0)"
 	}
-	return "transform: translateX(0);"
+	if direction == "rtl" {
+		step = slots - 1 - step
+	}
+	if step == 0 {
+		return "translateX(0)"
+	}
+	return fmt.Sprintf("translateX(calc(%d%% + %dpx))", step*100, step*2)
+}
+
+func mailListViewIndicatorStyle(mode, direction string) string {
+	step := 0
+	if mailListViewMode(mode) == "table" {
+		step = 1
+	}
+	return "transform: " + slideIndicatorTransform(step, 2, direction) + ";"
 }
 
 func mailListNavigationMode(mode string) string {

@@ -580,7 +580,7 @@ templ SidebarHeader(accounts []models.Account, activeApp string) {
 			</div>
 		</div>
 		<div class="sidebar-app-nav relative grid h-8 w-full grid-cols-3 gap-0.5 rounded-lg border border-sidebar-border bg-sidebar-accent/35 p-0.5" data-sidebar-app-nav>
-			<div data-sidebar-app-indicator class="absolute top-0.5 bottom-0.5 left-0.5 rounded-md border border-sidebar-border bg-sidebar-accent shadow-sm transition-transform duration-200 ease-out" style={ sidebarAppIndicatorStyle(activeApp) }></div>
+			<div data-sidebar-app-indicator class="absolute top-0.5 bottom-0.5 left-0.5 rounded-md border border-sidebar-border bg-sidebar-accent shadow-sm transition-transform duration-200 ease-out" style={ sidebarAppIndicatorStyle(activeApp, pageDirection(ctx)) }></div>
 			<a
 				href="/"
 				hx-get="/"
@@ -854,14 +854,14 @@ func sidebarCalendarAccountSyncValues(accountID string) string {
 	return fmt.Sprintf(`{"account_id":%q}`, accountID)
 }
 
-func sidebarAppIndicatorStyle(activeApp string) string {
-	transform := "translateX(0)"
+func sidebarAppIndicatorStyle(activeApp, direction string) string {
+	step := 0
 	if activeApp == "contacts" {
-		transform = "translateX(calc(100% + 2px))"
+		step = 1
 	} else if activeApp == "calendar" {
-		transform = "translateX(calc(200% + 4px))"
+		step = 2
 	}
-	return "width:calc((100% - 8px)/3);transform:" + transform
+	return "width:calc((100% - 8px)/3);transform:" + slideIndicatorTransform(step, 3, direction)
 }
 
 func mailSyncErrorCount(accounts []models.Account) int {

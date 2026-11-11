@@ -921,11 +921,12 @@ func contactViewMode(mode string) string {
 	return "cards"
 }
 
-func contactViewIndicatorStyle(mode string) string {
+func contactViewIndicatorStyle(mode, direction string) string {
+	step := 0
 	if contactViewMode(mode) == "table" {
-		return "transform:translateX(calc(100% + 2px))"
+		step = 1
 	}
-	return "transform:translateX(0)"
+	return "transform:" + slideIndicatorTransform(step, 2, direction)
 }
 
 // contactFiltersActiveExcept says whether a filter other than the contacts
@@ -1853,7 +1854,7 @@ templ ContactsListPane(contacts []models.Contact, selected *models.Contact, filt
 			// layout or column button.
 			<div class="inline-flex h-7 shrink-0 items-center rounded-lg border border-border bg-background p-0.5 gap-0.5" data-contact-list-view-capsule>
 			<div class="relative inline-grid h-6 grid-cols-2 gap-0.5" data-contact-list-view-toggle>
-				<div class="absolute inset-y-0 left-0 w-[calc(50%-1px)] rounded-md border border-border bg-card shadow-sm transition-transform duration-200 ease-out" style={ contactViewIndicatorStyle(filters.View) } data-contact-list-view-indicator></div>
+				<div class="absolute inset-y-0 left-0 w-[calc(50%-1px)] rounded-md border border-border bg-card shadow-sm transition-transform duration-200 ease-out" style={ contactViewIndicatorStyle(filters.View, pageDirection(ctx)) } data-contact-list-view-indicator></div>
 				<button
 					type="button"
 					data-contact-list-view-button="cards"

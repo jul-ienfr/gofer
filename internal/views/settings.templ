@@ -2926,7 +2926,7 @@ templ customThemePreviewSidebar() {
 	<div class="flex w-max shrink-0 flex-col surface-leather text-sidebar-foreground h-full overflow-hidden">
 		<div class="px-4 pt-5 pb-4">
 			<div class="sidebar-app-nav relative grid h-8 w-full grid-cols-3 gap-0.5 rounded-lg border border-sidebar-border bg-sidebar-accent/35 p-0.5">
-				<div class="absolute top-0.5 bottom-0.5 left-0.5 rounded-md border border-sidebar-border bg-sidebar-accent shadow-sm" style={ sidebarAppIndicatorStyle("mail") }></div>
+				<div class="absolute top-0.5 bottom-0.5 left-0.5 rounded-md border border-sidebar-border bg-sidebar-accent shadow-sm" style={ sidebarAppIndicatorStyle("mail", pageDirection(ctx)) }></div>
 				@customThemePreviewAppTab(icon.Mail(icon.Props{Class: "size-3.5"}), i18n.T(ctx, "app.mail"), true)
 				@customThemePreviewAppTab(icon.BookUser(icon.Props{Class: "size-3.5"}), i18n.T(ctx, "contacts.title"), false)
 				@customThemePreviewAppTab(icon.CalendarDays(icon.Props{Class: "size-3.5"}), i18n.T(ctx, "app.calendar"), false)

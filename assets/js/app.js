@@ -1,3 +1,16 @@
+function pageIsRTL(element) {
+  return window.getComputedStyle(element || document.documentElement).direction === "rtl"
+}
+
+// Moves a segmented indicator by logical slots. In right-to-left layouts the
+// first DOM slot sits at the right, so its physical offset is mirrored.
+function slideIndicatorTransform(step, slots, element) {
+  if (step < 0 || step >= slots) return "translateX(0)"
+  if (pageIsRTL(element)) step = slots - 1 - step
+  if (!step) return "translateX(0)"
+  return "translateX(calc(" + (step * 100) + "% + " + (step * 2) + "px))"
+}
+
 // Gofer's pages run no inline code, so htmx needn't evaluate any either.
 if (window.htmx) window.htmx.config.allowEval = false
 // Back and Forward are navigation.js's: htmx's copy of the page in
@@ -108,8 +121,7 @@ function syncListViewToggle(mode) {
         button.setAttribute("aria-pressed", active ? "true" : "false")
       })
       var indicator = group.querySelector("[" + attrs[2] + "]")
-      // As the server places it: one button and the gap between them.
-      if (indicator) indicator.style.transform = mode === "table" ? "translateX(calc(100% + 2px))" : "translateX(0)"
+      if (indicator) indicator.style.transform = slideIndicatorTransform(mode === "table" ? 1 : 0, 2, group)
     })
   })
 }
@@ -10236,9 +10248,8 @@ document.addEventListener("DOMContentLoaded", function () {
       }
       var indicator = group.querySelector("[data-sidebar-app-indicator]")
       if (indicator) {
-        if (mode === "contacts") indicator.style.transform = "translateX(calc(100% + 2px))"
-        else if (mode === "calendar") indicator.style.transform = "translateX(calc(200% + 4px))"
-        else indicator.style.transform = "translateX(0)"
+        var step = mode === "calendar" ? 2 : (mode === "contacts" ? 1 : 0)
+        indicator.style.transform = slideIndicatorTransform(step, 3, group)
       }
     }
 
@@ -10612,13 +10623,13 @@ document.addEventListener("DOMContentLoaded", function () {
       '<button type="button" disabled class="relative z-10 inline-flex h-6 items-center justify-center gap-1 px-2 rounded-md text-xs font-medium ' + cardsClass + '">' + pendingIcon("size-3.5") + goferT("js.mail.view.cards") + '</button>' +
       '<button type="button" disabled class="relative z-10 inline-flex h-6 items-center justify-center gap-1 px-2 rounded-md text-xs font-medium ' + tableClass + '">' + pendingIcon("size-3.5") + goferT("js.mail.view.table") + '</button>'
     if (!withLayoutButton) {
-      var plainIndicator = viewMode === "table" ? "transform:translateX(100%)" : "transform:translateX(0)"
+      var plainIndicator = "transform:" + slideIndicatorTransform(viewMode === "table" ? 1 : 0, 2, document.documentElement)
       return '<div class="relative inline-flex h-7 shrink-0 rounded-lg border border-border bg-background p-0.5 gap-0.5" aria-hidden="true">' +
         '<div class="absolute top-0.5 bottom-0.5 left-0.5 w-[calc(50%-2px)] rounded-md border border-border bg-card shadow-sm transition-transform duration-200 ease-out" style="' + plainIndicator + '"></div>' +
         buttons +
       '</div>'
     }
-    var indicator = viewMode === "table" ? "transform:translateX(calc(100% + 2px))" : "transform:translateX(0)"
+    var indicator = "transform:" + slideIndicatorTransform(viewMode === "table" ? 1 : 0, 2, document.documentElement)
     return '<div class="inline-flex h-7 shrink-0 items-center rounded-lg border border-border bg-background p-0.5 gap-0.5" data-mail-list-view-capsule aria-hidden="true">' +
       '<div class="relative inline-grid h-6 grid-cols-2 gap-0.5">' +
       '<div class="absolute inset-y-0 left-0 w-[calc(50%-1px)] rounded-md border border-border bg-card shadow-sm transition-transform duration-200 ease-out" style="' + indicator + '"></div>' +
@@ -14082,7 +14093,7 @@ function setCalendarViewSwitch(view) {
   })
   var indicator = group.querySelector("[data-calendar-view-indicator]")
   if (!indicator) return
-  indicator.style.transform = view === "week" ? "translateX(calc(100% + 2px))" : "translateX(0)"
+  indicator.style.transform = slideIndicatorTransform(view === "week" ? 1 : 0, 2, group)
   // Start the slide now. Otherwise the browser may only notice the change after the
   // new view has been swapped in, and the indicator lands without sliding.
   void window.getComputedStyle(indicator).transform

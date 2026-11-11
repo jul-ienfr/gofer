@@ -75,12 +75,12 @@ func calendarViewSwitchClass(active bool) string {
 	return classes + " text-muted-foreground hover:text-foreground"
 }
 
-func calendarViewIndicatorStyle(view string) string {
-	transform := "translateX(0)"
+func calendarViewIndicatorStyle(view, direction string) string {
+	step := 0
 	if view == "week" {
-		transform = "translateX(calc(100% + 2px))"
+		step = 1
 	}
-	return "width:calc((100% - 6px)/2);transform:" + transform
+	return "width:calc((100% - 6px)/2);transform:" + slideIndicatorTransform(step, 2, direction)
 }
 
 func calendarViewCurrent(active bool) string {

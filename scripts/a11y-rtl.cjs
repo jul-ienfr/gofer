@@ -98,6 +98,73 @@ const fail = (message) => failures.push(message);
       return transform;
     });
     if (tristate === 'none') fail('three-state filter indicator does not follow the RTL segments');
+
+    const center = (rect) => rect.x + rect.width / 2;
+    await page.goto(base + '/contacts', { waitUntil: 'load' });
+    const contactsToggle = await page.evaluate(() => {
+      document.documentElement.dir = 'rtl';
+      const group = document.querySelector('[data-contact-list-view-toggle]');
+      if (!group || typeof syncListViewToggle !== 'function') return { missing: true };
+      const indicator = group.querySelector('[data-contact-list-view-indicator]');
+      const active = group.querySelector('[aria-pressed="true"]');
+      if (!indicator || !active) return { missing: true };
+      indicator.style.transition = 'none';
+      syncListViewToggle(active.dataset.contactListViewButton);
+      const i = indicator.getBoundingClientRect();
+      const a = active.getBoundingClientRect();
+      return { i: { x: i.x, width: i.width }, a: { x: a.x, width: a.width } };
+    });
+    if (contactsToggle.missing) fail('contacts Cards/Table switch is missing');
+    else if (Math.abs(center(contactsToggle.i) - center(contactsToggle.a)) > 1) {
+      fail(`contacts Cards/Table indicator does not follow RTL (${JSON.stringify(contactsToggle)})`);
+    }
+
+    await page.goto(base + '/calendar', { waitUntil: 'load' });
+    const calendarToggle = await page.evaluate(() => {
+      document.documentElement.dir = 'rtl';
+      const group = document.querySelector('[data-calendar-view-nav]');
+      if (!group || typeof setCalendarViewSwitch !== 'function') return { missing: true };
+      const indicator = group.querySelector('[data-calendar-view-indicator]');
+      const active = group.querySelector('[data-calendar-view-switch="month"]');
+      if (!indicator || !active) return { missing: true };
+      indicator.style.transition = 'none';
+      setCalendarViewSwitch('month');
+      const i = indicator.getBoundingClientRect();
+      const a = active.getBoundingClientRect();
+      return { i: { x: i.x, width: i.width }, a: { x: a.x, width: a.width } };
+    });
+    if (calendarToggle.missing) fail('calendar Month/Week switch is missing');
+    else if (Math.abs(center(calendarToggle.i) - center(calendarToggle.a)) > 1) {
+      fail(`calendar Month/Week indicator does not follow RTL (${JSON.stringify(calendarToggle)})`);
+    }
+
+    await page.goto(base + '/settings/advanced', { waitUntil: 'load' });
+    const switchThumb = await page.evaluate(() => {
+      document.documentElement.dir = 'rtl';
+      const input = Array.from(document.querySelectorAll('input[role="switch"]')).find((node) => {
+        const track = node.nextElementSibling;
+        return track && track.getClientRects().length;
+      });
+      if (!input) return { missing: true };
+      const track = input.nextElementSibling;
+      const noTransition = document.createElement('style');
+      noTransition.textContent = 'input[role="switch"] + .gofer-switch-track::after { transition: none !important; }';
+      document.head.append(noTransition);
+      const thumb = () => {
+        const style = getComputedStyle(track, '::after');
+        return { right: style.right, translate: style.translate };
+      };
+      input.checked = false;
+      const off = thumb();
+      input.checked = true;
+      const on = thumb();
+      return { off, on };
+    });
+    if (switchThumb.missing) fail('settings switch is missing');
+    else if (switchThumb.off.right !== '0px' || switchThumb.on.right !== '0px' ||
+      switchThumb.on.translate === 'none' || !switchThumb.on.translate.startsWith('-')) {
+      fail(`switch thumb does not travel toward the RTL reading edge (${JSON.stringify(switchThumb)})`);
+    }
     await page.close();
   } finally {
     await browser.close();
@@ -107,7 +174,7 @@ const fail = (message) => failures.push(message);
     for (const message of failures) console.error(`RTL: ${message}`);
     process.exit(1);
   }
-  console.log(`RTL layout passed: ${paths.length} paths at 1280x900 and 320x800, skip link, search, icons, filter.`);
+  console.log(`RTL layout passed: ${paths.length} paths at 1280x900 and 320x800, skip link, search, icons, filter, view switches, toggle thumb.`);
 })().catch((error) => {
   console.error(error);
   process.exit(1);

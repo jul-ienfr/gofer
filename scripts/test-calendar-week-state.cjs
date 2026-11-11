@@ -23,7 +23,7 @@ const calendar = {
   querySelectorAll() { return [] },
   hasAttribute() { return false },
 }
-const context = vm.createContext({clearTimeout() {}, document: {getElementById() { return calendar }}})
+const context = vm.createContext({clearTimeout() {}, document: {documentElement: {dir: 'ltr'}, getElementById() { return calendar }}})
 vm.runInContext('var _calendarWeekScrollState = null; var _calendarWeekZoom = 0; var _calendarVisibility = new Map();\n' +
   ['_calendarSourceIsVisible', '_calendarWeekAxis', '_calendarWeekMinutePosition', '_calendarWeekMinuteAtPosition', '_calendarWeekBlockLayout', '_calendarAllDayEventRows', 'layoutCalendarWeekAllDay', 'cancelCalendarWeekZoom', 'initializeCalendarWeekScroll', 'configureCalendarSyncRequest', 'calendarEventRequestCurrent', 'clearCalendarEventLoading'].map(helper).join('\n'), context)
 
@@ -81,8 +81,8 @@ const buttons = ['month', 'week'].map(view => ({
 buttons.forEach(button => { button.classList.owner = button })
 const indicator = {style: {}}
 context.document.querySelector = () => ({querySelectorAll() { return buttons }, querySelector() { return indicator }})
-context.window = {getComputedStyle(node) { return {transform: node.style.transform} }}
-vm.runInContext('var _calendarViewSwitchRequest = null;\n' + helper('setCalendarViewSwitch') + '\n' + helper('handleCalendarViewSwitchResult'), context)
+context.window = {getComputedStyle(node) { return {direction: context.document.documentElement.dir, transform: node.style ? node.style.transform : 'none'} }}
+vm.runInContext('var _calendarViewSwitchRequest = null;\n' + helper('pageIsRTL') + '\n' + helper('slideIndicatorTransform') + '\n' + helper('setCalendarViewSwitch') + '\n' + helper('handleCalendarViewSwitchResult'), context)
 context.setCalendarViewSwitch('week')
 assert.equal(indicator.style.transform, 'translateX(calc(100% + 2px))')
 assert.equal(buttons[1].attributes['aria-current'], 'page')
