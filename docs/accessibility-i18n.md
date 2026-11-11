@@ -129,7 +129,8 @@ The latest automated checks on 2026-11-01 used an open-mode, empty data set; an 
 - RTL icon test: directional icons mirror and vertical icons stay upright under `dir="rtl"`.
 - RTL pane test: mobile reader and list animations use mirrored keyframes under `dir="rtl"`.
 - RTL filter test: the three-state indicator selects the mirrored segment under `dir="rtl"`.
-- Forced RTL script: all 17 primary pages at 1280×900 and 320×800 with text spacing, plus the skip link, search fields, icons, and filter, pass in the Accessibility workflow.
+- RTL segmented-control test: the mail and contacts Cards/Table, calendar Month/Week, sidebar app, and theme base indicators follow the active segment; the switch thumb starts at the reading edge.
+- Forced RTL script: all 17 primary pages at 1280×900 and 320×800 with text spacing, plus the skip link, search fields, icons, filter, segmented controls, and switch thumb, pass in the Accessibility workflow.
 - Reduced-motion audit: 7 pages pass with no non-essential animation running; fade-in, slide, and pulse utilities are disabled under the preference.
 - Theme audit: 136 checks pass (4 looks × 2 modes × 17 pages) with zero axe violations.
 - Opened dialogs: zero violations in Compose, Filters, New event, Add Account, the IMAP/SMTP account wizard, and Contact actions.
@@ -193,7 +194,7 @@ Current status:
 - Templates call `i18n.T(ctx, "key")`, with `i18n.N(ctx, "key", count)` for counted messages and named placeholders such as `{account}`. Client-side strings live under the `js.` key namespace.
 - Mail, contacts, and Calendar content is displayed in its original language, independent of the interface language.
 - Dates, times, numbers, byte units, and relative times follow the language's catalog settings, including date order, 12- or 24-hour clocks, decimal marks, digit grouping, and French, Portuguese, and Chinese plural forms. They have not been manually reviewed for every locale.
-- The HTML root declares `dir` from the catalog's `language.direction` setting; all current catalogs are left-to-right. A forced `dir="rtl"` smoke test mirrors the app shell on `/`, `/settings`, `/contacts`, and `/calendar` at 1280×900 without horizontal overflow, the skip link moves to the reading edge, panel resize drags follow the direction, mobile pane transitions enter from the reading edge, the three-state filter indicator follows the mirrored segment order, and directional icons mirror while vertical icons stay upright. A real RTL catalog and a full visual review remain untested.
+- The HTML root declares `dir` from the catalog's `language.direction` setting; all current catalogs are left-to-right. A forced `dir="rtl"` smoke test mirrors the app shell on `/`, `/settings`, `/contacts`, and `/calendar` at 1280×900 without horizontal overflow, the skip link moves to the reading edge, panel resize drags follow the direction, mobile pane transitions enter from the reading edge, the three-state filter indicator and segmented controls follow the mirrored segment order, the switch thumb travels from the reading edge, and directional icons mirror while vertical icons stay upright. A real RTL catalog and a full visual review remain untested.
 - Forced `dir="rtl"` reflow: all 17 primary pages pass at 1280×900 and 320×800 with WCAG text-spacing overrides.
 - Forced `dir="rtl"` content check: blockquote rails, list indentation, thread rails, selected-row bars, and search field icons mirror with the text direction.
 - Server-side errors, including the fork's AI, Thunderbird import, and AI client-script messages, use catalog keys. Raw Go error details may still be appended after a translated prefix. A test checks that every mapped server error has a value in all five catalogs.
