@@ -897,8 +897,8 @@
 
 .compose-rich-editor blockquote {
   margin: 0.5rem 0;
-  padding-left: 0.75rem;
-  border-left: 3px solid color-mix(in srgb, var(--ink) 18%, transparent);
+  padding-inline-start: 0.75rem;
+  border-inline-start: 3px solid color-mix(in srgb, var(--ink) 18%, transparent);
   color: color-mix(in srgb, var(--ink) 70%, transparent);
 }
 
@@ -991,7 +991,7 @@
 .compose-rich-editor ul,
 .compose-rich-editor ol {
   margin: 0.35rem 0;
-  padding-left: 1.35rem;
+  padding-inline-start: 1.35rem;
 }
 
 .compose-rich-editor a {
@@ -2164,7 +2164,7 @@ html:not([data-theme="express"]) [data-view-mode="table"] .mail-list-item > a[da
   position: absolute;
   inset: 0;
   border: 1px solid var(--table-pick-edge, color-mix(in srgb, var(--color-foreground) 25%, var(--color-accent)));
-  border-left: 3px solid var(--table-pick-bar, var(--color-primary));
+  border-inline-start: 3px solid var(--table-pick-bar, var(--color-primary));
   border-radius: inherit;
   pointer-events: none;
 }
@@ -3366,11 +3366,11 @@ body.mail-list-column-resizing {
 
 .thread-sub-items {
   margin: 0.25rem 0.875rem 0.25rem;
-  padding-left: 1rem;
+  padding-inline-start: 1rem;
   padding-bottom: 0.375rem;
-  border-left: 2px solid color-mix(in srgb, var(--color-foreground) 12%, transparent);
+  border-inline-start: 2px solid color-mix(in srgb, var(--color-foreground) 12%, transparent);
   border-bottom: 2px solid color-mix(in srgb, var(--color-foreground) 12%, transparent);
-  border-bottom-left-radius: var(--radius);
+  border-end-start-radius: var(--radius);
   overflow: hidden;
   transition: opacity 0.14s ease-out;
 }
@@ -3378,9 +3378,9 @@ body.mail-list-column-resizing {
 [data-view-mode="table"] .thread-sub-items {
   margin: 0;
   padding: 0;
-  border-left: 0;
+  border-inline-start: 0;
   border-bottom: 0;
-  border-bottom-left-radius: 0;
+  border-end-start-radius: 0;
   position: relative;
 }
 
@@ -3938,7 +3938,7 @@ body.mail-list-column-resizing {
 
 .prose ul, .prose ol {
   margin-bottom: 1em;
-  padding-left: 1.5em;
+  padding-inline-start: 1.5em;
 }
 
 .prose ul {
@@ -4700,8 +4700,8 @@ body.mail-list-column-resizing {
   margin: 0.45rem 0;
 }
 
-.calendar-rich-description ul { list-style: disc; padding-left: 1.4rem; }
-.calendar-rich-description ol { list-style: decimal; padding-left: 1.4rem; }
+.calendar-rich-description ul { list-style: disc; padding-inline-start: 1.4rem; }
+.calendar-rich-description ol { list-style: decimal; padding-inline-start: 1.4rem; }
 .calendar-rich-description a { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
 .calendar-rich-description h1,
 .calendar-rich-description h2,
