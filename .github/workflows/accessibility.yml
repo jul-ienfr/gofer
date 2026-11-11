@@ -85,6 +85,7 @@ jobs:
           node scripts/a11y-browser.cjs --base http://127.0.0.1:8090 "${args[@]}"
           node scripts/a11y-browser.cjs --base http://127.0.0.1:8090 --color-scheme dark "${args[@]}"
           node scripts/a11y-browser.cjs --base http://127.0.0.1:8090 --viewport 390x844 "${args[@]}"
+          node scripts/a11y-browser.cjs --base http://127.0.0.1:8090 --locale fr "${args[@]}"
       - name: Keyboard and focus checks
         run: node scripts/a11y-keyboard.cjs
         env:
