@@ -165,6 +165,35 @@ const fail = (message) => failures.push(message);
       switchThumb.on.translate === 'none' || !switchThumb.on.translate.startsWith('-')) {
       fail(`switch thumb does not travel toward the RTL reading edge (${JSON.stringify(switchThumb)})`);
     }
+
+    const themeBase = await page.evaluate(() => {
+      document.documentElement.dir = 'rtl';
+      const fieldset = document.createElement('fieldset');
+      fieldset.setAttribute('data-custom-theme-choice', 'mode');
+      fieldset.style.cssText = 'position:relative;width:300px';
+      const indicator = document.createElement('div');
+      indicator.setAttribute('data-custom-theme-base-indicator', '');
+      indicator.style.cssText = 'position:absolute;left:2px;top:2px;bottom:2px;width:calc((100% - 6px)/2);transition:none';
+      const dark = document.createElement('input');
+      dark.type = 'radio';
+      dark.name = 'rtl_theme_probe';
+      dark.value = 'dark';
+      dark.checked = true;
+      fieldset.append(indicator, dark);
+      document.body.append(fieldset);
+      const translateX = (value) => {
+        const match = value.match(/matrix\(([^)]+)\)/);
+        return match ? parseFloat(match[1].split(',')[4]) : NaN;
+      };
+      const checked = translateX(getComputedStyle(indicator).transform);
+      dark.checked = false;
+      const unchecked = translateX(getComputedStyle(indicator).transform);
+      fieldset.remove();
+      return { checked, unchecked };
+    });
+    if (themeBase.checked !== 0 || !(themeBase.unchecked > 0)) {
+      fail(`theme base indicator does not follow RTL options (${JSON.stringify(themeBase)})`);
+    }
     await page.close();
   } finally {
     await browser.close();
@@ -174,7 +203,7 @@ const fail = (message) => failures.push(message);
     for (const message of failures) console.error(`RTL: ${message}`);
     process.exit(1);
   }
-  console.log(`RTL layout passed: ${paths.length} paths at 1280x900 and 320x800, skip link, search, icons, filter, view switches, toggle thumb.`);
+  console.log(`RTL layout passed: ${paths.length} paths at 1280x900 and 320x800, skip link, search, icons, filter, view switches, theme base, toggle thumb.`);
 })().catch((error) => {
   console.error(error);
   process.exit(1);
