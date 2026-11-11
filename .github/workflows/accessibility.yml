@@ -93,6 +93,10 @@ jobs:
         run: |
           node scripts/a11y-reflow.cjs
           node scripts/a11y-reflow.cjs --text-spacing
+          node scripts/a11y-reflow.cjs --locale=fr --text-spacing
+          node scripts/a11y-reflow.cjs --locale=es --text-spacing
+          node scripts/a11y-reflow.cjs --locale=zh-CN --text-spacing
+          node scripts/a11y-reflow.cjs --locale=pt-BR --text-spacing
         env:
           GOFER_BASE_URL: http://127.0.0.1:8090
       - name: Forced right-to-left layout

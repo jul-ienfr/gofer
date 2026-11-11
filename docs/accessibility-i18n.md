@@ -81,8 +81,9 @@ GOFER_BASE_URL=http://127.0.0.1:8090 node scripts/a11y-reflow.cjs
 ```
 
 It covers `/`, `/contacts`, `/calendar`, `/settings`, and all 13 settings pages.
-A localized repeat on 2026-11-10 selected French, Spanish, and Simplified Chinese
-and passed all 17 paths at 320×800 with the text-spacing overrides.
+Pass `--locale=fr` (or `es`, `zh-CN`, `pt-BR`) to negotiate that language
+through the browser; the accessibility workflow runs the text-spacing mode in
+all four and passes all 17 paths at 320×800.
 Pass `--text-spacing` to inject the WCAG 1.4.12 spacing overrides (1.5 line
 height, 0.12em letter spacing, 0.16em word spacing, and 2em paragraph spacing)
 before checking for horizontal scrolling. The accessibility workflow runs both
